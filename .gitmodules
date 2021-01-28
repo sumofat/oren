@@ -1,0 +1,6 @@
+[submodule "tools/bindgen"]
+	path = tools/bindgen
+	url = https://github.com/Breush/odin-binding-generator.git
+[submodule "library/fmj"]
+	path = library/fmj
+	url = https://github.com/godratio/FullMetalJacket.git

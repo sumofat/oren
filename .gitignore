@@ -1,0 +1,6 @@
+﻿main.exe
+main_test.exe
+main_test.ll
+main_test.obj
+main_test.bc
+library/windows/build
