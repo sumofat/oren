@@ -5,3 +5,11 @@ main_test.obj
 main_test.bc
 library/windows/build
 library/windows/.#win32_c.c
+
+main.pdb
+
+.vscode/settings.json
+
+ols.json
+
+oren.rdbg
