@@ -178,6 +178,8 @@ Window :: struct
     is_full_screen_mode : bool,
 };
 
+
+
 foreign import platform "../../library/windows/build/win32.lib"
 
 @(default_calling_convention="c")
@@ -205,13 +207,17 @@ foreign platform
     AddScissorRectCommand :: proc "c"(rect : fmj.f4) ---;
     AddStartCommandListCommand :: proc "c"() ---;
     AddEndCommandListCommand :: proc "c"() ---;
-    AddGraphicsRootDescTable :: proc "c" (index : u64,heaps_ptr : rawptr/*ID3D12DescriptorHeap**/,gpu_handle : u64/*D3D12_GPU_DESCRIPTOR_HANDLE*/) ---;
+    AddGraphicsRootDescTable :: proc "c" (index : u64,heaps_ptr : rawptr/*ID3D12DescriptorHeap**/,gpu_handle : D3D12_GPU_DESCRIPTOR_HANDLE) ---;
     AddGraphicsRoot32BitConstant :: proc "c"(index : u32,num_values : u32,gpuptr : rawptr,offset : u32) ---;
     QueryGPUFastMemory :: proc "c" ()-> GPUMemoryResult ---;
     CompileShader_ :: proc "c" (file_name : cstring,blob : ^rawptr/*void** */,shader_version_and_type : cstring) ---;
     GetShaderByteCode :: proc"c"(blob : rawptr) -> D3D12_SHADER_BYTECODE ---;
     CreatePipelineState :: proc "c"(pssd : D3D12_PIPELINE_STATE_STREAM_DESC)->  rawptr ---;//ID3D12PipelineState*  ;
     CreateDefaultPipelineStateStreamDesc :: proc "c"(input_layout : ^D3D12_INPUT_ELEMENT_DESC ,input_layout_count : c.int,vs_blob : rawptr,fs_blob : rawptr,depth_enable : bool) -> PipelineStateStream ---;
+    CreateDescriptorHeap :: proc "c"(device : rawptr,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> rawptr /*ID3D12DescriptorHeap* */ ---;
+    GetDesc :: proc "c"(desc_heap : rawptr) ->  D3D12_DESCRIPTOR_HEAP_DESC ---;
+    GetGPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr) ->D3D12_GPU_DESCRIPTOR_HANDLE ---;    
+    GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;    
 }
 
 AddCommand :: proc($T: typeid) -> ^T

@@ -6,6 +6,36 @@ import "core:c"
 import platform "../platform"
 import fmj "../fmj"
 
+asset_ctx : AssetContext;
+
+BufferView :: union
+{
+    platform.D3D12_VERTEX_BUFFER_VIEW,
+    platform.D3D12_INDEX_BUFFER_VIEW,
+};
+
+GPUArena :: struct
+{
+    size : u64,
+    heap : rawptr,//    ID3D12Heap* 
+    resource : rawptr, //    ID3D12Resource* 
+    slot : u32,
+    buffer_view : BufferView,    
+};
+
+GPUMeshResource :: struct
+{
+    vertex_buff : GPUArena ,
+    normal_buff : GPUArena ,
+    uv_buff : GPUArena ,
+    tangent_buff : GPUArena ,
+    element_buff : GPUArena ,
+    hash_key : u64 ,
+    buffer_range : fmj.f2 ,
+    index_id : u32,
+};
+
+
 RenderGeometry :: struct
 {
     buffer_id_range : fmj.f2,
@@ -53,6 +83,69 @@ CreateRenderShader :: proc(vs_file_name : cstring,fs_file_name : cstring) -> Ren
 RenderState :: struct
 {
     command_buffer : [dynamic]RenderCommand,//FMJStretchBuffer,
+};
+
+RenderMaterial :: struct
+{
+    id : u64,
+    pipeline_state : rawptr,//finalized depth stencil state etc... 
+    scissor_rect : fmj.f4,
+    viewport_rect : fmj.f4,
+    metallic_roughness_texture_id : u64,
+    base_color : fmj.f4
+};
+
+AssetVertCompressionType :: enum
+{
+    fmj_asset_vert_compression_none
+};
+
+AssetIndexComponentSize :: enum
+{
+    fmj_asset_index_component_size_none,
+    fmj_asset_index_component_size_32,
+    fmj_asset_index_component_size_16
+};
+
+Mesh :: struct
+{
+    id : u32,
+    name : string,
+    compression_type : AssetVertCompressionType,
+    
+    vertex_data : ^f32,
+    vertex_data_size : u64,
+    vertex_count : u64,
+    tangent_data : ^f32,
+    tangent_data_size : u64,
+    tangent_count : u64,
+    bi_tangent_data : ^f32,
+    bi_tangent_data_size : u64,
+    bi_tangent_count : u64,
+    normal_data : ^f32,
+    normal_data_size : u64,
+    normal_count : u64,
+    uv_data : ^f32,
+    uv_data_size : u64,
+    uv_count : u64,
+    //NOTE(Ray):We are only support max two uv sets
+    uv2_data : ^f32,
+    uv2_data_size : u64,
+    uv2_count : u64,
+    
+    index_component_size : AssetIndexComponentSize,
+    //TODO(Ray):These are seriously problematic and ugly will be re working these.
+    index_32_data : ^u32,
+    index_32_data_size : u64,
+    index32_count : u64,
+    index_16_data : ^u16,
+    index_16_data_size : u64,
+    index16_count : u64,
+    mesh_resource : GPUMeshResource,    
+    material_id : u32,
+    metallic_roughness_texture_id : u64,
+
+    base_color : fmj.f4,
 };
 
 create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,input_layout_count : int,vs_blob :  rawptr/*ID3DBlob**/,fs_blob : rawptr /*ID3DBlob* */,depth_enable := false) -> platform.PipelineStateStream
@@ -166,6 +259,17 @@ create_pipeline_state :: proc(pss : platform.PipelineStateStream)->rawptr	  /*ID
     return result;
 }
 
+//TODO(Ray):Ensure thread safety
+asset_material_store :: proc(ctx : ^AssetContext,name : string,material : RenderMaterial)
+{
+    //u64 result = ctx->asset_tables->material_count;
+//    material.id = ctx->asset_tables->material_count;
+//    fmj_anycache_add_to_free_list(&ctx->asset_tables->materials,(void*)&ctx->asset_tables->material_count,&material);
+    //    ++ctx->asset_tables->material_count;
+    ctx.asset_tables.materials[name] = material;
+    ctx.asset_tables.material_count = ctx.asset_tables.material_count + 1;
+}
+
 D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
 
 init :: proc(ps : ^platform.PlatformState) -> RenderState
@@ -177,6 +281,7 @@ init :: proc(ps : ^platform.PlatformState) -> RenderState
     platform.CreateDefaultDepthStencilBuffer(ps.window.dim);
 
     using platform;
+    using fmj;
 /*    
     input_layout :  [?]D3D12_INPUT_ELEMENT_DESC = {
         D3D12_INPUT_ELEMENT_DESC{ "POSITION", 0, .DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, .D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -238,7 +343,16 @@ init :: proc(ps : ^platform.PlatformState) -> RenderState
 
 //    test_pipeline_state := platform.CreateDefaultPipelineStateStreamDesc(&input_layout[0],cast(i32)input_layout_count,rs.vs_blob,rs.fs_blob,false);
     //ID3D12PipelineState* pipeline_state = D12RendererCode::CreatePipelineState(ppss);    
-    pipeline_state := create_pipeline_state(default_pipeline_state_stream);
+//    FMJRenderMaterial base_render_material = {0};
+    base_render_material : RenderMaterial;
+    base_render_material.pipeline_state = create_pipeline_state(default_pipeline_state_stream);
+    
+    base_render_material.viewport_rect = f4{0,0,ps.window.dim.x,ps.window.dim.y};
+    base_render_material.scissor_rect = f4{0,0,max(f32),max(f32)};
+
+
+    
+    asset_material_store(&asset_ctx,"base",base_render_material);
 
     /*    
 

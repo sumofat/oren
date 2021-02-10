@@ -573,7 +573,12 @@ extern "C"
     void CompileShader_(char* file_name,void** blob,char* shader_version_and_type);
     D3D12_SHADER_BYTECODE GetShaderByteCode(ID3DBlob* blob);
     ID3D12PipelineState*  CreatePipelineState(D3D12_PIPELINE_STATE_STREAM_DESC pssd);
-    PipelineStateStream CreateDefaultPipelineStateStreamDesc(D3D12_INPUT_ELEMENT_DESC* input_layout,int input_layout_count,ID3DBlob* vs_blob,ID3DBlob* fs_blob,bool depth_enable = false);    
+    PipelineStateStream CreateDefaultPipelineStateStreamDesc(D3D12_INPUT_ELEMENT_DESC* input_layout,int input_layout_count,ID3DBlob* vs_blob,ID3DBlob* fs_blob,bool depth_enable = false);
+    ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_DESC desc);
+    D3D12_DESCRIPTOR_HEAP_DESC  GetDesc(ID3D12DescriptorHeap* desc_heap);
+    D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap);
+    D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
+
 }
 //end declare
 

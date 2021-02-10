@@ -774,10 +774,21 @@ IDXGISwapChain4* CreateSwapChain(HWND hWnd,ID3D12CommandQueue* commandQueue,u32 
     return dxgiSwapChain4;
 }
 
+ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_DESC desc)
+{
+    ID3D12DescriptorHeap* result;
+    HRESULT r = l_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&result));
+    if (FAILED(r))
+    {
+        ASSERT(false);
+    }
+    return result;    
+}
+    
 ID3D12DescriptorHeap* CreateDescriptorHeap(int num_desc,D3D12_DESCRIPTOR_HEAP_TYPE type,D3D12_DESCRIPTOR_HEAP_FLAGS  flags)
 {
     ID3D12DescriptorHeap* result;
-    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {0};
     heapDesc.NumDescriptors = num_desc;
     heapDesc.Flags = flags;
     heapDesc.Type = type;
@@ -790,13 +801,13 @@ ID3D12DescriptorHeap* CreateDescriptorHeap(int num_desc,D3D12_DESCRIPTOR_HEAP_TY
     return result;
 }
     
-static ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* device,D3D12_DESCRIPTOR_HEAP_TYPE type, u32 numDescriptors)
+ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_TYPE type, u32 numDescriptors)
 {
     ID3D12DescriptorHeap* descriptorHeap;
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.NumDescriptors = numDescriptors;
     desc.Type = type;
-    (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
+    (l_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
     return descriptorHeap;
 }
     
@@ -1220,7 +1231,7 @@ void Init()
         
     //Descriptor heap for our resources
     // create the descriptor heap that will store our srv
-    default_srv_desc_heap = CreateDescriptorHeap(MAX_SRV_DESC_HEAP_COUNT,D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
+//    default_srv_desc_heap = CreateDescriptorHeap(MAX_SRV_DESC_HEAP_COUNT,D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE);
         
     D12ResourceState::Init(device);
 }
@@ -1609,6 +1620,20 @@ void TransitionResource(D12CommandListEntry cle,ID3D12Resource* resource,D3D12_R
     cle.list->ResourceBarrier(1, &barrier);
 }
 
+D3D12_DESCRIPTOR_HEAP_DESC GetDesc(ID3D12DescriptorHeap* desc_heap)
+{
+    return desc_heap->GetDesc();
+}
+ 
+D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
+{
+    return desc_heap->GetCPUDescriptorHandleForHeapStart();
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
+{
+    return desc_heap->GetGPUDescriptorHandleForHeapStart();
+}
 
 void CompileShader_(char* file_name,void** blob,char* shader_version_and_type)
 {

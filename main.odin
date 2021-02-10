@@ -66,46 +66,106 @@ main :: proc()
             fmt.println("Failed to initialize graphics...");	    	    
             assert(false);
 	}
-        
+
+	using gfx;
+	using platform;
+	using fmj;
+
+	//engine init
+	assetctx_init(&asset_ctx);
+	//scene
+	scenes := make(map[string]Scene);
+	defer delete(scenes);
+	
+	scene := scenes["test"];
+	object_name := "Root Node";
+	
+	test := buf_init(100,Scene);
+
+	test_scene := Scene{};
+	test_scene.name = "test";
+	
+	test_id := buf_push(&test,test_scene);
+
+	test_scene_result := buf_get(&test,test_id,Scene);
+	test_scene_result.name = "modified_test";
+
+	test_scene_result = buf_get(&test,test_id,Scene);	
+
+	test_scene_result_ptr := buf_chk_out(&test,test_id,Scene);
+	test_scene_result_ptr.name = "modified_test";
+	
+	test_scene_result = buf_get(&test,test_id,Scene);
+	
+	/*
+//	    InitSceneBuffer(&scenes);
+    u64 scene_id = CreateEmptyScene(&scenes);
+    FMJScene* test_scene = fmj_stretch_buffer_check_out(FMJScene,&scenes.buffer,scene_id);
+    FMJString object_name = fmj_string_create("Root Node",asset_ctx.perm_mem);
+    u64 root_node_id = AddSceneObject(&asset_ctx,&test_scene->buffer,f3_create_f(0),quaternion_identity(),f3_create_f(1),object_name);
+    FMJSceneObject* root_node = fmj_stretch_buffer_check_out(FMJSceneObject,&asset_ctx.scene_objects,root_node_id);
+    fmj_scene_object_buffer_init(&root_node->children);
+    FMJ3DTrans root_t;
+    fmj_3dtrans_init(&root_t);
+    root_node->transform = root_t;    
+    fmj_stretch_buffer_check_in(&asset_ctx.scene_objects);
+
+    scene_manager = {0};
+    scene_manager.current_scene = test_scene;
+    scene_manager.root_node_id = root_node_id;
+*/
+
+	desc_heap_desc : D3D12_DESCRIPTOR_HEAP_DESC;
+	MAX_SRV_DESC_HEAP_COUNT : u32 = 512;// NOTE(Ray Garner): totally arbiturary number
+	desc_heap_desc.NumDescriptors =  MAX_SRV_DESC_HEAP_COUNT;	    
+	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	default_srv_desc_heap := create_descriptor_heap(device,desc_heap_desc);
+	
         for ps.is_running
         {
-	    platform.AddStartCommandListCommand();
+	    AddStartCommandListCommand();
 	    //Get default root sig from api
 	    //	    platform.AddRootSignatureCommand(D12RendererCode::root_sig);
 	    rect := fmj.f4{0,0,window_dim.x,window_dim.y};	    
-	    platform.AddViewportCommand(rect);
+	    AddViewportCommand(rect);
 	    //full screen rect
-            platform.AddScissorRectCommand(rect);
-	    //            FMJRenderMaterial material = fmj_anycache_get(FMJRenderMaterial,&asset_tables.materials,(void*)&command.material_id);
-	    //            D12RendererCode::AddPipelineStateCommand((ID3D12PipelineState*)material.pipeline_state);
+            AddScissorRectCommand(rect);
+
+	    material := asset_ctx.asset_tables.materials["base"];//fmj_anycache_get(FMJRenderMaterial,&asset_tables.materials,(void*)&command.material_id);
+            AddPipelineStateCommand(material.pipeline_state);
+
+	    m_mat : f4x4;
+	    finalmat : f4x4;
 	    
-	    /*
+	    AddGraphicsRoot32BitConstant(0,16,&m_mat,0);
+	    AddGraphicsRoot32BitConstant(2,16,&finalmat,0);
+	    //            tex_index = command.texture_id;
+            tex_index := 0;//command.texture_id;	    
+            AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
+//            AddGraphicsRootDescTable(1,D12RendererCode::default_srv_desc_heap,D12RendererCode::default_srv_desc_heap->GetGPUDescriptorHandleForHeapStart());	    
 
+	    gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
+	    AddGraphicsRootDescTable(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
 
-                    D12RendererCode::AddGraphicsRoot32BitConstant(0,16,&m_mat,0);                    
-                    D12RendererCode::AddGraphicsRoot32BitConstant(2,16,&finalmat,0);
+            slot : int = 0;
+	    //            for(int j = command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;++j)
+            {
+		//                D3D12_VERTEX_BUFFER_VIEW bv = fmj_stretch_buffer_get(D3D12_VERTEX_BUFFER_VIEW,&asset_tables.vertex_buffers,j);
+//		bv := asset_ctx.asset_tables.vertex_buffers[j];		
+//AddSetVertexBufferCommand(slot++,bv);
+            }
                     
-                    tex_index = command.texture_id;
-                    D12RendererCode::AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
-                    D12RendererCode::AddGraphicsRootDescTable(1,D12RendererCode::default_srv_desc_heap,D12RendererCode::default_srv_desc_heap->GetGPUDescriptorHandleForHeapStart());
- 
-                    int slot = 0;
-                    for(int j = command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;++j)
+//                    if(command.is_indexed)
                     {
-                        D3D12_VERTEX_BUFFER_VIEW bv = fmj_stretch_buffer_get(D3D12_VERTEX_BUFFER_VIEW,&asset_tables.vertex_buffers,j);
-                        D12RendererCode::AddSetVertexBufferCommand(slot++,bv);
+//                        D3D12_INDEX_BUFFER_VIEW ibv = fmj_stretch_buffer_get(D3D12_INDEX_BUFFER_VIEW,&asset_tables.index_buffers,command.geometry.index_id);
+//			ibv := asset_ctx.asset_tables.index_buffers[command.geometry.id];
+//                        AddDrawIndexedCommand(command.geometry.index_count,command.geometry.offset,D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
                     }
-                    
-                    if(command.is_indexed)
+//                    else
                     {
-                        D3D12_INDEX_BUFFER_VIEW ibv = fmj_stretch_buffer_get(D3D12_INDEX_BUFFER_VIEW,&asset_tables.index_buffers,command.geometry.index_id);
-                        D12RendererCode::AddDrawIndexedCommand(command.geometry.index_count,command.geometry.offset,D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
+                        //AddDrawCommand(command.geometry.offset,command.geometry.count,D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
                     }
-                    else
-                    {
-                        D12RendererCode::AddDrawCommand(command.geometry.offset,command.geometry.count,D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
-                    }
-*/
 
 	    
 	    platform.AddEndCommandListCommand();
