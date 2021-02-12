@@ -39,7 +39,7 @@ AssetTables :: struct
     textures : Buffer(Texture),
     vertex_buffers : Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
     index_buffers : Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
-    matrix_buffer : Buffer(fmj.f4x4),
+    matrix_buffer : Buffer(f4x4),
     meshes : Buffer(Mesh),
 };
 
@@ -89,24 +89,6 @@ FMJSceneObjectType :: enum
     camera,
 };
 
-Transform :: struct 
-{
-//world trans    
-    p : fmj.f3,
-    r : fmj.quaternion,
-    s : fmj.f3,
-//local trans
-    local_p : fmj.f3,    
-    local_r : fmj.quaternion,
-    local_s : fmj.f3,
-//matrix
-    m  : fmj.f4x4,
-//local axis
-    forward : fmj.f3,
-    up : fmj.f3,
-    right : fmj.f3,
-};
-
 SceneObject :: struct
 {
     name : string,//for editor only
@@ -127,36 +109,50 @@ assetctx_init :: proc(ctx : ^AssetContext)
     asset_tables := &ctx.asset_tables;
 //    asset_tables.materials = ;//buf_init(1,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
     
-    asset_tables.sprites = buf_init(1,Sprite);//fmj_stretch_buffer_init(1,sizeof(FMJSprite),8);
-    asset_tables.textures = buf_init(1,Texture);//fmj_stretch_buffer_init(1,sizeof(LoadedTexture),8);    
-    //NOTE(RAY):If we want to make this platform independendt we would just make a max size of all platofrms
-    //struct and put in this and get out the opaque pointer and cast it to what we need.
-    asset_tables.vertex_buffers = buf_init(1,D3D12_VERTEX_BUFFER_VIEW);//fmj_stretch_buffer_init(1,sizeof(D3D12_VERTEX_BUFFER_VIEW),8);
-    asset_tables.index_buffers = buf_init(1,D3D12_INDEX_BUFFER_VIEW);//fmj_stretch_buffer_init(1,sizeof(D3D12_INDEX_BUFFER_VIEW),8);
-    asset_tables.matrix_buffer = buf_init(1,fmj.f4x4);//fmj_stretch_buffer_init(1,sizeof(f4x4),8);
+    asset_tables.sprites = buf_init(1,Sprite);
+    asset_tables.textures = buf_init(1,Texture);
 
-    asset_tables.meshes = buf_init(1,Mesh);//fmj_stretch_buffer_init(1,sizeof(FMJAssetMesh),8);
+    asset_tables.vertex_buffers = buf_init(1,D3D12_VERTEX_BUFFER_VIEW);
+    asset_tables.index_buffers = buf_init(1,D3D12_INDEX_BUFFER_VIEW);
+    asset_tables.matrix_buffer = buf_init(1,f4x4);
+
+    asset_tables.meshes = buf_init(1,Mesh);
 }
 
-add_scene_object :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : fmj.f3,q : fmj.quaternion,s : fmj.f3,name : string)
+scene_init :: proc(name : string) -> Scene
+{
+    a : Scene;
+    a.name = name;
+    a.buffer.buffer = buf_init(1,u64);
+    a.state_flags = SceneState.default;
+    return a;
+}
+
+scene_object_init :: proc(name : string) -> SceneObject
+{
+    a : SceneObject;
+    ot := transform_init();
+    
+    a.transform = ot;
+    a.name = name;
+    a.children.buffer = buf_init(1,u64);
+    return a;
+}
+
+scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Quat,s : f3,name : string) -> u64
 {
     using fmj;
-    
-    assert(scene_objects != nil);
+    assert(ctx != nil);
     assert(sob != nil);
-    //fmj3dtransinit
-    ot := transform_init();
-    ot.p = p;
-    ot.r = r;
-    ot.s = s;
     
-    new_so : SceneObject;//{name,ot,SceneObjectBuffer{},nil,nil,nil,f2{nil,nil};
-    new_so.transform = ot;
-    new_so.name = "default";
-    new_so.m_id = buf_push(ctx.matrix_buffer,&ot.m);//buf_init(ctx.matrix_buffer,&ot.m);
+    new_so := scene_object_init("New Scene Object");
+    new_so.m_id = buf_push(&ctx.asset_tables.matrix_buffer,new_so.transform.m);
+    new_so.transform.p = p;
+    new_so.transform.r = q;
+    new_so.transform.s = s;
     
-    so_id := buf_push(ctx.scene_objects,new_so);
+    so_id := buf_push(&ctx.scene_objects,new_so);
     buf_push(&sob.buffer,so_id);
+    return so_id;
 }
-
 

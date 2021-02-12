@@ -1858,9 +1858,8 @@ void EndFrame()
         }
     }
         
-    fmj_arena_deallocate(&render_com_buf.arena,false);
-    render_com_buf.count = 0;
 
+    render_com_buf.count = 0;
         
     D12CommandAllocatorEntry* final_allocator_entry = D12RendererCode::GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
         
@@ -1869,7 +1868,6 @@ void EndFrame()
     bool final_fc = IsFenceComplete(fence,final_allocator_entry->fence_value);
     ASSERT(final_fc);
     final_allocator_entry->allocator->Reset();
-
         
     final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
     ID3D12Resource* cbb = D12RendererCode::GetCurrentBackBuffer();
@@ -1880,7 +1878,10 @@ void EndFrame()
     ImGui::Render();
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), final_command_list.list);
 */
-        
+
+
+    fmj_arena_deallocate(&render_com_buf.arena,false);
+    
     D12CommandAllocatorEntry* final_allocator_entry = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
         
     D12CommandListEntry final_command_list = GetAssociatedCommandList(final_allocator_entry);

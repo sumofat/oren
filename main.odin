@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:c"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
+import la "core:math/linalg"
 
 import platform "engine/platform"
 import fmj "engine/fmj"
@@ -17,6 +18,8 @@ import gfx "engine/graphics"
 //Get a window and some basic rendering working.
 main :: proc()
 {
+    using la;
+    using gfx;    
     fmt.println("Hellope!");
 
     x :f32 = fmj.degrees(20);
@@ -25,8 +28,8 @@ main :: proc()
     fmt.println(x);    
     fmt.println(x);
     ps : platform.PlatformState;
-    window_dim := fmj.f2{1024,1024};
-    window_p := fmj.f2{0,0};
+    window_dim := f2{1024,1024};
+    window_p := f2{0,0};
     show_cmd : i32 = 0;
 //    ps.is_running  = true;
 
@@ -69,7 +72,6 @@ main :: proc()
 
 	using gfx;
 	using platform;
-	using fmj;
 
 	//engine init
 	assetctx_init(&asset_ctx);
@@ -78,38 +80,17 @@ main :: proc()
 	defer delete(scenes);
 	
 	scene := scenes["test"];
-	object_name := "Root Node";
 	
-	test := buf_init(100,Scene);
+	test_scene := scene_init("test");
+	rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNION_IDENTITY,f3{1,1,1},"test_so");
 
-	test_scene := Scene{};
-	test_scene.name = "test";
-	
-	test_id := buf_push(&test,test_scene);
+	root_node := buf_chk_out(&asset_ctx.scene_objects,rn_id,SceneObject);	
 
-	test_scene_result := buf_get(&test,test_id,Scene);
-	test_scene_result.name = "modified_test";
-
-	test_scene_result = buf_get(&test,test_id,Scene);	
-
-	test_scene_result_ptr := buf_chk_out(&test,test_id,Scene);
-	test_scene_result_ptr.name = "modified_test";
-	
-	test_scene_result = buf_get(&test,test_id,Scene);
+	root_t := transform_init();
+	root_node.transform = root_t;
+	buf_chk_in(&asset_ctx.scene_objects);
 	
 	/*
-//	    InitSceneBuffer(&scenes);
-    u64 scene_id = CreateEmptyScene(&scenes);
-    FMJScene* test_scene = fmj_stretch_buffer_check_out(FMJScene,&scenes.buffer,scene_id);
-    FMJString object_name = fmj_string_create("Root Node",asset_ctx.perm_mem);
-    u64 root_node_id = AddSceneObject(&asset_ctx,&test_scene->buffer,f3_create_f(0),quaternion_identity(),f3_create_f(1),object_name);
-    FMJSceneObject* root_node = fmj_stretch_buffer_check_out(FMJSceneObject,&asset_ctx.scene_objects,root_node_id);
-    fmj_scene_object_buffer_init(&root_node->children);
-    FMJ3DTrans root_t;
-    fmj_3dtrans_init(&root_t);
-    root_node->transform = root_t;    
-    fmj_stretch_buffer_check_in(&asset_ctx.scene_objects);
-
     scene_manager = {0};
     scene_manager.current_scene = test_scene;
     scene_manager.root_node_id = root_node_id;
@@ -121,6 +102,124 @@ main :: proc()
 	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	default_srv_desc_heap := create_descriptor_heap(device,desc_heap_desc);
+
+	def_r := quaternion_angle_axis(degrees(cast(f32)0.0),f3{0,0,1});	
+
+
+	top_right_screen_xy := f2{ps.window.dim.x,ps.window.dim.y};
+	bottom_left_xy := f2{0,0};
+
+	rc : RenderCamera;
+	rc_ui : RenderCamera;
+	
+	max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
+	lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
+
+	material := asset_ctx.asset_tables.materials["base"];
+
+	track_model_result := asset_load_model(&asset_ctx,"data/Box.glb",cast(u32)material.id);	
+//    FMJAssetModelLoadResult track_model_result = fmj_asset_load_model_from_glb_2(&asset_ctx,"../data/models/track.glb",track_material.id);
+//    FMJAssetModelLoadResult kart_model_result = fmj_asset_load_model_from_glb_2(&asset_ctx,"../data/models/kart.glb",kart_material.id);        
+	
+	/*
+//game object setup 
+    
+    //FMJAssetModel test_model = test_model_result.model;
+    //fmj_asset_upload_model(&asset_tables,&asset_ctx,&duck_model_result.model);
+
+    u64 track_instance_id = fmj_asset_create_model_instance(&asset_ctx,&track_model_result);
+    u64 kart_instance_id = fmj_asset_create_model_instance(&asset_ctx,&kart_model_result);    
+
+    FMJ3DTrans track_trans;
+    fmj_3dtrans_init(&track_trans);
+    track_trans.p = f3_create(0,0,0);
+    track_trans.r = f3_axis_angle(f3_create(0,0,1),0);
+    
+    FMJ3DTrans kart_trans;
+    fmj_3dtrans_init(&kart_trans);
+    kart_trans.p = f3_create(0,0.4f,-1);    
+    quaternion start_r = kart_trans.r;
+//    AddModelToSceneObjectAsChild(&asset_ctx,root_node_id,kart_instance_id,kart_trans);
+    
+    FMJ3DTrans duck_trans;
+    fmj_3dtrans_init(&duck_trans);
+    duck_trans.p = f3_create(-10,0,0);
+
+    fmj_3dtrans_init(&duck_trans);
+    duck_trans.p = f3_create(10,0,0);
+
+    fmj_3dtrans_init(&duck_trans);
+    duck_trans.p = f3_create(0,8,0);
+    
+    track_so = fmj_stretch_buffer_check_out(FMJSceneObject,&asset_ctx.scene_objects,track_instance_id);
+    track_so->name = fmj_string_create("track so",asset_ctx.perm_mem);
+    track_so->data = (u32*)go_type_kart;        
+
+    FMJSceneObject* kart_so = fmj_stretch_buffer_check_out(FMJSceneObject,&asset_ctx.scene_objects,kart_instance_id);
+    kart_so->name = fmj_string_create("kart so",asset_ctx.perm_mem);
+    
+    u64 mesh_id;
+    u64 kart_mesh_id;
+    if(!fmj_asset_get_mesh_id_by_name("track",&asset_ctx,track_so,&mesh_id))
+    {
+        ASSERT(false);    
+    }
+    
+    if(!fmj_asset_get_mesh_id_by_name("kart",&asset_ctx,kart_so,&kart_mesh_id))
+    {
+        ASSERT(false);    
+    }
+    
+    FMJAssetMesh track_mesh = fmj_stretch_buffer_get(FMJAssetMesh,&asset_ctx.asset_tables->meshes,mesh_id);
+    FMJAssetMesh track_collision_mesh = track_mesh;
+    PhysicsShapeMesh track_physics_mesh = CreatePhysicsMeshShape(&track_mesh,physics_material);
+    PhysicsCode::SetQueryFilterData((PxShape*)track_physics_mesh.state,(u32)go_type_track);    
+    PhysicsCode::SetSimulationFilterData((PxShape*)track_physics_mesh.state,go_type_track,0xFF);
+            
+	track_collision_mesh.vertex_data   = (f32*)track_physics_mesh.tri_mesh->getVertices();
+	track_collision_mesh.vertex_count  = track_physics_mesh.tri_mesh->getNbVertices() * 3;
+
+    physx::PxTriangleMeshFlags mesh_flags = track_physics_mesh.tri_mesh->getTriangleMeshFlags();
+    if(mesh_flags & PxTriangleMeshFlag::Enum::e16_BIT_INDICES)
+    {
+        track_collision_mesh.index_component_size = fmj_asset_index_component_size_16;
+        track_collision_mesh.index_16_data = (u16*)track_physics_mesh.tri_mesh->getTriangles();
+        track_collision_mesh.index16_count = track_physics_mesh.tri_mesh->getNbTriangles() * 3;
+        track_collision_mesh.index_16_data_size = track_collision_mesh.index16_count * sizeof(u16);        
+    }
+    else
+    {
+        track_collision_mesh.index_component_size = fmj_asset_index_component_size_32;
+        track_collision_mesh.index_32_data = (u32*)track_physics_mesh.tri_mesh->getTriangles();
+        track_collision_mesh.index32_count = track_physics_mesh.tri_mesh->getNbTriangles() * 3;
+        track_collision_mesh.index_32_data_size = track_collision_mesh.index32_count * sizeof(u32);                
+    }
+
+    u64 tcm_id = fmj_stretch_buffer_push(&asset_ctx.asset_tables->meshes,&track_collision_mesh);
+    fmj_asset_upload_meshes(&asset_ctx,f2_create(tcm_id,tcm_id));
+
+    track_physics_so_.name = fmj_string_create("Track Physics",asset_ctx.perm_mem);
+    track_physics_so_.transform = kart_trans;
+    track_physics_so_.children.buffer = fmj_stretch_buffer_init(1,sizeof(u64),8);
+    track_physics_so_.m_id = track_so->m_id;
+    track_physics_so_.data = 0;
+    track_physics_so_.type = 1;
+    track_physics_so_.primitives_range = f2_create_f(tcm_id);
+    
+    track_physics_id = fmj_stretch_buffer_push(&asset_ctx.scene_objects,&track_physics_so_);
+    
+    AddModelToSceneObjectAsChild(&asset_ctx,scene_manager.root_node_id,track_instance_id,track_physics_so_.transform);
+
+    PhysicsShapeBox phyx_box_shape = PhysicsCode::CreateBox(f3_create(1.2f,0.2f,1.2f),physics_material);
+        
+    track_rbd = PhysicsCode::CreateStaticRigidbody(track_trans.p,track_physics_mesh.state);
+    u64* instance_id_ptr = (u64*)track_instance_id;
+    PhysicsCode::SetRigidBodyUserData(track_rbd,instance_id_ptr);
+    PhysicsCode::AddActorToScene(scene, track_rbd);    
+    
+//end game object setup
+*/
+	
 	
         for ps.is_running
         {
@@ -132,7 +231,7 @@ main :: proc()
 	    //full screen rect
             AddScissorRectCommand(rect);
 
-	    material := asset_ctx.asset_tables.materials["base"];//fmj_anycache_get(FMJRenderMaterial,&asset_tables.materials,(void*)&command.material_id);
+//	    material := asset_ctx.asset_tables.materials["base"];
             AddPipelineStateCommand(material.pipeline_state);
 
 	    m_mat : f4x4;

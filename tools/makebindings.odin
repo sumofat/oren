@@ -1,13 +1,16 @@
-//TODO(Ray):when we are ready to autgen the bindings to FMJ start here.
+package main;
 
-import "bindgen"
+import "bindgen/bindgen"
 
 main :: proc() {
+    
     options : bindgen.GeneratorOptions;
     bindgen.generate(
-        packageName = "vk",
-        foreignLibrary = "system:vulkan",
-        outputFile = "vulkan.odin",
-        headerFiles = []string{"../vulkan.h"},
+        packageName = "cgltf",
+	foreignLibrary = "library/cgltf/build/cgltf.lib",
+//        foreignLibrary = "cgltf",	
+        outputFile = "cgltf.odin",
+        headerFiles = []string{"../library/cgltf/cgltf.h"},
         options = options,
     );
+}

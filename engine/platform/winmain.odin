@@ -6,6 +6,7 @@ import "core:c"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 import fmj "../fmj"
+import la "core:math/linalg"
 
 MAX_KEYS : int : 256;
 MAX_CONTROLLER_SUPPORT : int : 2;
@@ -134,12 +135,12 @@ GamePad :: struct
 
 Mouse :: struct
 {
-    p : fmj.f2,
-    prev_p : fmj.f2,
-    delta_p : fmj.f2,
-    uv : fmj.f2,
-    prev_uv : fmj.f2,
-    delta_uv : fmj.f2,
+    p : la.Vector2,
+    prev_p : la.Vector2,
+    delta_p : la.Vector2,
+    uv : la.Vector2,
+    prev_uv : la.Vector2,
+    delta_uv : la.Vector2,
 
     lmb : DigitalButton,//left_mouse_button
     rmb : DigitalButton,
@@ -173,12 +174,10 @@ Window :: struct
     handle : window32.Hwnd,
     device_context : window32.Hdc,
     global_window_p : window32.Window_Placement,
-    dim : fmj.f2,
-    p : fmj.f2,
+    dim : la.Vector2,
+    p : la.Vector2,
     is_full_screen_mode : bool,
 };
-
-
 
 foreign import platform "../../library/windows/build/win32.lib"
 
@@ -186,11 +185,11 @@ foreign import platform "../../library/windows/build/win32.lib"
 foreign platform
 {
 //    testPlatformInit :: proc(ps : ^PlatformState,window_dim : f32) ---;
-    platformtest :: proc "c" (ps : ^PlatformState,window_dim : fmj.f2,window_p : fmj.f2) -> bool ---;
-    PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : fmj.f2,window_p : fmj.f2,n_show_cmd : c.int) -> bool ---;    
+    platformtest :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2) -> bool ---;
+    PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2,n_show_cmd : c.int) -> bool ---;    
     HandleWindowsMessages :: proc "c" (ps : ^PlatformState) ---;
-    Init :: proc "c" (window : ^window32.Hwnd,dim : fmj.f2) -> CreateDeviceResult ---;
-    CreateDefaultDepthStencilBuffer :: proc "c"(dim : fmj.f2) ---;
+    Init :: proc "c" (window : ^window32.Hwnd,dim : la.Vector2) -> CreateDeviceResult ---;
+    CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2) ---;
     CreateDefaultRootSig :: proc "c"()  -> rawptr ---;    
     GetDevice :: proc "c"() -> rawptr ---;
     GetCurrentBackBufferIndex :: proc "c"() -> u32 ---;

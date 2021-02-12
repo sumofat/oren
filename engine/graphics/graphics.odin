@@ -1,12 +1,35 @@
-package graphics
+ package graphics
 
 import "core:fmt"
 import "core:c"
 
 import platform "../platform"
 import fmj "../fmj"
+import la "core:math/linalg"
 
 asset_ctx : AssetContext;
+
+RenderCameraProjectionType :: enum
+{
+    perspective,
+    orthographic,
+    screen_space
+};
+
+RenderCamera :: struct
+{
+    ot : Transform,//perspective and ortho only
+    matrix : f4x4,
+    projection_matrix : f4x4,
+    spot_light_shadow_projection_matrix : f4x4,
+    point_light_shadow_projection_matrix  : f4x4,
+    projection_type : RenderCameraProjectionType,
+    size : f32,//ortho only
+    fov : f32,//perspective only
+    near_far_planes : f2,
+    matrix_id : u64,
+    projection_matrix_id : u64,
+};
 
 BufferView :: union
 {
@@ -47,6 +70,7 @@ RenderGeometry :: struct
     base_color : fmj.f4
 };
 
+
 RenderCommand :: struct
 {
     geometry : RenderGeometry,
@@ -83,69 +107,6 @@ CreateRenderShader :: proc(vs_file_name : cstring,fs_file_name : cstring) -> Ren
 RenderState :: struct
 {
     command_buffer : [dynamic]RenderCommand,//FMJStretchBuffer,
-};
-
-RenderMaterial :: struct
-{
-    id : u64,
-    pipeline_state : rawptr,//finalized depth stencil state etc... 
-    scissor_rect : fmj.f4,
-    viewport_rect : fmj.f4,
-    metallic_roughness_texture_id : u64,
-    base_color : fmj.f4
-};
-
-AssetVertCompressionType :: enum
-{
-    fmj_asset_vert_compression_none
-};
-
-AssetIndexComponentSize :: enum
-{
-    fmj_asset_index_component_size_none,
-    fmj_asset_index_component_size_32,
-    fmj_asset_index_component_size_16
-};
-
-Mesh :: struct
-{
-    id : u32,
-    name : string,
-    compression_type : AssetVertCompressionType,
-    
-    vertex_data : ^f32,
-    vertex_data_size : u64,
-    vertex_count : u64,
-    tangent_data : ^f32,
-    tangent_data_size : u64,
-    tangent_count : u64,
-    bi_tangent_data : ^f32,
-    bi_tangent_data_size : u64,
-    bi_tangent_count : u64,
-    normal_data : ^f32,
-    normal_data_size : u64,
-    normal_count : u64,
-    uv_data : ^f32,
-    uv_data_size : u64,
-    uv_count : u64,
-    //NOTE(Ray):We are only support max two uv sets
-    uv2_data : ^f32,
-    uv2_data_size : u64,
-    uv2_count : u64,
-    
-    index_component_size : AssetIndexComponentSize,
-    //TODO(Ray):These are seriously problematic and ugly will be re working these.
-    index_32_data : ^u32,
-    index_32_data_size : u64,
-    index32_count : u64,
-    index_16_data : ^u16,
-    index_16_data_size : u64,
-    index16_count : u64,
-    mesh_resource : GPUMeshResource,    
-    material_id : u32,
-    metallic_roughness_texture_id : u64,
-
-    base_color : fmj.f4,
 };
 
 create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,input_layout_count : int,vs_blob :  rawptr/*ID3DBlob**/,fs_blob : rawptr /*ID3DBlob* */,depth_enable := false) -> platform.PipelineStateStream
@@ -346,11 +307,9 @@ init :: proc(ps : ^platform.PlatformState) -> RenderState
 //    FMJRenderMaterial base_render_material = {0};
     base_render_material : RenderMaterial;
     base_render_material.pipeline_state = create_pipeline_state(default_pipeline_state_stream);
-    
-    base_render_material.viewport_rect = f4{0,0,ps.window.dim.x,ps.window.dim.y};
-    base_render_material.scissor_rect = f4{0,0,max(f32),max(f32)};
 
-
+    base_render_material.viewport_rect = la.Vector4{0,0,ps.window.dim.x,ps.window.dim.y};
+    base_render_material.scissor_rect = la.Vector4{0,0,max(f32),max(f32)};
     
     asset_material_store(&asset_ctx,"base",base_render_material);
 

@@ -4,3 +4,9 @@
 [submodule "library/fmj"]
 	path = library/fmj
 	url = https://github.com/godratio/FullMetalJacket.git
+[submodule "library/cgltf"]
+	path = library/cgltf
+	url = https://github.com/jkuhlmann/cgltf.git
+[submodule "engine/external/cgltf"]
+	path = engine/external/cgltf
+	url = https://github.com/sumofat/cgltf_odin.git

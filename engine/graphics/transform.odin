@@ -6,42 +6,65 @@ import "core:c"
 import platform "../platform"
 import fmj "../fmj"
 
+import "core:math"
+import la "core:math/linalg"
 
 Transform :: struct 
 {
 //world trans    
-    p : fmj.f3,
-    r : fmj.quaternion,
-    s : fmj.f3,
+    p : f3,
+    r : Quat,
+    s : f3,
 //local trans
-    local_p : fmj.f3,    
-    local_r : fmj.quaternion,
-    local_s : fmj.f3,
+    local_p : f3,    
+    local_r : Quat,
+    local_s : f3,
 //matrix
-    m  : fmj.f4x4,
+    m  : f4x4,
 //local axis
-    forward : fmj.f3,
-    up : fmj.f3,
-    right : fmj.f3,
+    forward : f3,
+    up : f3,
+    right : f3,
 };
 
-transform_init() -> Transform
+transform_init :: proc() -> Transform
 {
-    ot.r = quaternion_identity();
-    ot.s = f3_create(1,1,1);
-    ot.p = f3_create(0,0,0);
-    ot.local_r = quaternion_identity();
-    ot.local_s = f3_create(1,1,1);
-    ot.local_p = f3_create(0,0,0);
-    fmj_3dtrans_update(ot);
+    using la;
+    ot : Transform;
+    ot.r = QUATERNION_IDENTITY;
+    ot.s = f3{1,1,1};
+    ot.p = f3{0,0,0};
+    ot.local_r = QUATERNION_IDENTITY;
+    ot.local_s = f3{1,1,1};
+    ot.local_p = f3{0,0,0};
+    transform_update(&ot);
+    return ot;
 }
 
-fmj_3dtrans_matrix_set(ot : ^Transform)
+transform_matrix_set :: proc(ot : ^Transform)
 {
-    ot.m = f4x4_create_from_trs(ot.p,ot.r,ot.s);
+    ot.m = la.matrix4_from_trs(ot.p,ot.r,ot.s);
 }
 
-transform_update(ot : ^Transform)
+quaternion_up :: proc(q : Quat) -> f3
+{
+    a := la.quaternion_mul_vector3(q, f3{0, 1, 0});
+    return la.vector_normalize(a);
+}
+
+quaternion_forward :: proc(q : Quat) -> f3
+{
+    using la;
+    return vector_normalize(mul(q, f3{0, 0, 1}));
+}
+
+quaternion_right :: proc(q : Quat) -> f3
+{
+    using la;
+    return vector_normalize(mul(q, f3{1, 0, 0}));
+}
+
+transform_update :: proc(ot : ^Transform)
 {
     transform_matrix_set(ot);
     ot.up = quaternion_up(ot.r); 
