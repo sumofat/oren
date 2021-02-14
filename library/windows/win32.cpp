@@ -332,6 +332,8 @@ void PullGamePads(PlatformState* ps)
 int PlatformInit(PlatformState* ps,f2 window_dim,f2 window_p,int n_show_cmd)
 {
 //    GetSystemInfo(&ps->info);
+
+/*
     STARTUPINFOA start_up_info = {0};
     GetStartupInfo(&start_up_info);
     n_show_cmd = start_up_info.wShowWindow;
@@ -385,7 +387,8 @@ int PlatformInit(PlatformState* ps,f2 window_dim,f2 window_p,int n_show_cmd)
             return 0;
         }
     }
-
+*/
+    
 //time
     LARGE_INTEGER li;
     QueryPerformanceFrequency((LARGE_INTEGER*)&li);

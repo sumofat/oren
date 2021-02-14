@@ -1,5 +1,10 @@
- 
+package main
+
 ErrorStr :: cstring;
+import "core:fmt"
+import "core:c"
+import windows "core:sys/windows"
+import window32 "core:sys/win32"
 
 WindowData :: struct {
     hInstance : window32.Hinstance,
@@ -31,7 +36,7 @@ Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wpar
     return window32.def_window_proc_a(hwnd, uMsg, wParam, lParam);
 }
 
-spawn_window :: proc(windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData)
+spawn_window :: proc(ps : ^PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData)
 {
     // Register the window class.
     CLASS_NAME : cstring = "Main Vulkan Window";
@@ -39,7 +44,10 @@ spawn_window :: proc(windowName : cstring, width : u32 = 640, height : u32 = 480
     wc : window32.Wnd_Class_Ex_A = {}; 
 
     hInstance := cast(window32.Hinstance)(window32.get_module_handle_a(nil));
-
+    ps.is_running = true;
+    ps.window.dim = f2{width, height};
+    ps.window.p = f2{};
+    
     wc.size = size_of(window32.Wnd_Class_Ex_A);
     wc.wnd_proc = Wnd_Proc;
     wc.instance = hInstance;
@@ -59,6 +67,8 @@ spawn_window :: proc(windowName : cstring, width : u32 = 640, height : u32 = 480
         nil,
     );
 
+    ps.window.handle = hwnd;
+    
     if hwnd == nil do return "failed to create window!", nil;
 
     window := new(WindowData);

@@ -105,25 +105,25 @@ SceneObjectHandle :: Handle;
 assetctx_init :: proc(ctx : ^AssetContext)
 {
     using platform;
-    ctx.scene_objects = buf_init(1,SceneObject);
+    ctx.scene_objects = buf_init(100,SceneObject);
     asset_tables := &ctx.asset_tables;
-//    asset_tables.materials = ;//buf_init(1,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
+//    asset_tables.materials = ;//buf_init(100,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
     
-    asset_tables.sprites = buf_init(1,Sprite);
-    asset_tables.textures = buf_init(1,Texture);
+    asset_tables.sprites = buf_init(100,Sprite);
+    asset_tables.textures = buf_init(100,Texture);
 
-    asset_tables.vertex_buffers = buf_init(1,D3D12_VERTEX_BUFFER_VIEW);
-    asset_tables.index_buffers = buf_init(1,D3D12_INDEX_BUFFER_VIEW);
-    asset_tables.matrix_buffer = buf_init(1,f4x4);
+    asset_tables.vertex_buffers = buf_init(100,D3D12_VERTEX_BUFFER_VIEW);
+    asset_tables.index_buffers = buf_init(100,D3D12_INDEX_BUFFER_VIEW);
+    asset_tables.matrix_buffer = buf_init(100,f4x4);
 
-    asset_tables.meshes = buf_init(1,Mesh);
+    asset_tables.meshes = buf_init(100,Mesh);
 }
 
 scene_init :: proc(name : string) -> Scene
 {
     a : Scene;
     a.name = name;
-    a.buffer.buffer = buf_init(1,u64);
+    a.buffer.buffer = buf_init(100,u64);
     a.state_flags = SceneState.default;
     return a;
 }
