@@ -17,3 +17,5 @@ oren.rdbg
 data/
 
 .vs/main/v16/
+
+*.nsight-gfxproj

@@ -255,6 +255,7 @@ main :: proc()
 	mesh_id : u64;
 
 	add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,transform_init());
+
 	/*
 	if(!get_mesh_id_by_name("Box",&asset_ctx,test_so,&mesh_id))
 	{
@@ -291,7 +292,8 @@ main :: proc()
                     m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
                     buf_push(&matrix_quad_buffer,finalmat);        
 
-		    //	    platform.AddRootSignatureCommand(D12RendererCode::root_sig);
+		    AddRootSignatureCommand(gfx.default_root_sig);
+		    
 		    rect := fmj.f4{0,0,window_dim.x,window_dim.y};	    
 		    AddViewportCommand(rect);
 		    //full screen rect
@@ -333,68 +335,10 @@ main :: proc()
 	    
 	    platform.EndFrame();
 	    platform.HandleWindowsMessages(&ps);
+
+	    buf_clear(&render.command_buffer);
+	    
         }
     }
-
-//    for ps.is_running
-    {
-//	fmt.println("Running a windows app!");		
-    }
-//    platformtest(&ps,100);
-
-    //for ps.is_running
-    {
-//        if(ps.input.keyboard.keys[keys.s].down)
-        {
-//            ps.is_running = false;
-        }
-    }
-
-    /*
-    err, win := spawn_window("test",640,480 );
-
-//time
-    now : windows.LARGE_INTEGER;
-    windows.QueryPerformanceFrequency(&now);
-    ps.time.ticks_per_second = cast(u64)now;
-    windows.QueryPerformanceCounter(&now);
-    ps.time.initial_ticks = cast(u64)now;
-    ps.time.prev_ticks = ps.time.initial_ticks;
-
-//keys
-    //TODO(Ray):Propery check for layouts
-//    layout : HKL =  windows.LoadKeyboardLayout("00000409",0x00000001);
-
-    SHORT  code = VkKeyScanEx('s',layout);
-    keys.s = code;
-    code = VkKeyScanEx('w',layout);
-    keys.w = code;
-    code = VkKeyScanEx('a',layout);
-	keys.a = code;
-	code = VkKeyScanEx('e', layout);
-	keys.e = code;
-	code = VkKeyScanEx('r', layout);
-    keys.r = code;
-    code = VkKeyScanEx('d',layout);
-    keys.d = code;
-    code = VkKeyScanEx('f',layout);
-    keys.f = code;
-    code = VkKeyScanEx('i',layout);
-    keys.i = code;
-    code = VkKeyScanEx('j',layout);
-    keys.j = code;
-    code = VkKeyScanEx('k',layout);
-    keys.k = code;
-    code = VkKeyScanEx('l',layout);
-    keys.l = code;
-    keys.f1 = VK_F1;
-    keys.f2 = VK_F2;
-	keys.f3 = VK_F3;
-
-    for ;;
-    {
-	handle_msgs(win);
-    }
-*/    
 }
 

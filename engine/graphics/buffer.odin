@@ -85,11 +85,12 @@ buf_chk_in :: proc(buffer : ^Buffer($element_type))
     }
 }
 
-buf_clr :: proc(b : ^Buffer($element_type))
+buf_clear :: proc(b : ^Buffer($element_type))
 {
     assert(b != nil);
     //_fixed_buffer_clear(&b->fixed);
-    clear(&buffer.buffer);
+    clear(&b.buffer);
+    b.current_id = 0;
     b.borrow_count = 0;
 }
 

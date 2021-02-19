@@ -246,15 +246,17 @@ asset_material_store :: proc(ctx : ^AssetContext,name : string,material : Render
     ctx.asset_tables.material_count = ctx.asset_tables.material_count + 1;
 }
 
+
 D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
+
+default_root_sig : rawptr;
 
 init :: proc(ps : ^platform.PlatformState) -> RenderState
 {
     result : RenderState;
-
     
     result.command_buffer = make([dynamic]RenderCommand,0,1);
-    default_root_sig := platform.CreateDefaultRootSig();
+    default_root_sig = platform.CreateDefaultRootSig();
     platform.CreateDefaultDepthStencilBuffer(ps.window.dim);
 
     using platform;

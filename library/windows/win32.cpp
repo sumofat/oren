@@ -718,6 +718,11 @@ bool platformtest(PlatformState* ps,f2 window_dim,f2 window_p)
     return PlatformInit(ps,window_dim,window_p,5);
 }
 
+#define Pop(ptr,type) (type*)Pop_(ptr,sizeof(type));ptr = (uint8_t*)ptr + (sizeof(type));
+inline void* Pop_(void* ptr,u32 size)
+{
+    return ptr;
+}
 
 inline void AddHeader(CommandType type)
 {
@@ -1921,7 +1926,7 @@ void EndFrame()
         
     WaitForFenceValue(fence, allocator_entry->fence_value, fence_event);
 
-    /*    
+
     //D12Rendering
     
     D12CommandAllocatorEntry* current_ae;
@@ -1940,7 +1945,7 @@ void EndFrame()
             at = (uint8_t*)at + (sizeof(D12CommandStartCommandList));                
 
             //Pop(at,D12CommandStartCommandList);
-            current_ae = D12RendererCode::GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
+            current_ae = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
                 
             current_cl = GetAssociatedCommandList(current_ae);
             bool fcgeo = IsFenceComplete(fence,current_ae->fence_value);
@@ -1960,7 +1965,7 @@ void EndFrame()
                 
             //End D12 Renderering
             EndCommandListEncodingAndExecute(current_ae,current_cl);
-            current_ae->fence_value = D12RendererCode::Signal(command_queue, fence, fence_value);
+            current_ae->fence_value = Signal(command_queue, fence, fence_value);
             // NOTE(Ray Garner): // TODO(Ray Garner): If there are dependencies from the last command list we need to enter a waitforfence value
             //so that we can finish executing this command list before and have the result ready for the next one.
             //If not we dont need to worry about this.
@@ -1968,7 +1973,7 @@ void EndFrame()
             //wait for the gpu to execute up until this point before we procede this is the allocators..
             //current fence value which we got when we signaled. 
             //the fence value that we give to each allocator is based on the fence value for the queue.
-            D12RendererCode::WaitForFenceValue(fence, current_ae->fence_value, fence_event);
+            WaitForFenceValue(fence, current_ae->fence_value, fence_event);
             fmj_stretch_buffer_clear(&current_ae->used_list_indexes);
             continue;
         }
@@ -2054,26 +2059,6 @@ void EndFrame()
         
 
     render_com_buf.count = 0;
-        
-    D12CommandAllocatorEntry* final_allocator_entry = D12RendererCode::GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
-        
-    D12CommandListEntry final_command_list = GetAssociatedCommandList(final_allocator_entry);
-        
-    bool final_fc = IsFenceComplete(fence,final_allocator_entry->fence_value);
-    ASSERT(final_fc);
-    final_allocator_entry->allocator->Reset();
-        
-    final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
-    ID3D12Resource* cbb = D12RendererCode::GetCurrentBackBuffer();
-    final_command_list.list->SetDescriptorHeaps(1,&main_desc_heap);
-
-    final_command_list.list->OMSetRenderTargets(1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);        
-//        final_command_list.list->OMSetRenderTargets(1,&g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
-    ImGui::Render();
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), final_command_list.list);
-*/
-
-
     fmj_arena_deallocate(&render_com_buf.arena,false);
     
     D12CommandAllocatorEntry* final_allocator_entry = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
@@ -2083,13 +2068,30 @@ void EndFrame()
     bool final_fc = IsFenceComplete(fence,final_allocator_entry->fence_value);
     ASSERT(final_fc);
     final_allocator_entry->allocator->Reset();
-
         
     final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
     ID3D12Resource* cbb = GetCurrentBackBuffer();
     final_command_list.list->SetDescriptorHeaps(1,&main_desc_heap);
 
-    final_command_list.list->OMSetRenderTargets(1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);
+    final_command_list.list->OMSetRenderTargets(1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);        
+//        final_command_list.list->OMSetRenderTargets(1,&g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);
+    //ImGui::Render();
+//    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), final_command_list.list);
+    
+//    D12CommandAllocatorEntry* final_allocator_entry = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
+        
+//    D12CommandListEntry final_command_list = GetAssociatedCommandList(final_allocator_entry);
+        
+//    bool final_fc = IsFenceComplete(fence,final_allocator_entry->fence_value);
+//    ASSERT(final_fc);
+//    final_allocator_entry->allocator->Reset();
+
+        
+//    final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
+    //ID3D12Resource* cbb = GetCurrentBackBuffer();
+//    final_command_list.list->SetDescriptorHeaps(1,&main_desc_heap);
+
+//    final_command_list.list->OMSetRenderTargets(1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);
     
     //tranistion the render target back to present mode. preparing for presentation.
     TransitionResource(final_command_list,cbb,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
