@@ -35,3 +35,13 @@ screen_to_world :: proc(projection_matrix : f4x4,cam_matrix : f4x4,buffer_dim : 
 
     return f3_w_div * w;
 }
+
+f4x4_create_row ::  proc(a,b,c,d : f32) -> f4x4
+{
+    r := f4x4{};
+    r[0] = [4]f32{a,0,0,0};
+    r[1] = [4]f32{0,b,0,0};
+    r[2] = [4]f32{0,0,c,0};
+    r[3] = [4]f32{0,0,0,d};    
+    return r;    
+}

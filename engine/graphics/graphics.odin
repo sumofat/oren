@@ -7,6 +7,21 @@ import platform "../platform"
 import fmj "../fmj"
 import la "core:math/linalg"
 
+import windows "core:sys/windows"
+import window32 "core:sys/win32"
+
+foreign import gfx "../../library/windows/build/win32.lib"
+
+@(default_calling_convention="c")
+foreign gfx
+{
+    Texture2D  :: proc "c"(lt : ^Texture,heap_index : u32) ---;
+    AllocateStaticGPUArena :: proc "c"(size : u64 ) -> GPUArena ---;
+    UploadBufferData :: proc "c"(g_arena : ^GPUArena,data : rawptr,size : u64 ) ---;    
+    SetArenaToVertexBufferView :: proc "c"(g_arena  : ^GPUArena,size : u64 ,stride : u32) ---;    
+    SetArenaToIndexVertexBufferView :: proc "c"(g_arena : ^GPUArena,size : u64 ,format : platform.DXGI_FORMAT) ---;        
+}
+
 asset_ctx : AssetContext;
 
 RenderCameraProjectionType :: enum
@@ -31,10 +46,10 @@ RenderCamera :: struct
     projection_matrix_id : u64,
 };
 
-BufferView :: union
+BufferView :: struct #raw_union
 {
-    platform.D3D12_VERTEX_BUFFER_VIEW,
-    platform.D3D12_INDEX_BUFFER_VIEW,
+    vertex_buffer_view : platform.D3D12_VERTEX_BUFFER_VIEW,
+    index_buffer_view : platform.D3D12_INDEX_BUFFER_VIEW,
 };
 
 GPUArena :: struct
@@ -54,20 +69,20 @@ GPUMeshResource :: struct
     tangent_buff : GPUArena ,
     element_buff : GPUArena ,
     hash_key : u64 ,
-    buffer_range : fmj.f2 ,
+    buffer_range : f2 ,
     index_id : u32,
 };
 
 
 RenderGeometry :: struct
 {
-    buffer_id_range : fmj.f2,
+    buffer_id_range : f2,
     count : u64,
     offset: u64,
     index_id: u64,
     index_count : u64,
     is_indexed : bool,
-    base_color : fmj.f4
+    base_color : f4
 };
 
 
@@ -236,7 +251,8 @@ D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
 init :: proc(ps : ^platform.PlatformState) -> RenderState
 {
     result : RenderState;
-    //    result.command_buffer = fmj.fmj_stretch_buffer_init(1,sizeof(FMJRenderCommand),8);
+
+    
     result.command_buffer = make([dynamic]RenderCommand,0,1);
     default_root_sig := platform.CreateDefaultRootSig();
     platform.CreateDefaultDepthStencilBuffer(ps.window.dim);

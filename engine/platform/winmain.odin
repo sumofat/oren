@@ -216,7 +216,7 @@ foreign platform
     CreateDescriptorHeap :: proc "c"(device : rawptr,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> rawptr /*ID3D12DescriptorHeap* */ ---;
     GetDesc :: proc "c"(desc_heap : rawptr) ->  D3D12_DESCRIPTOR_HEAP_DESC ---;
     GetGPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr) ->D3D12_GPU_DESCRIPTOR_HANDLE ---;    
-    GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;    
+    GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;
 }
 
 AddCommand :: proc($T: typeid) -> ^T

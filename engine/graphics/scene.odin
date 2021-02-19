@@ -2,34 +2,11 @@ package graphics;
 
 import "core:fmt"
 import "core:c"
+import la "core:math/linalg"
 
 import platform "../platform"
 import fmj "../fmj"
 
-
-Texture :: struct
-{
-    texels : rawptr
-    dim : fmj.f2,
-    size : u32,
-    bytes_per_pixel : u32,
-    width_over_height : f32,// TODO(Ray Garner): probably remove
-    align_percentage : fmj.f2,// TODO(Ray Garner): probably remove this
-    channel_count : u32,//grey = 1: grey,alpha = 2,rgb = 3,rgba = 4
-    //    Texture texture : Texture,
-    state : rawptr,// NOTE(Ray Garner): temp addition
-    slot : u32,
-};
-
-Sprite :: struct
-{
-    id : u64,
-    tex_id : u32,
-    uvs : [4]fmj.f2,
-    color : fmj.f4,
-    is_visible : bool,
-    material_name : string,
-};
 
 AssetTables :: struct
 {
@@ -81,7 +58,7 @@ SceneObjectBuffer :: struct
     buffer : Buffer(u64),
 };
 
-FMJSceneObjectType :: enum
+SceneObjectType :: enum
 {
     mesh,
     light,
@@ -97,7 +74,7 @@ SceneObject :: struct
     m_id : u64,//matrix id refers to asset table matrix buffer
     type : u32,//user defined type
     data : rawptr,//user defined data typically ptr to a game object etcc...
-    primitives_range : fmj.f2,
+    primitives_range : f2,
 };
 
 SceneObjectHandle :: Handle;
@@ -156,3 +133,119 @@ scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Qua
     return so_id;
 }
 
+//NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
+add_child_to_scene_object_with_transform :: proc(ctx : ^AssetContext,parent_so_id : u64,new_child : ^Transform,data : ^rawptr,name : string) -> u64
+{
+    //and the local p is the absolute p relative to the parent p.
+    new_child.local_p = new_child.p;
+    new_child.local_s = new_child.s;
+    new_child.local_r = new_child.r;
+    
+    //New child p in this contex is the local p relative to the parent p reference frame
+//		new_child->p  += rotate(so->transform.r, new_child->p);
+    //Rotations add
+//		new_child->r = so->transform.r * new_child->r;
+//		new_child->s = so->transform.s * new_child->s;
+    //SceneObject* new_so = AddSceneObject(&so->children, new_child);
+    
+    new_so : SceneObject;
+    new_so.children.buffer = buf_init(1,u64);
+    new_so.transform = new_child^;
+    new_so.m_id = buf_push(&ctx.asset_tables.matrix_buffer,new_so.transform.m);
+    new_so.name = name;
+    //new_so.parent = so;
+    if data != nil
+    {
+	new_so.data = data^;	
+    }
+    
+    so_id := buf_push(&ctx.scene_objects,new_so);
+
+    parent_so := buf_chk_out(&ctx.scene_objects,parent_so_id);
+    if len(parent_so.children.buffer.buffer) == 0
+    {
+        parent_so.children.buffer = buf_init(1,u64);
+    }
+    
+    buf_push(&parent_so.children.buffer,so_id);
+    buf_chk_in(&ctx.scene_objects);
+    
+    return so_id;
+}
+
+//NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
+add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p : f3,r : Quat,s : f3,data : ^rawptr,name : string) -> u64
+{
+    new_child := transform_init();
+    new_child.p = p;
+    new_child.r = r;
+    new_child.s = s;
+    transform_update(&new_child);
+    return add_child_to_scene_object_with_transform(ctx,parent_so_id,&new_child,data,name);
+}
+
+add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform)
+{
+        //and the local p is the absolute p relative to the parent p.
+    t := transform;
+    t.local_p = transform.p;
+    t.local_s = transform.s;
+    t.local_r = transform.r;
+    
+    //get the model so
+    child_so := buf_chk_out(&ctx.scene_objects,child_so_id);
+    assert(child_so != nil);
+    child_so.transform = transform;
+    buf_chk_in(&ctx.scene_objects);
+
+    //Add this instance to the children of the parent so 
+    parent := buf_chk_out(&ctx.scene_objects,parent_so_id);
+    handle := buf_push(&parent.children.buffer,child_so_id);
+    buf_chk_in(&ctx.scene_objects);
+}
+
+//NOTE(Ray):For updating all scenes?
+update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
+{
+    product := la.QUATERNION_IDENTITY;
+    sum := f3{};
+    update_scene_objects(ctx,&scene.buffer,&sum,&product);
+}
+
+update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, position_sum : ^f3, rotation_product : ^Quat)
+{
+    for i := 0;i < cast(int)buf_len(buffer.buffer);i+=1
+    {
+        child_so_index := buf_chk_out(&buffer.buffer,cast(u64)i);        
+        so := buf_chk_out(&ctx.scene_objects,child_so_index^);
+        buf_chk_in(&buffer.buffer);
+        parent_ot := &so.transform;
+        transform_update(parent_ot);
+        current_p_sum := position_sum^;
+        current_p_sum = current_p_sum + parent_ot.p;//f3_add(current_p_sum,parent_ot.p);
+        rotation_product^ = la.quaternion_inverse(parent_ot.local_r);
+        update_children(ctx,so, &current_p_sum, rotation_product);
+        buf_chk_in(&ctx.scene_objects);
+    }
+}
+
+update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_sum : ^f3,rotation_product : ^Quat)
+{
+    child_so : ^SceneObject;
+    for i := 0;i < cast(int)buf_len(parent_so.children.buffer);i+=1
+    {
+        child_so_index := buf_chk_out(&parent_so.children.buffer,cast(u64)i);
+        child_so = buf_chk_out(&ctx.scene_objects,child_so_index^);        
+        ot := &child_so.transform;
+        current_p_sum := position_sum^;
+        current_r_product := (rotation_product^);
+//        ot.p = current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);//f3_add(current_p_sum,f3_rotate((current_r_product), ot.local_p));
+//        ot.r = current_r_product = mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
+        
+        ot.s = ot.local_s;//f3_mul(parent_so.transform.s,ot.local_s);//
+
+        update_children(ctx,child_so, &current_p_sum, &current_r_product);
+        buf_chk_in(&parent_so.children.buffer);
+        buf_chk_in(&ctx.scene_objects);
+    }
+}

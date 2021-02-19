@@ -10,3 +10,6 @@
 [submodule "engine/external/cgltf"]
 	path = engine/external/cgltf
 	url = https://github.com/sumofat/cgltf_odin.git
+[submodule "engine/external/odin_stb"]
+	path = engine/external/odin_stb
+	url = https://github.com/vassvik/odin-stb.git

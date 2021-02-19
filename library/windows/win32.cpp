@@ -8,6 +8,123 @@ f2 GetWin32WindowDim(PlatformState* ps)
     GetClientRect(ps->window.handle, &client_rect);
 	return f2_create(client_rect.right - client_rect.left, client_rect.bottom - client_rect.top);
 }
+    
+ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
+{
+    ID3D12CommandAllocator* commandAllocator;
+    HRESULT result = (device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator)));
+#if 1
+    HRESULT removed_reason = device->GetDeviceRemovedReason();
+    DWORD e = GetLastError();
+#endif
+    ASSERT(SUCCEEDED(result));
+    return commandAllocator;
+}
+    
+FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
+{
+    FMJStretchBuffer* table;
+    if(type == D3D12_COMMAND_LIST_TYPE_DIRECT)
+    {
+        table = &allocator_tables.free_allocator_table;
+    }
+    else if(type == D3D12_COMMAND_LIST_TYPE_COPY)
+    {
+        table = &allocator_tables.free_allocator_table_copy;
+    }
+    else if(type == D3D12_COMMAND_LIST_TYPE_COMPUTE)
+    {
+        table = &allocator_tables.free_allocator_table_compute;
+    }
+    return table;
+}
+    
+D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE type)
+{
+    D12CommandAllocatorEntry entry = {};
+    entry.allocator = CreateCommandAllocator(device, type);
+    ASSERT(entry.allocator);
+    entry.used_list_indexes = fmj_stretch_buffer_init(1, sizeof(u64),8);
+    entry.fence_value = 0;
+    entry.thread_id = fmj_thread_get_thread_id();
+    entry.type = type;
+    entry.index = current_allocator_index++;
+    D12CommandAllocatorKey key = {(u64)entry.allocator,entry.thread_id};
+    //TODO(Ray):Why is the key parameter backwards here?
+        
+    fmj_anycache_add_to_free_list(&allocator_tables.fl_ca,&key,&entry);
+//        D12CommandAllocatorEntry* result = (D12CommandAllocatorEntry*)AnythingCacheCode::GetThing(&allocator_tables.fl_ca, &key);
+    D12CommandAllocatorEntry* result = (D12CommandAllocatorEntry*)fmj_anycache_get_(&allocator_tables.fl_ca, &key);
+    ASSERT(result);
+    return  result;
+}
+    
+u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue)
+{
+    u64 fenceValueForSignal = ++fenceValue;
+    (commandQueue->Signal(fence, fenceValueForSignal));
+    return fenceValueForSignal;
+}
+    
+bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value)
+{
+    return fence->GetCompletedValue() >= fence_value;
+}
+    
+void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration = FLT_MAX)
+{
+    if (IsFenceComplete(fence,fenceValue))
+    {
+        (fence->SetEventOnCompletion(fenceValue, fenceEvent));
+        ::WaitForSingleObject(fenceEvent, duration);
+    }
+}
+    
+GPUArena AllocateStaticGPUArena(u64 size)
+{
+    GPUArena result = {};
+    size_t bufferSize = size;
+    D3D12_HEAP_PROPERTIES hp =  
+        {
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            D3D12_MEMORY_POOL_UNKNOWN,
+            0,
+            0
+        };
+        
+    DXGI_SAMPLE_DESC sample_d =  
+        {
+            1,
+            0
+        };
+        
+    D3D12_RESOURCE_DESC res_d =  
+        {
+            D3D12_RESOURCE_DIMENSION_BUFFER,
+            0,
+            size,
+            1,
+            1,
+            1,
+            DXGI_FORMAT_UNKNOWN,
+            sample_d,
+            D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+            D3D12_RESOURCE_FLAG_NONE,
+        };
+        
+    result.size = size;                
+    // Create a committed resource for the GPU resource in a default heap.
+    HRESULT r = (device->CreateCommittedResource(
+                     &hp,
+                     D3D12_HEAP_FLAG_NONE,
+                     &res_d,
+                     D3D12_RESOURCE_STATE_COPY_DEST,
+                     nullptr,
+                     IID_PPV_ARGS(&result.resource)));
+    ASSERT(SUCCEEDED(r));
+    return result;
+}
 
 void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
 {
@@ -40,6 +157,171 @@ void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
+}
+    
+D12CommandAllocatorEntry* GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE  type)
+{
+    D12CommandAllocatorEntry* result;
+    //Forget the free list we will access the table directly and get the first free
+    //remove and make a inflight allocator table.
+    //This does not work with free lists due to the fact taht the top element might always be busy
+    //in some cases causing the infinite allocation of command allocators.
+    //result = GetFirstFreeWithPredicate(D12CommandAllocatorEntry,allocator_tables.fl_ca,GetCAPredicateDIRECT);
+    FMJStretchBuffer* table = GetTableForType(type);
+            
+    if(table->fixed.count <= 0)
+    {
+        result = 0;
+    }
+    else
+    {
+        // NOTE(Ray Garner): We assume if we get a free one you WILL use it.
+        //otherwise we will need to do some other bookkeeping.
+        //result = *YoyoPeekVectorElementPtr(D12CommandAllocatorEntry*,table);
+        result = *(D12CommandAllocatorEntry**)fmj_stretch_buffer_get_(table,table->fixed.count - 1);
+        if(!IsFenceComplete(fence,(result)->fence_value))
+        {
+            result = 0;
+        }
+        else
+        {
+            fmj_stretch_buffer_pop(table);
+        }
+    }
+    if (!result)
+    {
+        result = AddFreeCommandAllocatorEntry(type);
+    }
+    ASSERT(result);
+    return result;
+}
+    
+void UploadBufferData(GPUArena* g_arena,void* data,u64 size)
+{
+    D12CommandAllocatorEntry* free_ca  = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_COPY);
+    resource_ca = free_ca->allocator;
+        
+    if(!is_resource_cl_recording)
+    {
+        resource_ca->Reset();
+        resource_cl->Reset(resource_ca,nullptr);
+        is_resource_cl_recording = true;
+    }
+        
+    D3D12_HEAP_PROPERTIES hp =  
+        {
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            D3D12_MEMORY_POOL_UNKNOWN,
+            0,
+            0
+        };
+        
+    DXGI_SAMPLE_DESC sample_d =  
+        {
+            1,
+            0
+        };
+        
+    D3D12_RESOURCE_DESC res_d =  
+        {
+            D3D12_RESOURCE_DIMENSION_BUFFER,
+            0,
+            size,
+            1,
+            1,
+            1,
+            DXGI_FORMAT_UNKNOWN,
+            sample_d,
+            D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+            D3D12_RESOURCE_FLAG_NONE,
+        };
+        
+    UploadOp uop = {};
+    uop.arena = *g_arena;
+        
+    HRESULT hr = device->CreateCommittedResource(
+        &hp,
+        D3D12_HEAP_FLAG_NONE,
+        &res_d,
+        D3D12_RESOURCE_STATE_GENERIC_READ,
+        nullptr,
+        IID_PPV_ARGS(&uop.temp_arena.resource));
+        
+    uop.temp_arena.resource->SetName(L"TEMP_UPLOAD_BUFFER");
+        
+    ASSERT(SUCCEEDED(hr));
+        
+    D3D12_SUBRESOURCE_DATA subresourceData = {};
+    subresourceData.pData = data;
+    subresourceData.RowPitch = size;
+    subresourceData.SlicePitch = subresourceData.RowPitch;
+        
+    hr = UpdateSubresources(resource_cl, 
+                            g_arena->resource, uop.temp_arena.resource,
+                            (u32)0, (u32)0, (u32)1, &subresourceData);
+    // NOTE(Ray Garner): We will batch as many texture ops into one command list as possible 
+    //and only after we have reached a signifigant amout flush the commands.
+    //and do a final check at the end of the frame to flush any that were not flushed earlier.
+    //meaning we batch as many as possible per frame but never wait long than one frame to batch.
+        
+    fmj_thread_begin_ticket_mutex(&upload_operations.ticket_mutex);
+    uop.id = upload_operations.current_op_id++;
+    UploadOpKey k = {uop.id};
+    //AnythingCacheCode::AddThingFL(&upload_operations.table_cache,&k,&uop);
+    fmj_anycache_add_to_free_list(&upload_operations.table_cache,&k,&uop);
+    //if(upload_ops.anythings.count > UPLOAD_OP_THRESHOLD)
+    {
+        if(is_resource_cl_recording)
+        {
+            resource_cl->Close();
+            is_resource_cl_recording = false;
+        }
+        ID3D12CommandList* const command_lists[] = {
+            resource_cl
+        };
+        copy_command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
+        upload_operations.fence_value = Signal(copy_command_queue, upload_operations.fence, upload_operations.fence_value);
+            
+        WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event);
+            
+        //If we have gotten here we remove the temmp transient resource. and remove them from the cache
+        for(int i = 0;i < upload_operations.table_cache.anythings.fixed.count;++i)
+        {
+            UploadOp *finished_uop = (UploadOp*)fmj_stretch_buffer_get_(&upload_operations.table_cache.anythings,i);
+            // NOTE(Ray Garner): Upload should always be a copy operation and so we cant/dont need to 
+            //call discard resource.
+                
+            //finished_uop->temp_arena.resource->Release();
+            UploadOpKey k_ = {finished_uop->id};
+            //AnythingCacheCode::RemoveThingFL(&upload_operations.table_cache,&k);
+            fmj_anycache_remove_free_list(&upload_operations.table_cache,&k_);
+        }
+//            AnythingCacheCode::ResetCache(&upload_operations.table_cache);
+        fmj_anycache_reset(&upload_operations.table_cache);
+    }
+        
+//        EndTicketMutex(&upload_operations.ticket_mutex);
+    fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
+}
+    
+void SetArenaToVertexBufferView(GPUArena* g_arena,u64 size,u32 stride)
+{
+    g_arena->buffer_view = 
+        {
+            g_arena->resource->GetGPUVirtualAddress(),
+            (UINT)size,
+            (UINT)stride//(UINT)24
+        };
+}
+    
+void SetArenaToIndexVertexBufferView(GPUArena* g_arena,u64 size,DXGI_FORMAT format)
+{
+    D3D12_INDEX_BUFFER_VIEW index_buffer_view;
+    index_buffer_view.BufferLocation = g_arena->resource->GetGPUVirtualAddress();
+    index_buffer_view.SizeInBytes = size;
+    index_buffer_view.Format = format;
+    g_arena->index_buffer_view = index_buffer_view;
 }
 
 LRESULT CALLBACK MainWindowCallbackFunc(HWND Window,
@@ -844,59 +1126,6 @@ HANDLE CreateEventHandle()
     return fenceEvent;
 }
     
-u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue)
-{
-    u64 fenceValueForSignal = ++fenceValue;
-    (commandQueue->Signal(fence, fenceValueForSignal));
-    return fenceValueForSignal;
-}
-    
-bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value)
-{
-    return fence->GetCompletedValue() >= fence_value;
-}
-    
-void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration = FLT_MAX)
-{
-    if (IsFenceComplete(fence,fenceValue))
-    {
-        (fence->SetEventOnCompletion(fenceValue, fenceEvent));
-        ::WaitForSingleObject(fenceEvent, duration);
-    }
-}
-    
-ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
-{
-    ID3D12CommandAllocator* commandAllocator;
-    HRESULT result = (device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator)));
-#if 1
-    HRESULT removed_reason = device->GetDeviceRemovedReason();
-    DWORD e = GetLastError();
-#endif
-    ASSERT(SUCCEEDED(result));
-    return commandAllocator;
-}
-    
-D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE type)
-{
-    D12CommandAllocatorEntry entry = {};
-    entry.allocator = CreateCommandAllocator(device, type);
-    ASSERT(entry.allocator);
-    entry.used_list_indexes = fmj_stretch_buffer_init(1, sizeof(u64),8);
-    entry.fence_value = 0;
-    entry.thread_id = fmj_thread_get_thread_id();
-    entry.type = type;
-    entry.index = current_allocator_index++;
-    D12CommandAllocatorKey key = {(u64)entry.allocator,entry.thread_id};
-    //TODO(Ray):Why is the key parameter backwards here?
-        
-    fmj_anycache_add_to_free_list(&allocator_tables.fl_ca,&key,&entry);
-//        D12CommandAllocatorEntry* result = (D12CommandAllocatorEntry*)AnythingCacheCode::GetThing(&allocator_tables.fl_ca, &key);
-    D12CommandAllocatorEntry* result = (D12CommandAllocatorEntry*)fmj_anycache_get_(&allocator_tables.fl_ca, &key);
-    ASSERT(result);
-    return  result;
-}
-    
 ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12CommandAllocator* commandAllocator, D3D12_COMMAND_LIST_TYPE type)
 {
     ID3D12GraphicsCommandList* command_list;
@@ -1300,12 +1529,30 @@ ID3D12Resource* GetCurrentBackBuffer()
     return result;
 }
 
-/*    
+    
+void CheckFeatureSupport(D12Resource* resource)
+{
+    if (resource && resource->state)
+    {
+        auto desc = resource->state->GetDesc();
+        resource->format_support.Format = desc.Format;
+        HRESULT hr = device->CheckFeatureSupport(
+            D3D12_FEATURE_FORMAT_SUPPORT,
+            &resource->format_support,
+            sizeof(D3D12_FEATURE_DATA_FORMAT_SUPPORT));
+        ASSERT(SUCCEEDED(hr));
+    }
+    else
+    {
+        resource->format_support = {};
+    }
+}
+
 // NOTE(Ray Garner): This is kind of like the OpenGL Texture 2D
 // we will make space on the gpu and upload the texture from cpu
 //to gpu right away. LoadedTexture is like the descriptor and also
 //holds a pointer to the texels on cpu.
-void Texture2D(LoadedTexture* lt,u32 heap_index)
+void Texture2D(Texture* lt,u32 heap_index)
 {
     D12CommandAllocatorEntry* free_ca  = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_COPY);
     resource_ca = free_ca->allocator;
@@ -1399,7 +1646,7 @@ void Texture2D(LoadedTexture* lt,u32 heap_index)
         //GenerateMips(tex_resource);
     }
         
-    lt->texture.state = tex_resource.state;
+    lt->state = tex_resource.state;
     fmj_thread_begin_ticket_mutex(&upload_operations.ticket_mutex);
     uop.id = upload_operations.current_op_id++;
     UploadOpKey k = {uop.id};
@@ -1415,10 +1662,10 @@ void Texture2D(LoadedTexture* lt,u32 heap_index)
         ID3D12CommandList* const command_lists[] = {
             resource_cl
         };
-        D12RendererCode::copy_command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
-        upload_operations.fence_value = D12RendererCode::Signal(copy_command_queue, upload_operations.fence, upload_operations.fence_value);
+        copy_command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
+        upload_operations.fence_value = Signal(copy_command_queue, upload_operations.fence, upload_operations.fence_value);
             
-        D12RendererCode::WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event);
+        WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event);
             
         //If we have gotten here we remove the temmp transient resource. and remove them from the cache
         for(int i = 0;i < upload_operations.table_cache.anythings.fixed.count;++i)
@@ -1437,7 +1684,6 @@ void Texture2D(LoadedTexture* lt,u32 heap_index)
     }
     fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
 }
-*/
     
 bool GetCAPredicateCOPY(void* ca)
 {
@@ -1457,61 +1703,6 @@ bool GetCAPredicateDIRECT(void* ca)
         return true;
     }
     return false;
-}
-    
-FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
-{
-    FMJStretchBuffer* table;
-    if(type == D3D12_COMMAND_LIST_TYPE_DIRECT)
-    {
-        table = &allocator_tables.free_allocator_table;
-    }
-    else if(type == D3D12_COMMAND_LIST_TYPE_COPY)
-    {
-        table = &allocator_tables.free_allocator_table_copy;
-    }
-    else if(type == D3D12_COMMAND_LIST_TYPE_COMPUTE)
-    {
-        table = &allocator_tables.free_allocator_table_compute;
-    }
-    return table;
-}
-    
-D12CommandAllocatorEntry* GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE  type)
-{
-    D12CommandAllocatorEntry* result;
-    //Forget the free list we will access the table directly and get the first free
-    //remove and make a inflight allocator table.
-    //This does not work with free lists due to the fact taht the top element might always be busy
-    //in some cases causing the infinite allocation of command allocators.
-    //result = GetFirstFreeWithPredicate(D12CommandAllocatorEntry,allocator_tables.fl_ca,GetCAPredicateDIRECT);
-    FMJStretchBuffer* table = GetTableForType(type);
-            
-    if(table->fixed.count <= 0)
-    {
-        result = 0;
-    }
-    else
-    {
-        // NOTE(Ray Garner): We assume if we get a free one you WILL use it.
-        //otherwise we will need to do some other bookkeeping.
-        //result = *YoyoPeekVectorElementPtr(D12CommandAllocatorEntry*,table);
-        result = *(D12CommandAllocatorEntry**)fmj_stretch_buffer_get_(table,table->fixed.count - 1);
-        if(!IsFenceComplete(fence,(result)->fence_value))
-        {
-            result = 0;
-        }
-        else
-        {
-            fmj_stretch_buffer_pop(table);
-        }
-    }
-    if (!result)
-    {
-        result = AddFreeCommandAllocatorEntry(type);
-    }
-    ASSERT(result);
-    return result;
 }
     
 void CheckReuseCommandAllocators()

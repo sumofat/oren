@@ -479,6 +479,20 @@ struct GPUMemoryResult
     u64 CurrentReservation;
 };
 
+struct Texture
+{
+    void* texels;
+    f2 dim;
+    u32 size;
+    u32 bytes_per_pixel;
+    f32 width_over_height;// TODO(Ray Garner): probably remove
+    f2 align_percentage;// TODO(Ray Garner): probably remove this
+    u32 channel_count;//grey = 1: grey,alpha = 2,rgb = 3,rgba = 4
+//    Texture texture;
+    void* state;// NOTE(Ray Garner): temp addition
+    uint32_t slot;
+};
+
 #include "d12_resource_state.h"
 
 PlatformState local_copy_ps = {0};
@@ -578,7 +592,11 @@ extern "C"
     D3D12_DESCRIPTOR_HEAP_DESC  GetDesc(ID3D12DescriptorHeap* desc_heap);
     D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap);
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
-
+    void Texture2D(Texture* lt,u32 heap_index);
+    GPUArena AllocateStaticGPUArena(u64 size);
+    void UploadBufferData(GPUArena* g_arena,void* data,u64 size);    
+    void SetArenaToVertexBufferView(GPUArena* g_arena,u64 size,u32 stride);    
+    void SetArenaToIndexVertexBufferView(GPUArena* g_arena,u64 size,DXGI_FORMAT format);    
 }
 //end declare
 
