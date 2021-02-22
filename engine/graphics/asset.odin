@@ -570,14 +570,14 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
         
         if mesh.normal_count > 0
         {
-            id_range.x = cast(f32)set_buffer(ctx,&mesh_r.normal_buff,size_of(f32) * 3,mesh.normal_data_size,mesh.normal_data);            
+            set_buffer(ctx,&mesh_r.normal_buff,size_of(f32) * 3,mesh.normal_data_size,mesh.normal_data);            
             start_range  = start_range + 1.0;
             is_valid  += 1;
         }
         
         if mesh.uv_count > 0
         {
-            id_range.x = cast(f32)set_buffer(ctx,&mesh_r.uv_buff,size_of(f32) * 2,mesh.uv_data_size,mesh.uv_data);            	    
+            set_buffer(ctx,&mesh_r.uv_buff,size_of(f32) * 2,mesh.uv_data_size,mesh.uv_data);            	    
             start_range += 1.0;            
             is_valid += 1;
         }

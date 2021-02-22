@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:c"
+import "core:mem"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 import la "core:math/linalg"
@@ -72,7 +73,7 @@ spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : 
         CLASS_NAME,
         windowName,
         window32.WS_OVERLAPPEDWINDOW | window32.WS_VISIBLE,
-        window32.CW_USEDEFAULT, window32.CW_USEDEFAULT, 640, 480,
+        window32.CW_USEDEFAULT, window32.CW_USEDEFAULT, cast(i32)width, cast(i32)height,
         nil,
         nil,
         hInstance,
@@ -117,7 +118,7 @@ main :: proc()
     fmt.println(x);    
     fmt.println(x);
     ps : platform.PlatformState;
-    window_dim := f2{1024,1024};
+    window_dim := f2{1920,1080};
     window_p := f2{0,0};
     show_cmd : i32 = 0;
 //    ps.is_running  = true;
@@ -244,7 +245,7 @@ main :: proc()
 	test_model_result := asset_load_model(&asset_ctx,"data/Box.glb",cast(u32)material.id);
 	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
 	
-	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{},nil,"test_so");
+	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
 	
 	test_trans := transform_init();
 	test_trans.r = quaternion_angle_axis(radians(f32(0.0)),f3{});
@@ -254,8 +255,19 @@ main :: proc()
 	
 	mesh_id : u64;
 
-	add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,transform_init());
+	new_trans := transform_init();
+	new_trans.s = f3{1,1,1};
+	new_trans.p = f3{0,0,-10};
+	
+	add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 
+	matrix_mem_size : u64 = (size_of(f4x4)) * 100;
+	matrix_gpu_arena := AllocateGPUArena(matrix_mem_size);
+	
+	set_arena_constant_buffer(device.device,&matrix_gpu_arena,4,default_srv_desc_heap);
+	mapped_matrix_data : rawptr;
+	Map(matrix_gpu_arena.resource,0,nil,&mapped_matrix_data);
+	
 	/*
 	if(!get_mesh_id_by_name("Box",&asset_ctx,test_so,&mesh_id))
 	{
@@ -267,16 +279,17 @@ main :: proc()
 	
 	test_mesh := buf_get(&asset_ctx.asset_tables.meshes,mesh_id);	
 //end game object setup
-	
+
         for ps.is_running
         {
-
 	    update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
 
+	    has_update := false;
 	    if buf_len(render.command_buffer) > 0
 	    {
 		AddStartCommandListCommand();
+
 		for command in render.command_buffer.buffer
 		{
                     m_mat := buf_get(matrix_buffer,command.model_matrix_id);
@@ -329,9 +342,16 @@ main :: proc()
                     {
 			AddDrawCommand(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
                     }
+                    has_update = true;		    
 		}
 		platform.AddEndCommandListCommand();		
 	    }
+
+            if(has_update)
+            {
+		mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),len(matrix_quad_buffer.buffer) * size_of(f4x4));		
+		buf_clear(&matrix_quad_buffer);
+            }
 	    
 	    platform.EndFrame();
 	    platform.HandleWindowsMessages(&ps);

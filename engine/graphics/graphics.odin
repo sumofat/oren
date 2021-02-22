@@ -2,6 +2,7 @@
 
 import "core:fmt"
 import "core:c"
+import "core:mem"
 
 import platform "../platform"
 import fmj "../fmj"
@@ -9,6 +10,7 @@ import la "core:math/linalg"
 
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
+
 
 foreign import gfx "../../library/windows/build/win32.lib"
 
@@ -19,7 +21,11 @@ foreign gfx
     AllocateStaticGPUArena :: proc "c"(size : u64 ) -> GPUArena ---;
     UploadBufferData :: proc "c"(g_arena : ^GPUArena,data : rawptr,size : u64 ) ---;    
     SetArenaToVertexBufferView :: proc "c"(g_arena  : ^GPUArena,size : u64 ,stride : u32) ---;    
-    SetArenaToIndexVertexBufferView :: proc "c"(g_arena : ^GPUArena,size : u64 ,format : platform.DXGI_FORMAT) ---;        
+    SetArenaToIndexVertexBufferView :: proc "c"(g_arena : ^GPUArena,size : u64 ,format : platform.DXGI_FORMAT) ---;
+    GetDescriptorHandleIncrementSize :: proc "c"(device : rawptr,DescriptorHeapType :  platform.D3D12_DESCRIPTOR_HEAP_TYPE) -> c.uint  ---;
+    CreateShaderResourceView :: proc "c"(device : rawptr,resource : rawptr,desc : ^platform.D3D12_SHADER_RESOURCE_VIEW_DESC,handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
+    Map :: proc "c"(resource : rawptr,sub_resource : u32,range : ^platform.D3D12_RANGE,data : ^rawptr) ---;
+    AllocateGPUArena :: proc "c"(size : u64)-> GPUArena ---;    
 }
 
 asset_ctx : AssetContext;
@@ -246,6 +252,26 @@ asset_material_store :: proc(ctx : ^AssetContext,name : string,material : Render
     ctx.asset_tables.material_count = ctx.asset_tables.material_count + 1;
 }
 
+set_arena_constant_buffer :: proc(device : rawptr,arena :^GPUArena,heap_index : u32,heap : platform.ID3D12DescriptorHeap)
+{
+    srvDesc2 := platform.D3D12_SHADER_RESOURCE_VIEW_DESC{};
+    //    srvDesc2.Shader4ComponentMapping = platform.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
+    srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);            
+    srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R32_TYPELESS;
+    srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER;//D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc2.Buffer.Buffer.Flags = platform.D3D12_BUFFER_SRV_FLAGS.D3D12_BUFFER_SRV_FLAG_RAW;
+    srvDesc2.Buffer.Buffer.FirstElement = 0;
+    ele_num : u32 = cast(u32)arena.size / size_of(f32);
+    srvDesc2.Buffer.Buffer.NumElements = ele_num;
+        
+    hmdh_size : u32 = GetDescriptorHandleIncrementSize(device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
+    offset : u64 = cast(u64)hmdh_size * cast(u64)heap_index;
+    hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
+
+    CreateShaderResourceView(device,arena.resource, &srvDesc2, hmdh);            
+}
 
 D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
 

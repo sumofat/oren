@@ -8,7 +8,12 @@ f2 GetWin32WindowDim(PlatformState* ps)
     GetClientRect(ps->window.handle, &client_rect);
 	return f2_create(client_rect.right - client_rect.left, client_rect.bottom - client_rect.top);
 }
-    
+
+void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data)
+{
+    resource->Map(sub_resource,range,data);
+}
+
 ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
 {
     ID3D12CommandAllocator* commandAllocator;
@@ -78,6 +83,51 @@ void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,dou
         (fence->SetEventOnCompletion(fenceValue, fenceEvent));
         ::WaitForSingleObject(fenceEvent, duration);
     }
+}
+
+GPUArena AllocateGPUArena(u64 size)
+{
+    GPUArena result = {};
+    size_t bufferSize = size;
+    D3D12_HEAP_PROPERTIES hp =  
+        {
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            D3D12_MEMORY_POOL_UNKNOWN,
+            0,
+            0
+        };
+        
+    DXGI_SAMPLE_DESC sample_d =  
+        {
+            1,
+            0
+        };
+        
+    D3D12_RESOURCE_DESC res_d =  
+        {
+            D3D12_RESOURCE_DIMENSION_BUFFER,
+            0,
+            size,
+            1,
+            1,
+            1,
+            DXGI_FORMAT_UNKNOWN,
+            sample_d,
+            D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
+            D3D12_RESOURCE_FLAG_NONE,
+        };
+    result.size = size;        
+    // Create a committed resource for the GPU resource in a default heap.
+    HRESULT r = (device->CreateCommittedResource(
+                     &hp,
+                     D3D12_HEAP_FLAG_NONE,
+                     &res_d,
+                     D3D12_RESOURCE_STATE_GENERIC_READ,            
+                     nullptr,
+                     IID_PPV_ARGS(&result.resource)));
+    ASSERT(SUCCEEDED(r));
+    return result;
 }
     
 GPUArena AllocateStaticGPUArena(u64 size)
@@ -1607,16 +1657,10 @@ void Texture2D(Texture* lt,u32 heap_index)
 
     u32 hmdh_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
         
-    D3D12_CPU_DESCRIPTOR_HANDLE hmdh = default_srv_desc_heap->GetCPUDescriptorHandleForHeapStart();
-        
     // TODO(Ray Garner): We will have to properly implement this later! For now we just keep adding texture as we cant remove them yet.
-
-    hmdh.ptr += (hmdh_size * heap_index);
-//        u32 first_free_texture_slot = srv_heap_count;        
-//        lt->slot = first_free_texture_slot;
-//        srv_heap_count++;
-        
-    device->CreateShaderResourceView((ID3D12Resource*)tex_resource.state, &srvDesc2, hmdh);
+//    D3D12_CPU_DESCRIPTOR_HANDLE hmdh = default_srv_desc_heap->GetCPUDescriptorHandleForHeapStart();    
+//    hmdh.ptr += (hmdh_size * heap_index);
+//    device->CreateShaderResourceView((ID3D12Resource*)tex_resource.state, &srvDesc2, hmdh);
         
     D3D12_SUBRESOURCE_DATA subresourceData = {};
     subresourceData.pData = lt->texels;
@@ -1832,6 +1876,17 @@ D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorH
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
 {
     return desc_heap->GetGPUDescriptorHandleForHeapStart();
+}
+
+
+UINT GetDescriptorHandleIncrementSize(ID3D12Device2* device, D3D12_DESCRIPTOR_HEAP_TYPE DescriptorHeapType)
+{
+    return device->GetDescriptorHandleIncrementSize(DescriptorHeapType);
+}
+
+void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle)
+{
+    device->CreateShaderResourceView(resource,desc,handle);
 }
 
 void CompileShader_(char* file_name,void** blob,char* shader_version_and_type)

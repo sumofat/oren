@@ -538,7 +538,7 @@ D12RenderCommandList render_com_buf;
     D3D12_VERTEX_BUFFER_VIEW buffer_view;
     D12ResourceTables resource_tables;
     FMJMemoryArena constants_arena;
-    ID3D12DescriptorHeap* default_srv_desc_heap;
+//    ID3D12DescriptorHeap* default_srv_desc_heap;
     ID3D12DescriptorHeap* main_desc_heap = NULL;
 
 
@@ -594,9 +594,16 @@ extern "C"
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
     void Texture2D(Texture* lt,u32 heap_index);
     GPUArena AllocateStaticGPUArena(u64 size);
+    GPUArena AllocateGPUArena(u64 size);
     void UploadBufferData(GPUArena* g_arena,void* data,u64 size);    
     void SetArenaToVertexBufferView(GPUArena* g_arena,u64 size,u32 stride);    
-    void SetArenaToIndexVertexBufferView(GPUArena* g_arena,u64 size,DXGI_FORMAT format);    
+    void SetArenaToIndexVertexBufferView(GPUArena* g_arena,u64 size,DXGI_FORMAT format);
+    void SetArenaToConstantBuffer(GPUArena* arena,u32 heap_index);
+    UINT GetDescriptorHandleIncrementSize(ID3D12Device2* device, D3D12_DESCRIPTOR_HEAP_TYPE DescriptorHeapType);
+
+    void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
+    
+    void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data);
 }
 //end declare
 

@@ -16,7 +16,7 @@ init_pers_proj_matrix :: proc(buffer_dim : f2,fov_y : f32,far_near : f2) -> f4x4
     aspect_ratio := buffer_dim.x / buffer_dim.y;
     z_depth_range := far_clip_plane - near_clip_plane;
 
-    a := 1.0 / tangent * aspect_ratio;
+    a := 1.0 / (tangent * aspect_ratio);
     b := 1.0 / tangent;
     z := -((far_clip_plane + near_clip_plane) / z_depth_range);
     z2 := -((2.0 * far_clip_plane * near_clip_plane) / z_depth_range);

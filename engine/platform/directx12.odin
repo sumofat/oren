@@ -6,6 +6,11 @@ import fmj "../fmj"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
+UINT :: c.uint;
+UINT64 :: u64;
+FLOAT :: f32;
+D3D12_GPU_VIRTUAL_ADDRESS :: UINT64;
+
 CompatibilityProfile :: struct
 {
     level : c.int,
@@ -325,6 +330,150 @@ D3D12_SHADER_BYTECODE :: struct
     pShaderBytecode : rawptr,
     //NOTE(Ray)://SIZE_T Can be found here in odin_lang https://github.com/odin-lang/Odin/blob/1eb1bffd89064add5828b3351289417ed28e332c/core/sys/windows/types.odin#L32
     BytecodeLength : uint,//typedef ULONG_PTR SIZE_T//unsigned __int3264 ULONG_PTR
+};
+
+D3D12_BUFFER_SRV_FLAGS ::  enum u32
+{
+    D3D12_BUFFER_SRV_FLAG_NONE	= 0,
+    D3D12_BUFFER_SRV_FLAG_RAW	= 0x1
+};
+
+D3D12_BUFFER_SRV :: struct 
+{
+    FirstElement : UINT64,
+    NumElements : UINT,
+    StructureByteStride : UINT,
+    Flags : D3D12_BUFFER_SRV_FLAGS,
+};
+
+D3D12_TEX1D_SRV :: struct
+{
+    MostDetailedMip : UINT,
+    MipLevels : UINT,
+    ResourceMinLODClamp : FLOAT,
+}
+
+D3D12_TEX1D_ARRAY_SRV :: struct
+{
+    MostDetailedMip : UINT ,
+    MipLevels : UINT ,
+    FirstArraySlice : UINT ,
+    ArraySize : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+} 	
+
+D3D12_TEX2D_SRV :: struct
+{
+    MostDetailedMip : UINT ,
+    MipLevels : UINT ,
+    PlaneSlice : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+}
+
+D3D12_TEX2D_ARRAY_SRV :: struct
+{
+    MostDetailedMip : UINT,
+    MipLevels : UINT,
+    FirstArraySlice : UINT,
+    ArraySize :  UINT ,
+    PlaneSlice : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+} 	
+
+D3D12_TEX3D_SRV :: struct
+{
+    MostDetailedMip : UINT ,
+    MipLevels : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+};
+
+D3D12_TEXCUBE_SRV  :: struct
+{
+    MostDetailedMip : UINT ,
+    MipLevels : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+}
+
+D3D12_TEXCUBE_ARRAY_SRV :: struct
+{
+    MostDetailedMip : UINT ,
+    MipLevels : UINT ,
+    First2DArrayFace : UINT ,
+    NumCubes : UINT ,
+    ResourceMinLODClamp : FLOAT ,
+}
+
+D3D12_TEX2DMS_SRV :: struct
+{
+    UnusedField_NothingToDefine : UINT ,
+}
+
+D3D12_TEX2DMS_ARRAY_SRV :: struct
+{
+    FirstArraySlice : UINT ,
+    ArraySize : UINT ,
+};
+
+D3D12_RAYTRACING_ACCELERATION_STRUCTURE_SRV :: struct
+{
+    Location : D3D12_GPU_VIRTUAL_ADDRESS,
+}
+
+D3D12_SRV_DIMENSION :: enum u32
+{
+    D3D12_SRV_DIMENSION_UNKNOWN	= 0,
+    D3D12_SRV_DIMENSION_BUFFER	= 1,
+    D3D12_SRV_DIMENSION_TEXTURE1D	= 2,
+    D3D12_SRV_DIMENSION_TEXTURE1DARRAY	= 3,
+    D3D12_SRV_DIMENSION_TEXTURE2D	= 4,
+    D3D12_SRV_DIMENSION_TEXTURE2DARRAY	= 5,
+    D3D12_SRV_DIMENSION_TEXTURE2DMS	= 6,
+    D3D12_SRV_DIMENSION_TEXTURE2DMSARRAY	= 7,
+    D3D12_SRV_DIMENSION_TEXTURE3D	= 8,
+    D3D12_SRV_DIMENSION_TEXTURECUBE	= 9,
+    D3D12_SRV_DIMENSION_TEXTURECUBEARRAY	= 10,
+    D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE	= 11
+};
+
+Shader_Resource_Union :: struct #raw_union 
+{
+    Buffer : D3D12_BUFFER_SRV,
+    Texture1D : D3D12_TEX1D_SRV,
+    Texture1DArray  : D3D12_TEX1D_ARRAY_SRV,
+    Texture2D : D3D12_TEX2D_SRV,
+    Texture2DArray : D3D12_TEX2D_ARRAY_SRV,
+    Texture2DMS : D3D12_TEX2DMS_SRV,
+    Texture2DMSArray : D3D12_TEX2DMS_ARRAY_SRV,
+    Texture3D : D3D12_TEX3D_SRV,
+    TextureCube : D3D12_TEXCUBE_SRV ,
+    TextureCubeArray : D3D12_TEXCUBE_ARRAY_SRV,
+    RaytracingAccelerationStructure : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_SRV,
+};
+
+D3D12_SHADER_COMPONENT_MAPPING_MASK ::  cast(UINT)0x7; 
+D3D12_SHADER_COMPONENT_MAPPING_SHIFT ::  cast(UINT)3; 
+D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES :: proc() ->  UINT
+{
+    return (1<<(D3D12_SHADER_COMPONENT_MAPPING_SHIFT*4));
+}
+
+D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING :: proc(Src0,Src1,Src2,Src3 : UINT) -> UINT
+{
+    result := ((((Src0)&D3D12_SHADER_COMPONENT_MAPPING_MASK)| 
+                (((Src1)&D3D12_SHADER_COMPONENT_MAPPING_MASK)<<D3D12_SHADER_COMPONENT_MAPPING_SHIFT)| 
+                (((Src2)&D3D12_SHADER_COMPONENT_MAPPING_MASK)<<(D3D12_SHADER_COMPONENT_MAPPING_SHIFT*2))| 
+                (((Src3)&D3D12_SHADER_COMPONENT_MAPPING_MASK)<<(D3D12_SHADER_COMPONENT_MAPPING_SHIFT*3))| 
+		D3D12_SHADER_COMPONENT_MAPPING_ALWAYS_SET_BIT_AVOIDING_ZEROMEM_MISTAKES()));
+    
+    return result;
+}
+
+D3D12_SHADER_RESOURCE_VIEW_DESC :: struct
+{
+    Format : DXGI_FORMAT,
+    ViewDimension : D3D12_SRV_DIMENSION,
+    Shader4ComponentMapping : UINT,
+    Buffer : Shader_Resource_Union,    
 };
 
 D3D12_PIPELINE_STATE_STREAM_DESC ::struct
@@ -728,6 +877,17 @@ D3D12_CPU_DESCRIPTOR_HANDLE :: struct
     ptr : windows.SIZE_T,
 }
 
+ID3D12DescriptorHeap :: struct
+{
+    value : rawptr,
+};
+
+D3D12_RANGE :: struct
+{
+    Begin : windows.SIZE_T,
+    End : windows.SIZE_T,
+};
+
 create_descriptor_heap_desc :: proc(device : RenderDevice/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;
@@ -747,11 +907,6 @@ create_descriptor_heap_type_num :: proc(device : RenderDevice/*ID3D12Device2**/ 
 }
 
 create_descriptor_heap :: proc{create_descriptor_heap_desc,create_descriptor_heap_type_num};
-
-ID3D12DescriptorHeap :: struct
-{
-    value : rawptr,
-};
 
 execute_frame :: proc()
 {

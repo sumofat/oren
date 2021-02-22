@@ -45,3 +45,13 @@ f4x4_create_row ::  proc(a,b,c,d : f32) -> f4x4
     r[3] = [4]f32{0,0,0,d};    
     return r;    
 }
+
+rotate :: proc(q : Quat ,dir : f3) -> f3
+{
+    qxyz := f3{q.x,q.y,q.z};
+    c := la.vector_cross3(qxyz, dir);
+    t : f3 = 2.0 * c;
+    a : f3 = q.w*t;
+    ca : f3 = la.vector_cross3(qxyz, t);
+    return (dir+a)+ca;
+}

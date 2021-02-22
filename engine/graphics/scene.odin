@@ -136,6 +136,8 @@ scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Qua
 //NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
 add_child_to_scene_object_with_transform :: proc(ctx : ^AssetContext,parent_so_id : u64,new_child : ^Transform,data : ^rawptr,name : string) -> u64
 {
+    assert(ctx != nil);
+    assert(new_child != nil);
     //and the local p is the absolute p relative to the parent p.
     new_child.local_p = new_child.p;
     new_child.local_s = new_child.s;
@@ -176,6 +178,7 @@ add_child_to_scene_object_with_transform :: proc(ctx : ^AssetContext,parent_so_i
 //NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
 add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p : f3,r : Quat,s : f3,data : ^rawptr,name : string) -> u64
 {
+    assert(ctx != nil);
     new_child := transform_init();
     new_child.p = p;
     new_child.r = r;
@@ -186,16 +189,17 @@ add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p :
 
 add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform)
 {
+    assert(ctx != nil);    
         //and the local p is the absolute p relative to the parent p.
     t := transform;
     t.local_p = transform.p;
     t.local_s = transform.s;
     t.local_r = transform.r;
-    
+
     //get the model so
     child_so := buf_chk_out(&ctx.scene_objects,child_so_id);
     assert(child_so != nil);
-    child_so.transform = transform;
+    child_so.transform = t;
     buf_chk_in(&ctx.scene_objects);
 
     //Add this instance to the children of the parent so 
@@ -207,6 +211,7 @@ add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_s
 //NOTE(Ray):For updating all scenes?
 update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
 {
+    assert(ctx != nil);    
     product := la.QUATERNION_IDENTITY;
     sum := f3{};
     update_scene_objects(ctx,&scene.buffer,&sum,&product);
@@ -214,6 +219,7 @@ update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
 
 update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, position_sum : ^f3, rotation_product : ^Quat)
 {
+    assert(ctx != nil);    
     for i := 0;i < cast(int)buf_len(buffer.buffer);i+=1
     {
         child_so_index := buf_chk_out(&buffer.buffer,cast(u64)i);        
@@ -222,7 +228,7 @@ update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, po
         parent_ot := &so.transform;
         transform_update(parent_ot);
         current_p_sum := position_sum^;
-        current_p_sum = current_p_sum + parent_ot.p;//f3_add(current_p_sum,parent_ot.p);
+        current_p_sum = current_p_sum + parent_ot.p;
         rotation_product^ = la.quaternion_inverse(parent_ot.local_r);
         update_children(ctx,so, &current_p_sum, rotation_product);
         buf_chk_in(&ctx.scene_objects);
@@ -231,6 +237,7 @@ update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, po
 
 update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_sum : ^f3,rotation_product : ^Quat)
 {
+    assert(ctx != nil);    
     child_so : ^SceneObject;
     for i := 0;i < cast(int)buf_len(parent_so.children.buffer);i+=1
     {
@@ -239,8 +246,10 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
         ot := &child_so.transform;
         current_p_sum := position_sum^;
         current_r_product := (rotation_product^);
-//        ot.p = current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);//f3_add(current_p_sum,f3_rotate((current_r_product), ot.local_p));
-//        ot.r = current_r_product = mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
+	current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);
+	ot.p = current_p_sum;
+        ot.r = la.mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
+	current_r_product = ot.r;	
         
         ot.s = ot.local_s;//f3_mul(parent_so.transform.s,ot.local_s);//
 
