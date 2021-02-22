@@ -242,7 +242,7 @@ main :: proc()
 	material := asset_ctx.asset_tables.materials["base"];
 
 //game object setup 	
-	test_model_result := asset_load_model(&asset_ctx,"data/Box.glb",cast(u32)material.id);
+	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",cast(u32)material.id);
 	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
 	
 	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
@@ -297,12 +297,12 @@ main :: proc()
                     proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
                     world_mat := mul(c_mat,m_mat);
                     finalmat := mul(proj_mat,world_mat);
-                    m_mat[0].x = 0.0;//matrix_quad_buffer.count * size_of(f4x4);
+                    m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer) * size_of(f4x4);
                     m_mat[0].y = 5.0;
 
                     base_color := command.geometry.base_color;
-                    
-                    m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
+		    m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
+		    
                     buf_push(&matrix_quad_buffer,finalmat);        
 
 		    AddRootSignatureCommand(gfx.default_root_sig);
@@ -318,7 +318,6 @@ main :: proc()
 		    AddGraphicsRoot32BitConstant(0,16,&m_mat,0);
 		    AddGraphicsRoot32BitConstant(2,16,&finalmat,0);
 
-		    //            tex_index = command.texture_id;
 		    tex_index := command.texture_id;	    
 		    AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
 
@@ -349,7 +348,7 @@ main :: proc()
 
             if(has_update)
             {
-		mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),len(matrix_quad_buffer.buffer) * size_of(f4x4));		
+		mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
 		buf_clear(&matrix_quad_buffer);
             }
 	    
