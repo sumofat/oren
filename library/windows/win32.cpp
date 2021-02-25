@@ -1633,7 +1633,6 @@ void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12Descri
         is_resource_cl_recording = true;
     }
 
-
     D3D12_HEAP_PROPERTIES hp =  
         {
             D3D12_HEAP_TYPE_UPLOAD,
@@ -1642,38 +1641,6 @@ void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12Descri
             0,
             0
         };
-
-/*                
-    DXGI_SAMPLE_DESC sample_d =  
-        {
-            1,
-            0
-        };
-        
-    D3D12_RESOURCE_DESC res_d = {};  
-    res_d = CD3DX12_RESOURCE_DESC::Tex2D( 
-        DXGI_FORMAT_R8G8B8A8_UNORM,(u64)lt->dim.x,(u64)lt->dim.y,1);
-        
-    HRESULT hr = device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
-        &res_d,
-        D3D12_RESOURCE_STATE_COMMON,
-        nullptr,
-        IID_PPV_ARGS(&tex_resource->state));
-    ASSERT(SUCCEEDED(hr));
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2 = {};
-    srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc2.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    srvDesc2.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    srvDesc2.Texture2D.MipLevels = 1;
-
-    u32 hmdh_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    D3D12_CPU_DESCRIPTOR_HANDLE hmdh = heap->GetCPUDescriptorHandleForHeapStart();
-    hmdh.ptr += (hmdh_size * heap_index);
-    device->CreateShaderResourceView((ID3D12Resource*)tex_resource->state, &srvDesc2, hmdh);
-*/
     
     D3D12_SUBRESOURCE_DATA subresourceData = {};
     subresourceData.pData = lt->texels;

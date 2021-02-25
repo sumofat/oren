@@ -243,7 +243,7 @@ main :: proc()
 	
 //game object setup 	
 	//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
-	test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
+	test_model_result := asset_load_model(&asset_ctx,"data/BarramundiFish.glb",mesh_material);	
 	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
 	
 	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
@@ -258,8 +258,8 @@ main :: proc()
 
 	new_trans := transform_init();
 	new_trans.s = f3{1,1,1};
-	new_trans.p = f3{0,0,-10};
-	
+	new_trans.p = f3{0,-20,-30};
+
 	add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 
 	matrix_mem_size : u64 = (size_of(f4x4)) * 100;

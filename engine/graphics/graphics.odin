@@ -153,8 +153,9 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     
     //    CD3DX12_RASTERIZER_DESC raster_desc = CD3DX12_RASTERIZER_DESC(d);
     raster_desc := DEFAULT_D3D12_RASTERIZER_DESC;
+    raster_desc.FrontCounterClockwise = true;
     ppss.rasterizer_state = PipelineStateSubObject(D3D12_RASTERIZER_DESC){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER, value = raster_desc};
-/*
+    /*
     raster_desc : D3D12_RASTERIZER_DESC;
     raster_desc.FillMode = .D3D12_FILL_MODE_SOLID;
     raster_desc.CullMode = .D3D12_CULL_MODE_NONE;
@@ -179,13 +180,6 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     
 //    fmt.println(ppss.rasterizer_state.value);     
 
-    test : PipelineRasterizerStateSubObjectTest;
-    test.type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER;
-    test.value = raster_desc;    
-//    test.value.FillMode = .D3D12_FILL_MODE_SOLID;
-//    test.value.CullMode = .D3D12_CULL_MODE_BACK;
-//    ppss.rasterizer_state.value = test.value;
-
     //NOTE(Ray):Compiler error here
 //    bdx : D3D12_BLEND_DESC = { AlphaToCoverageEnable = false, IndependentBlendEnable = false, RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC};
 
@@ -194,8 +188,8 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     bdx.IndependentBlendEnable = false;
     bdx.RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC;
     bdx.RenderTarget[0].BlendEnable = false;
-//    bdx.RenderTarget[0].SrcBlend = .D3D12_BLEND_SRC_COLOR;
-//    bdx.RenderTarget[0].DestBlend = .D3D12_BLEND_SRC_COLOR;
+    bdx.RenderTarget[0].SrcBlend = .D3D12_BLEND_SRC_ALPHA;
+    bdx.RenderTarget[0].DestBlend = .D3D12_BLEND_INV_SRC_ALPHA;
 
     ppss.blend_state = PipelineStateSubObject(D3D12_BLEND_DESC){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, value = bdx};
 

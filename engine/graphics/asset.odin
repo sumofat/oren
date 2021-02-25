@@ -543,7 +543,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
     hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
 
     srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
-    srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(1,2,3,4);
+    srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
     srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
     srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc2.Buffer.Texture2D.MipLevels = 1;
