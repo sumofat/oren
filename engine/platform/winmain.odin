@@ -107,7 +107,6 @@ XINPUT_STATE :: struct
 
 GamePad :: struct
 {
-
     state : XINPUT_STATE ,    
     
     left_stick : Stick,

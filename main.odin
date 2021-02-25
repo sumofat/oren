@@ -144,7 +144,6 @@ main :: proc()
 	fmt.println("Initializing graphics Window and api's.");
 //	fmt.println(ps.time);
 	//Lets init directx12
-	device : platform.RenderDevice;
 	
 	init_result := platform.Init(&ps.window.handle,ps.window.dim);
 
@@ -194,7 +193,7 @@ main :: proc()
 	desc_heap_desc.NumDescriptors =  MAX_SRV_DESC_HEAP_COUNT;	    
 	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	default_srv_desc_heap := create_descriptor_heap(device,desc_heap_desc);
+	default_srv_desc_heap = create_descriptor_heap(device,desc_heap_desc);
 
 	def_r := quaternion_angle_axis(degrees(cast(f32)0.0),f3{0,0,1});	
 
@@ -240,9 +239,11 @@ main :: proc()
 	lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
 
 	material := asset_ctx.asset_tables.materials["base"];
-
+	mesh_material := asset_ctx.asset_tables.materials["mesh"];
+	
 //game object setup 	
-	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",cast(u32)material.id);
+	//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
+	test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
 	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
 	
 	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
@@ -312,7 +313,7 @@ main :: proc()
 		    //full screen rect
 		    AddScissorRectCommand(rect);
 		    
-//		    material := asset_ctx.asset_tables.materials[command.material_id];
+		    material := asset_ctx.asset_tables.materials[command.material_name];
 		    AddPipelineStateCommand(material.pipeline_state);
 
 		    AddGraphicsRoot32BitConstant(0,16,&m_mat,0);
@@ -321,6 +322,7 @@ main :: proc()
 		    tex_index := command.texture_id;	    
 		    AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
 
+//		    AddGraphicsRootDescTable(1,nil,D3D12_GPU_DESCRIPTOR_HANDLE{});
 		    gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
 		    AddGraphicsRootDescTable(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
 

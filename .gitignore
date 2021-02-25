@@ -19,3 +19,5 @@ data/
 .vs/main/v16/
 
 *.nsight-gfxproj
+
+*.ngfx-proj

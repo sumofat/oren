@@ -1,5 +1,21 @@
 package graphics
 
+RenderCommand :: struct
+{
+    geometry : RenderGeometry,
+    material_id : u64,
+    model_matrix_id : u64,
+    camera_matrix_id : u64,
+    perspective_matrix_id : u64,
+    
+    //TODO(Ray):Create a mapping between pipeline state root sig slots..
+    //and inputs from the application ie textures buffers etc..
+    //for now we just throw on the simple ones we are using now. 
+    texture_id : u64,
+    is_indexed : bool,
+    material_name : string,
+};
+
 Renderer :: struct
 {
     command_buffer : Buffer(RenderCommand),
@@ -64,6 +80,7 @@ process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat 
                     com.geometry = geo;
 
                     com.material_id = cast(u64)mesh.material_id;
+		    com.material_name = mesh.material_name;
                     com.texture_id = mesh.metallic_roughness_texture_id;
                     com.model_matrix_id = child_so.m_id;
                     com.camera_matrix_id = c_mat;

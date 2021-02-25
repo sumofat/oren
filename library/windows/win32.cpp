@@ -25,7 +25,25 @@ ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMM
     ASSERT(SUCCEEDED(result));
     return commandAllocator;
 }
-    
+
+void CreateCommittedResource(ID3D12Device2* device,D3D12_HEAP_PROPERTIES *pHeapProperties,
+                             D3D12_HEAP_FLAGS HeapFlags,
+                             D3D12_RESOURCE_DESC *pDesc,
+                             D3D12_RESOURCE_STATES InitialResourceState,
+                             D3D12_CLEAR_VALUE *pOptimizedClearValue,
+                             D12Resource* resource)
+
+{
+    HRESULT r = (device->CreateCommittedResource(
+                     pHeapProperties,
+                     HeapFlags,
+                     pDesc,
+                     InitialResourceState,            
+                     pOptimizedClearValue,
+                     IID_PPV_ARGS(&resource->state)));
+    ASSERT(SUCCEEDED(r));    
+}
+
 FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
 {
     FMJStretchBuffer* table;
@@ -344,14 +362,10 @@ void UploadBufferData(GPUArena* g_arena,void* data,u64 size)
                 
             //finished_uop->temp_arena.resource->Release();
             UploadOpKey k_ = {finished_uop->id};
-            //AnythingCacheCode::RemoveThingFL(&upload_operations.table_cache,&k);
             fmj_anycache_remove_free_list(&upload_operations.table_cache,&k_);
         }
-//            AnythingCacheCode::ResetCache(&upload_operations.table_cache);
         fmj_anycache_reset(&upload_operations.table_cache);
     }
-        
-//        EndTicketMutex(&upload_operations.ticket_mutex);
     fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
 }
     
@@ -1219,7 +1233,8 @@ void CreateDefaultDepthStencilBuffer(f2 dim)
     dsv.Texture2D.MipSlice = 0;
     dsv.Flags = D3D12_DSV_FLAG_NONE;
     device->CreateDepthStencilView(depth_buffer, &dsv,
-                                   dsv_heap->GetCPUDescriptorHandleForHeapStart());    
+                                   dsv_heap->GetCPUDescriptorHandleForHeapStart());
+    fflush(stdout);
 }
     
 ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags)
@@ -1552,16 +1567,16 @@ CreateDeviceResult Init(HWND* window,f2 dim)
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = 1;
     desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    if (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&main_desc_heap)) != S_OK)
-    {
-        result.is_init = false;
-    }
-    else
-    {
+//    if (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&main_desc_heap)) != S_OK)
+//    {
+//        result.is_init = false;
+//    }
+//    else
+//    {
 //        CreateDefaultRootSig();
 //        CreateDefaultDepthStencilBuffer(dim);
 //        CreateDefaultPipelineStateStreamDesc();
-    }
+//    }
 
     return result;
 }
@@ -1607,7 +1622,7 @@ void CheckFeatureSupport(D12Resource* resource)
 // we will make space on the gpu and upload the texture from cpu
 //to gpu right away. LoadedTexture is like the descriptor and also
 //holds a pointer to the texels on cpu.
-void Texture2D(Texture* lt,u32 heap_index)
+void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12DescriptorHeap* heap)
 {
     D12CommandAllocatorEntry* free_ca  = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_COPY);
     resource_ca = free_ca->allocator;
@@ -1617,7 +1632,8 @@ void Texture2D(Texture* lt,u32 heap_index)
         resource_cl->Reset(resource_ca,nullptr);
         is_resource_cl_recording = true;
     }
-        
+
+
     D3D12_HEAP_PROPERTIES hp =  
         {
             D3D12_HEAP_TYPE_UPLOAD,
@@ -1626,7 +1642,8 @@ void Texture2D(Texture* lt,u32 heap_index)
             0,
             0
         };
-        
+
+/*                
     DXGI_SAMPLE_DESC sample_d =  
         {
             1,
@@ -1637,18 +1654,15 @@ void Texture2D(Texture* lt,u32 heap_index)
     res_d = CD3DX12_RESOURCE_DESC::Tex2D( 
         DXGI_FORMAT_R8G8B8A8_UNORM,(u64)lt->dim.x,(u64)lt->dim.y,1);
         
-    D12Resource tex_resource;
-    UploadOp uop = {};
-        
     HRESULT hr = device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
         &res_d,
         D3D12_RESOURCE_STATE_COMMON,
         nullptr,
-        IID_PPV_ARGS(&tex_resource.state));
+        IID_PPV_ARGS(&tex_resource->state));
     ASSERT(SUCCEEDED(hr));
-        
+
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc2 = {};
     srvDesc2.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc2.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -1656,23 +1670,25 @@ void Texture2D(Texture* lt,u32 heap_index)
     srvDesc2.Texture2D.MipLevels = 1;
 
     u32 hmdh_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        
-    // TODO(Ray Garner): We will have to properly implement this later! For now we just keep adding texture as we cant remove them yet.
-//    D3D12_CPU_DESCRIPTOR_HANDLE hmdh = default_srv_desc_heap->GetCPUDescriptorHandleForHeapStart();    
-//    hmdh.ptr += (hmdh_size * heap_index);
-//    device->CreateShaderResourceView((ID3D12Resource*)tex_resource.state, &srvDesc2, hmdh);
-        
+    D3D12_CPU_DESCRIPTOR_HANDLE hmdh = heap->GetCPUDescriptorHandleForHeapStart();
+    hmdh.ptr += (hmdh_size * heap_index);
+    device->CreateShaderResourceView((ID3D12Resource*)tex_resource->state, &srvDesc2, hmdh);
+*/
+    
     D3D12_SUBRESOURCE_DATA subresourceData = {};
     subresourceData.pData = lt->texels;
+    
     // TODO(Ray Garner): Handle minimum size for alignment.
     //This wont work for a smaller texture im pretty sure.
     subresourceData.RowPitch = lt->dim.x * lt->bytes_per_pixel;
     subresourceData.SlicePitch = subresourceData.RowPitch;
-        
-    UINT64 req_size = GetRequiredIntermediateSize( tex_resource.state, 0, 1);
+
     // Create a temporary (intermediate) resource for uploading the subresources
+    UINT64 req_size = GetRequiredIntermediateSize( tex_resource->state, 0, 1);    
+    UploadOp uop = {};
+    
     ID3D12Resource* intermediate_resource;
-    hr = device->CreateCommittedResource(
+    HRESULT hr = device->CreateCommittedResource(
         &hp,
         D3D12_HEAP_FLAG_NONE,
         &CD3DX12_RESOURCE_DESC::Buffer( req_size ),
@@ -1681,25 +1697,21 @@ void Texture2D(Texture* lt,u32 heap_index)
         IID_PPV_ARGS( &uop.temp_arena.resource ));
         
     uop.temp_arena.resource->SetName(L"TEMP_UPLOAD_TEXTURE");
-        
     ASSERT(SUCCEEDED(hr));
         
     hr = UpdateSubresources(resource_cl, 
-                            tex_resource.state, uop.temp_arena.resource,
+                            tex_resource->state, uop.temp_arena.resource,
                             (u32)0, (u32)0, (u32)1, &subresourceData);
+    ASSERT(SUCCEEDED(hr));
+    
+    CheckFeatureSupport(tex_resource);
         
-    CheckFeatureSupport(&tex_resource);
-        
-    //if (tex_resource.state->GetDesc().MipLevels && lt->dim.x() > 2 && lt->dim.y() > 2)
-    {
-        //GenerateMips(tex_resource);
-    }
-        
-    lt->state = tex_resource.state;
+    lt->state = tex_resource->state;
     fmj_thread_begin_ticket_mutex(&upload_operations.ticket_mutex);
     uop.id = upload_operations.current_op_id++;
     UploadOpKey k = {uop.id};
     fmj_anycache_add_to_free_list(&upload_operations.table_cache,&k,&uop);
+
     // NOTE(Ray Garner): Implement this.
     //if(upload_ops.anythings.count > UPLOAD_OP_THRESHOLD)
     {
@@ -1708,6 +1720,7 @@ void Texture2D(Texture* lt,u32 heap_index)
             resource_cl->Close();
             is_resource_cl_recording = false;
         }
+
         ID3D12CommandList* const command_lists[] = {
             resource_cl
         };
@@ -1725,10 +1738,8 @@ void Texture2D(Texture* lt,u32 heap_index)
             // TODO(Ray Garner): Figure out how to properly release this
             //finished_uop->temp_arena.resource->Release();
             UploadOpKey k_ = {finished_uop->id};
-            //AnythingCacheCode::RemoveThingFL(&upload_operations.table_cache,&k);
             fmj_anycache_remove_free_list(&upload_operations.table_cache,&k_);
         }
-        //AnythingCacheCode::ResetCache(&upload_operations.table_cache);
         fmj_anycache_reset(&upload_operations.table_cache);
     }
     fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
@@ -1881,7 +1892,7 @@ D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorH
 
 UINT GetDescriptorHandleIncrementSize(ID3D12Device2* device, D3D12_DESCRIPTOR_HEAP_TYPE DescriptorHeapType)
 {
-    return device->GetDescriptorHandleIncrementSize(DescriptorHeapType);
+    return device->GetDescriptorHandleIncrementSize(DescriptorHeapType);    
 }
 
 void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle)
@@ -2126,7 +2137,7 @@ void EndFrame()
         
     final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
     ID3D12Resource* cbb = GetCurrentBackBuffer();
-    final_command_list.list->SetDescriptorHeaps(1,&main_desc_heap);
+//    final_command_list.list->SetDescriptorHeaps(1,&main_desc_heap);
 
     final_command_list.list->OMSetRenderTargets(1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);        
 //        final_command_list.list->OMSetRenderTargets(1,&g_mainRenderTargetDescriptor[backBufferIdx], FALSE, NULL);

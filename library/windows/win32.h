@@ -539,7 +539,7 @@ D12RenderCommandList render_com_buf;
     D12ResourceTables resource_tables;
     FMJMemoryArena constants_arena;
 //    ID3D12DescriptorHeap* default_srv_desc_heap;
-    ID3D12DescriptorHeap* main_desc_heap = NULL;
+//    ID3D12DescriptorHeap* main_desc_heap = NULL;
 
 
 #define MAX_SRV_DESC_HEAP_COUNT 512// NOTE(Ray Garner): totally arbiturary number
@@ -592,7 +592,16 @@ extern "C"
     D3D12_DESCRIPTOR_HEAP_DESC  GetDesc(ID3D12DescriptorHeap* desc_heap);
     D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap);
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
-    void Texture2D(Texture* lt,u32 heap_index);
+//    void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource);
+    void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12DescriptorHeap* heap);
+    void CreateCommittedResource(ID3D12Device2* device,
+                                 D3D12_HEAP_PROPERTIES *pHeapProperties,
+                                 D3D12_HEAP_FLAGS HeapFlags,
+                                 D3D12_RESOURCE_DESC *pDesc,
+                                 D3D12_RESOURCE_STATES InitialResourceState,
+                                 D3D12_CLEAR_VALUE *pOptimizedClearValue,
+                                 D12Resource* resource);
+        
     GPUArena AllocateStaticGPUArena(u64 size);
     GPUArena AllocateGPUArena(u64 size);
     void UploadBufferData(GPUArena* g_arena,void* data,u64 size);    

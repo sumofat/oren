@@ -10,6 +10,9 @@ import platform "../platform"
 import "../external/cgltf"
 import "../external/odin_stb/stbi"
 
+import windows "core:sys/windows"
+import window32 "core:sys/win32"
+
 Texture :: struct
 {
     texels : rawptr
@@ -82,6 +85,7 @@ Mesh :: struct
     index16_count : u64,
     mesh_resource : GPUMeshResource,    
     material_id : u32,
+    material_name : string,    
     metallic_roughness_texture_id : u64,
 
     base_color : f4,
@@ -105,6 +109,7 @@ ModelLoadResult :: struct
 RenderMaterial :: struct
 {
     id : u64,
+    name : string,
     pipeline_state : rawptr,//finalized depth stencil state etc... 
     scissor_rect : f4,
     viewport_rect : f4,
@@ -112,7 +117,7 @@ RenderMaterial :: struct
     base_color : f4
 };
 
-load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material_id : u32,so_id : u64)
+load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64)
 {
     for i := 0;i < cast(int)node.children_count;i+=1
     {
@@ -146,7 +151,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         if child.mesh != nil
         {
 //            result.model.model_name = string(file_path);
-            mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,cast(u64)material_id);
+            mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,material);
             type = 1;
             upload_meshes(ctx,mesh_range);            
         }
@@ -161,12 +166,11 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         child_so.type = type;
         child_so.primitives_range = mesh_range;
         buf_chk_in(&ctx.scene_objects);                    	
-        load_meshes_recursively_gltf_node(result,child^,ctx,file_path, material_id,child_id);
-
+        load_meshes_recursively_gltf_node(result,child^,ctx,file_path, material,child_id);
     }
 }
 
-asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material_id : u32) -> ModelLoadResult
+asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : RenderMaterial) -> ModelLoadResult
 {
     result : ModelLoadResult;
     is_success := false;
@@ -227,7 +231,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material_id : u
                 if root_node.mesh != nil
                 {
 //                    result.model.model_name = string(file_path_mem);                
-                    mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,cast(u64)material_id);
+                    mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material);
                     type = 1;
                     upload_meshes(ctx,mesh_range);
                 }
@@ -239,7 +243,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material_id : u
                 child_so.type = type;
                 child_so.primitives_range = mesh_range;
                 buf_chk_in(&ctx.scene_objects);		
-		load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material_id,child_id);
+		load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material,child_id);
             }
 
             buf_chk_in(&ctx.scene_objects);
@@ -252,7 +256,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material_id : u
     return result;        
 }
 
-create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material_id : u64) -> f2
+create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial) -> f2
 {
     assert(ma != nil);
     mesh_id := buf_len(ctx.asset_tables.meshes);
@@ -294,7 +298,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     {
                         data_size := cast(u64)tv.texture.image.buffer_view.size;
 			tex :=  texture_from_mem(tex_data,cast(i32)data_size,4);                
-                        id := texture_add(ctx,&tex);                
+                        id := texture_add(ctx,&tex,default_srv_desc_heap);
                         mesh.metallic_roughness_texture_id = id;                    
                     }                    
                 }
@@ -438,7 +442,9 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
             }
         }
 	
-        mesh.material_id = cast(u32)material_id;
+        mesh.material_id = cast(u32)material.id;
+	mesh.material_name = material.name;
+
         last_id  := buf_push(&ctx.asset_tables.meshes,mesh);
 	//TODO(Ray):Does this cast properly? verify
         result.y = cast(f32)last_id;
@@ -527,10 +533,62 @@ texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture
     return tex;
 }
 
-texture_add :: proc(ctx : ^AssetContext,texture : ^Texture) -> u64
+texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D12DescriptorHeap) -> u64
 {
-    tex_id := buf_push(&ctx.asset_tables.textures,texture^);    
-//    D12RendererCode::Texture2D(&texture,tex_id);
+    tex_id := buf_push(&ctx.asset_tables.textures,texture^);
+
+    hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
+    offset : u64 = cast(u64)hmdh_size * cast(u64)tex_id;
+    hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
+
+    srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
+    srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(1,2,3,4);
+    srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc2.Buffer.Texture2D.MipLevels = 1;
+
+    tex_resource : platform.D12Resource;
+
+    using platform;                
+
+    sd : DXGI_SAMPLE_DESC =
+	{
+	    1,0
+	};
+    
+    res_d : D3D12_RESOURCE_DESC  = {
+	.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+        0,
+  	cast(u64)texture.dim.x,
+	cast(u32)texture.dim.y,
+	1,0,
+	.DXGI_FORMAT_R8G8B8A8_UNORM,
+	sd,
+	.D3D12_TEXTURE_LAYOUT_UNKNOWN,
+	.D3D12_RESOURCE_FLAG_NONE,
+    };
+
+    hp : D3D12_HEAP_PROPERTIES  =  
+        {
+	    .D3D12_HEAP_TYPE_DEFAULT,
+            .D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            .D3D12_MEMORY_POOL_UNKNOWN,
+            1,
+            1
+        };
+    
+    CreateCommittedResource(device.device,
+        &hp,
+        .D3D12_HEAP_FLAG_NONE,
+        &res_d,
+        .D3D12_RESOURCE_STATE_COMMON,
+        nil,
+        &tex_resource);
+    
+    CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
+    
+    Texture2D(texture,cast(u32)tex_id,&tex_resource,heap.value);
     //TODO(ray):Add assert to how many textures are allowed in acertain heap that
     //we are using to store the texture on the gpu.
     //texid is a slot on the gpu heap??

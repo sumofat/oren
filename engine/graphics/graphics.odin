@@ -14,10 +14,16 @@ import window32 "core:sys/win32"
 
 foreign import gfx "../../library/windows/build/win32.lib"
 
+D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
+
+default_srv_desc_heap : platform.ID3D12DescriptorHeap;
+device : platform.RenderDevice;
+default_root_sig : rawptr;
+
 @(default_calling_convention="c")
 foreign gfx
 {
-    Texture2D  :: proc "c"(lt : ^Texture,heap_index : u32) ---;
+    Texture2D  :: proc "c"(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Resource,heap : rawptr) ---;
     AllocateStaticGPUArena :: proc "c"(size : u64 ) -> GPUArena ---;
     UploadBufferData :: proc "c"(g_arena : ^GPUArena,data : rawptr,size : u64 ) ---;    
     SetArenaToVertexBufferView :: proc "c"(g_arena  : ^GPUArena,size : u64 ,stride : u32) ---;    
@@ -25,7 +31,14 @@ foreign gfx
     GetDescriptorHandleIncrementSize :: proc "c"(device : rawptr,DescriptorHeapType :  platform.D3D12_DESCRIPTOR_HEAP_TYPE) -> c.uint  ---;
     CreateShaderResourceView :: proc "c"(device : rawptr,resource : rawptr,desc : ^platform.D3D12_SHADER_RESOURCE_VIEW_DESC,handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
     Map :: proc "c"(resource : rawptr,sub_resource : u32,range : ^platform.D3D12_RANGE,data : ^rawptr) ---;
-    AllocateGPUArena :: proc "c"(size : u64)-> GPUArena ---;    
+    AllocateGPUArena :: proc "c"(size : u64)-> GPUArena ---;
+    CreateCommittedResource :: proc "c"(device : rawptr,
+                                 pHeapProperties : ^platform.D3D12_HEAP_PROPERTIES,
+                                 HeapFlags : platform.D3D12_HEAP_FLAGS,
+                                 pDesc : ^platform.D3D12_RESOURCE_DESC,
+                                 InitialResourceState : platform.D3D12_RESOURCE_STATES,
+                                 pOptimizedClearValue : ^platform.D3D12_CLEAR_VALUE,
+                                 resource : ^platform.D12Resource) ---;
 }
 
 asset_ctx : AssetContext;
@@ -89,22 +102,6 @@ RenderGeometry :: struct
     index_count : u64,
     is_indexed : bool,
     base_color : f4
-};
-
-
-RenderCommand :: struct
-{
-    geometry : RenderGeometry,
-    material_id : u64,
-    model_matrix_id : u64,
-    camera_matrix_id : u64,
-    perspective_matrix_id : u64,
-    
-    //TODO(Ray):Create a mapping between pipeline state root sig slots..
-    //and inputs from the application ie textures buffers etc..
-    //for now we just throw on the simple ones we are using now. 
-    texture_id : u64,
-    is_indexed : bool
 };
 
 RenderShader :: struct
@@ -196,22 +193,24 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     bdx.AlphaToCoverageEnable = false;
     bdx.IndependentBlendEnable = false;
     bdx.RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC;
-    bdx.RenderTarget[0].BlendEnable = true;
-    bdx.RenderTarget[0].SrcBlend = .D3D12_BLEND_SRC_ALPHA;
-    bdx.RenderTarget[0].DestBlend = .D3D12_BLEND_INV_SRC_ALPHA;
+    bdx.RenderTarget[0].BlendEnable = false;
+//    bdx.RenderTarget[0].SrcBlend = .D3D12_BLEND_SRC_COLOR;
+//    bdx.RenderTarget[0].DestBlend = .D3D12_BLEND_SRC_COLOR;
 
     ppss.blend_state = PipelineStateSubObject(D3D12_BLEND_DESC){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, value = bdx};
 
     dss1 : D3D12_DEPTH_STENCIL_DESC1 = DEFAULT_D3D12_DEPTH_STENCIL_DESC1;
-//    dss1.DepthEnable = depth_enable;
+//    dss1.DepthEnable = true;
+    
+    //    dss1.DepthEnable = depth_enable;
 /*
-    dss_1 : D3D12_DEPTH_STENCIL_DESC1;
-    dss_1.DepthEnable = true;
-    dss_1.DepthWriteMask = .D3D12_DEPTH_WRITE_MASK_ALL;
-    dss_1.DepthFunc = .D3D12_COMPARISON_FUNC_LESS;
-    dss_1.StencilEnable = false;
-    dss_1.StencilReadMask = DEFAULT_D3D12_STENCIL_READ_MASK;
-    dss_1.StencilWriteMask = DEFAULT_D3D12_STENCIL_WRITE_MASK;
+    dss1 : D3D12_DEPTH_STENCIL_DESC1;
+    dss1.DepthEnable = true;
+    dss1.DepthWriteMask = .D3D12_DEPTH_WRITE_MASK_ALL;
+    dss1.DepthFunc = .D3D12_COMPARISON_FUNC_LESS;
+    dss1.StencilEnable = false;
+    dss1.StencilReadMask = DEFAULT_D3D12_STENCIL_READ_MASK;
+    dss1.StencilWriteMask = DEFAULT_D3D12_STENCIL_WRITE_MASK;
 
     dsd : D3D12_DEPTH_STENCILOP_DESC;
     dsd.StencilFailOp = .D3D12_STENCIL_OP_KEEP;
@@ -219,11 +218,11 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     dsd.StencilPassOp = .D3D12_STENCIL_OP_KEEP;
     dsd.StencilFunc = .D3D12_COMPARISON_FUNC_ALWAYS;
 
-    dss_1.FrontFace = dsd;
-    dss_1.BackFace = dsd;
+    dss1.FrontFace = dsd;
+    dss1.BackFace = dsd;
 */    
 
-//    dss_1.DepthEnable = depth_enable;
+//    dss1.DepthEnable = depth_enable;
     
     ppss.depth_stencil_state = PipelineStateSubObject(D3D12_DEPTH_STENCIL_DESC1){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1, value = dss1};
 
@@ -273,9 +272,15 @@ set_arena_constant_buffer :: proc(device : rawptr,arena :^GPUArena,heap_index : 
     CreateShaderResourceView(device,arena.resource, &srvDesc2, hmdh);            
 }
 
-D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
-
-default_root_sig : rawptr;
+add_material :: proc(ps : ^platform.PlatformState,stream : platform.PipelineStateStream,name : string)
+{
+    new_material : RenderMaterial;
+    new_material.pipeline_state = create_pipeline_state(stream);
+    new_material.name = name;
+    new_material.viewport_rect = la.Vector4{0,0,ps.window.dim.x,ps.window.dim.y};
+    new_material.scissor_rect = la.Vector4{0,0,max(f32),max(f32)};
+    asset_material_store(&asset_ctx,name,new_material);
+}
 
 init :: proc(ps : ^platform.PlatformState) -> RenderState
 {
@@ -341,23 +346,19 @@ init :: proc(ps : ^platform.PlatformState) -> RenderState
     rs_color := CreateRenderShader(vs_file_name,fs_color_file_name);
     mesh_pn_color := CreateRenderShader(vs_pn_file_name,fs_color_file_name);
 
-//    input_layoutptr : ^D3D12_INPUT_ELEMENT_DESC = &input_layout[0];
-//    root_sig_ptr  : ^rawptr = &default_root_sig;
-//    CreateDefaultPipelineStateStreamDesc(&input_layout[0],cast(c.int)input_layout_count,rs.vs_blob,rs.fs_blob,false);    
-    default_pipeline_state_stream :  platform.PipelineStateStream = create_default_pipeline_state_stream_desc(default_root_sig,&input_layout[0],input_layout_count,rs.vs_blob,rs.fs_blob);
+//basic
+    base_stream :  platform.PipelineStateStream =
+	create_default_pipeline_state_stream_desc(default_root_sig,&input_layout[0],input_layout_count,rs.vs_blob,rs.fs_blob);
 
-//    test_pipeline_state := platform.CreateDefaultPipelineStateStreamDesc(&input_layout[0],cast(i32)input_layout_count,rs.vs_blob,rs.fs_blob,false);
-    //ID3D12PipelineState* pipeline_state = D12RendererCode::CreatePipelineState(ppss);    
-//    FMJRenderMaterial base_render_material = {0};
-    base_render_material : RenderMaterial;
-    base_render_material.pipeline_state = create_pipeline_state(default_pipeline_state_stream);
+    add_material(ps,base_stream,"base");
 
-    base_render_material.viewport_rect = la.Vector4{0,0,ps.window.dim.x,ps.window.dim.y};
-    base_render_material.scissor_rect = la.Vector4{0,0,max(f32),max(f32)};
-    
-    asset_material_store(&asset_ctx,"base",base_render_material);
+    //mesh
+    mesh_stream :  platform.PipelineStateStream =
+	create_default_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,mesh_rs.vs_blob,mesh_rs.fs_blob);
 
-    /*    
+    add_material(ps,mesh_stream,"mesh");
+
+        /*    
 
     PipelineStateStream color_ppss = D12RendererCode::CreateDefaultPipelineStateStreamDesc(input_layout,input_layout_count,rs.vs_blob,rs_color.fs_blob);
     ID3D12PipelineState* color_pipeline_state = D12RendererCode::CreatePipelineState(color_ppss);
