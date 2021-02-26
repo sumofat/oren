@@ -41,7 +41,7 @@ foreign gfx
                                  resource : ^platform.D12Resource) ---;
 }
 
-asset_ctx : AssetContext;
+
 
 RenderCameraProjectionType :: enum
 {

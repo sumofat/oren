@@ -11,12 +11,32 @@ import platform "engine/platform"
 import fmj "engine/fmj"
 import gfx "engine/graphics"
 
-//first test importing libs that we compile here with the foreign system.
-//starting with simple C lib FMJ
-
 //Graphics
+/*
+Basic rendering working
+Next begin to start fleshing out more rendering.
+Start with a simple deffered renderer and figure out how we want the pipeline to work
+1. Look at how passes will be done guaranteed
 
-//Get a window and some basic rendering working.
+clear
+depth pre pass
+g buffer passes
+shadow pass
+light accum pass
+buffer composite pass
+present
+
+Lift what we need to make this done in odin as much as possible.
+
+Once we get to point lights and shadows lets bring in imgui and bindings.
+
+Reference project PedalTotheMedal for how we might do render passes.
+Look at implementing a simple render graph even if it does nothing at first lets collect
+the info on resources and references etc...
+
+*/
+
+
 ErrorStr :: cstring;
 
 WindowData :: struct {
@@ -242,8 +262,8 @@ main :: proc()
 	mesh_material := asset_ctx.asset_tables.materials["mesh"];
 	
 //game object setup 	
-	//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
-	test_model_result := asset_load_model(&asset_ctx,"data/BarramundiFish.glb",mesh_material);	
+//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
+	test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
 	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
 	
 	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
@@ -260,7 +280,7 @@ main :: proc()
 	new_trans.s = f3{1,1,1};
 	new_trans.p = f3{0,-20,-30};
 
-	add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
+	model_so_id := add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 
 	matrix_mem_size : u64 = (size_of(f4x4)) * 100;
 	matrix_gpu_arena := AllocateGPUArena(matrix_mem_size);
@@ -278,11 +298,17 @@ main :: proc()
 
 	buf_chk_in(&asset_ctx.scene_objects);
 	
-	test_mesh := buf_get(&asset_ctx.asset_tables.meshes,mesh_id);	
+	test_mesh := buf_get(&asset_ctx.asset_tables.meshes,test_model_instance);	
 //end game object setup
 
         for ps.is_running
         {
+	    //Game Update test_model_so
+	    get_local_p(model_so_id).x += 0.001;
+	    
+	    //End game update
+
+	    
 	    update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
 
@@ -307,10 +333,10 @@ main :: proc()
                     buf_push(&matrix_quad_buffer,finalmat);        
 
 		    AddRootSignatureCommand(gfx.default_root_sig);
-		    
+
 		    rect := fmj.f4{0,0,window_dim.x,window_dim.y};	    
+
 		    AddViewportCommand(rect);
-		    //full screen rect
 		    AddScissorRectCommand(rect);
 		    
 		    material := asset_ctx.asset_tables.materials[command.material_name];
@@ -322,7 +348,6 @@ main :: proc()
 		    tex_index := command.texture_id;	    
 		    AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
 
-//		    AddGraphicsRootDescTable(1,nil,D3D12_GPU_DESCRIPTOR_HANDLE{});
 		    gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
 		    AddGraphicsRootDescTable(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
 

@@ -187,7 +187,7 @@ add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p :
     return add_child_to_scene_object_with_transform(ctx,parent_so_id,&new_child,data,name);
 }
 
-add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform)
+add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform) -> u64
 {
     assert(ctx != nil);    
         //and the local p is the absolute p relative to the parent p.
@@ -206,6 +206,7 @@ add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_s
     parent := buf_chk_out(&ctx.scene_objects,parent_so_id);
     handle := buf_push(&parent.children.buffer,child_so_id);
     buf_chk_in(&ctx.scene_objects);
+    return handle;
 }
 
 //NOTE(Ray):For updating all scenes?
@@ -257,4 +258,21 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
         buf_chk_in(&parent_so.children.buffer);
         buf_chk_in(&ctx.scene_objects);
     }
+}
+
+//These pointers are going to be pointers that can be invalid if we push
+//to scene objects while modifying
+get_t :: proc(id : u64) -> ^Transform
+{
+    return &get_so(id).transform;    
+}
+
+get_local_p :: proc(id : u64) -> ^f3
+{
+    return &get_so(id).transform.local_p;    
+}
+
+get_so :: proc(id : u64) -> ^SceneObject
+{
+    return buf_ptr(&asset_ctx.scene_objects,id);    
 }

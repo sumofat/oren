@@ -13,6 +13,8 @@ import "../external/odin_stb/stbi"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
+asset_ctx : AssetContext;
+
 Texture :: struct
 {
     texels : rawptr

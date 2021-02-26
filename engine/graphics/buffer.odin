@@ -70,6 +70,16 @@ buf_chk_out :: proc(buffer : ^Buffer($element_type),index : u64) -> (^element_ty
     }
 }
 
+buf_ptr :: proc(buffer : ^Buffer($element_type),index : u64) -> (^element_type)
+{
+    assert(buffer != nil);
+    if (len(buffer.buffer) == 0)
+    { 
+        return nil;   
+    }
+    return &buffer.buffer[index];    
+}
+
 buf_len :: proc(buf : Buffer($element_type)) -> u64
 {
     return cast(u64)len(buf.buffer);

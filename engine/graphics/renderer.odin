@@ -30,7 +30,7 @@ renderer_init :: proc() -> Renderer
 
 process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
 {
-    for i := 0;i < len(so.children.buffer.buffer);i+=1
+    for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1
     {
         child_so_id := buf_get(&so.children.buffer,cast(u64)i);
         child_so := buf_chk_out(&ctx.scene_objects,child_so_id);
