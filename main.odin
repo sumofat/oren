@@ -307,7 +307,6 @@ main :: proc()
 	    get_local_p(model_so_id).x += 0.001;
 	    
 	    //End game update
-
 	    
 	    update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
