@@ -443,6 +443,7 @@ struct D12CommandGraphicsRoot32BitConstant
 struct D12CommandStartCommandList
 {
     bool dummy;
+    D3D12_CPU_DESCRIPTOR_HANDLE* handles;
 };
 
 struct D12CommandEndCommmandList
@@ -506,11 +507,11 @@ ID3D12CommandQueue* command_queue;
 ID3D12CommandQueue* copy_command_queue;
 ID3D12CommandQueue* compute_command_queue;
 IDXGISwapChain4* swap_chain;
-ID3D12DescriptorHeap* rtv_descriptor_heap;
+//ID3D12DescriptorHeap* rtv_descriptor_heap;
 UINT rtv_desc_size;
 const uint8_t num_of_back_buffers = 3;
 ID3D12Resource* back_buffers[num_of_back_buffers];
-ID3D12Fence* fence;
+//ID3D12Fence* fence;
 ID3D12Fence* end_frame_fence;
 ID3D12Fence* compute_fence;
     
@@ -518,7 +519,7 @@ u64 fence_value;
 u64 compute_fence_value;
     
 u64 frame_fence_values[num_of_back_buffers] = {};
-HANDLE fence_event;
+//HANDLE fence_event;
 u64 current_allocator_index;
 D12CommandAllocatorTables allocator_tables;
 FMJStretchBuffer temp_queue_command_list;
@@ -532,8 +533,8 @@ D12RenderCommandList render_com_buf;
     UploadOperations upload_operations;
     
 //    ID3D12PipelineState* pipeline_state;
-    ID3D12Resource* depth_buffer;
-    ID3D12DescriptorHeap* dsv_heap;
+//    ID3D12Resource* depth_buffer;
+//    ID3D12DescriptorHeap* dsv_heap;
     ID3D12RootSignature* root_sig;
     D3D12_VERTEX_BUFFER_VIEW buffer_view;
     D12ResourceTables resource_tables;
@@ -578,7 +579,8 @@ extern "C"
     void AddRootSignatureCommand(ID3D12RootSignature* root);    
     void AddPipelineStateCommand(ID3D12PipelineState* ps);    
     void AddScissorRectCommand(f4 rect);    
-    void AddStartCommandListCommand();    
+    void AddStartCommandListCommand(D3D12_CPU_DESCRIPTOR_HANDLE* handles);
+    
     void AddEndCommandListCommand();    
 // TODO(Ray Garner): Replace these with something later
     void AddGraphicsRootDescTable(u64 index,ID3D12DescriptorHeap* heaps,D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle);    
@@ -594,13 +596,13 @@ extern "C"
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
 //    void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource);
     void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12DescriptorHeap* heap);
-    void CreateCommittedResource(ID3D12Device2* device,
+    HRESULT CreateCommittedResource(ID3D12Device2* device,
                                  D3D12_HEAP_PROPERTIES *pHeapProperties,
                                  D3D12_HEAP_FLAGS HeapFlags,
                                  D3D12_RESOURCE_DESC *pDesc,
                                  D3D12_RESOURCE_STATES InitialResourceState,
                                  D3D12_CLEAR_VALUE *pOptimizedClearValue,
-                                 D12Resource* resource);
+                                 ID3D12Resource* resource);
         
     GPUArena AllocateStaticGPUArena(u64 size);
     GPUArena AllocateGPUArena(u64 size);
@@ -613,6 +615,30 @@ extern "C"
     void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
     
     void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data);
+
+    ID3D12CommandQueue* CreateCommandQueue(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type);
+    IDXGISwapChain4* CreateSwapChain(HWND hWnd,ID3D12CommandQueue* commandQueue,u32 width, u32 height, u32 bufferCount);
+    void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, ID3D12DescriptorHeap* descriptorHeap);
+    ID3D12Fence* CreateFence(ID3D12Device2* device);
+    HANDLE CreateEventHandle();
+    ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type);
+    ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12CommandAllocator* commandAllocator, D3D12_COMMAND_LIST_TYPE type);
+    HRESULT ResetCommandAllocator(ID3D12CommandAllocator* a);
+    HRESULT ResetCommandList(ID3D12GraphicsCommandList* l,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState);
+    void CloseCommandList(ID3D12CommandList* list);
+    HRESULT D3D12UpdateSubresources(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pDestinationResource, ID3D12Resource* pIntermediate,u32 FirstSubresource,u32 NumSubresources,u64 RequiredSize,D3D12_SUBRESOURCE_DATA* pSrcData);
+    bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value);
+    void ExecuteCommandLists(ID3D12CommandList* lists,u32 list_count);
+    u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue);
+    void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration);
+
+    bool CheckFeatureSupport(ID3D12Device2* device,D3D12_FEATURE Feature,void *pFeatureSupportData,UINT FeatureSupportDataSize);
+    
+    u64 GetIntermediateSize(ID3D12Resource* resource,u32 firstSubResource,u32 NumSubresources);
+    void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,  D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+    ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags);
+    void TransitionResource(D12CommandListEntry cle,ID3D12Resource* resource,D3D12_RESOURCE_STATES from,D3D12_RESOURCE_STATES to);
+    void ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT[4] ColorRGBA,UINT NumRects,D3D12_RECT *pRects);    
 }
 //end declare
 

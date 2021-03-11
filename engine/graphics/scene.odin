@@ -7,17 +7,18 @@ import la "core:math/linalg"
 import platform "../platform"
 import fmj "../fmj"
 
+import con "../containers"
 
 AssetTables :: struct
 {
     materials : map[string]RenderMaterial,
     material_count : u64,
-    sprites : Buffer(Sprite),
-    textures : Buffer(Texture),
-    vertex_buffers : Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
-    index_buffers : Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
-    matrix_buffer : Buffer(f4x4),
-    meshes : Buffer(Mesh),
+    sprites : con.Buffer(Sprite),
+    textures : con.Buffer(Texture),
+    vertex_buffers : con.Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
+    index_buffers : con.Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
+    matrix_buffer : con.Buffer(f4x4),
+    meshes : con.Buffer(Mesh),
 };
 
 AssetContext :: struct
@@ -25,7 +26,7 @@ AssetContext :: struct
 //    perm_mem : ^fmj.FMJMemoryArena,
 //    temp_mem : ^fmj.FMJMemoryArena,
     asset_tables : AssetTables,
-    scene_objects : Buffer(SceneObject),
+    scene_objects : con.Buffer(SceneObject),
     so_to_go : map[int]rawptr,//scene object to pointer of custom gameobject
 };
 
@@ -55,7 +56,7 @@ SceneStatus :: struct
 
 SceneObjectBuffer :: struct
 {
-    buffer : Buffer(u64),
+    buffer : con.Buffer(u64),
 };
 
 SceneObjectType :: enum
@@ -82,6 +83,7 @@ SceneObjectHandle :: Handle;
 assetctx_init :: proc(ctx : ^AssetContext)
 {
     using platform;
+    using con;
     ctx.scene_objects = buf_init(100,SceneObject);
     asset_tables := &ctx.asset_tables;
 //    asset_tables.materials = ;//buf_init(100,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
@@ -100,7 +102,7 @@ scene_init :: proc(name : string) -> Scene
 {
     a : Scene;
     a.name = name;
-    a.buffer.buffer = buf_init(100,u64);
+    a.buffer.buffer = con.buf_init(100,u64);
     a.state_flags = SceneState.default;
     return a;
 }
@@ -112,16 +114,17 @@ scene_object_init :: proc(name : string) -> SceneObject
     
     a.transform = ot;
     a.name = name;
-    a.children.buffer = buf_init(1,u64);
+    a.children.buffer = con.buf_init(1,u64);
     return a;
 }
 
 scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Quat,s : f3,name : string) -> u64
 {
     using fmj;
+    using con;        
     assert(ctx != nil);
     assert(sob != nil);
-    
+
     new_so := scene_object_init("New Scene Object");
     new_so.m_id = buf_push(&ctx.asset_tables.matrix_buffer,new_so.transform.m);
     new_so.transform.p = p;
@@ -136,6 +139,7 @@ scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Qua
 //NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
 add_child_to_scene_object_with_transform :: proc(ctx : ^AssetContext,parent_so_id : u64,new_child : ^Transform,data : ^rawptr,name : string) -> u64
 {
+    using con;
     assert(ctx != nil);
     assert(new_child != nil);
     //and the local p is the absolute p relative to the parent p.
@@ -189,6 +193,7 @@ add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p :
 
 add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform) -> u64
 {
+    using con;
     assert(ctx != nil);    
         //and the local p is the absolute p relative to the parent p.
     t := transform;
@@ -220,6 +225,7 @@ update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
 
 update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, position_sum : ^f3, rotation_product : ^Quat)
 {
+    using con;
     assert(ctx != nil);    
     for i := 0;i < cast(int)buf_len(buffer.buffer);i+=1
     {
@@ -238,6 +244,7 @@ update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, po
 
 update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_sum : ^f3,rotation_product : ^Quat)
 {
+    using con;
     assert(ctx != nil);    
     child_so : ^SceneObject;
     for i := 0;i < cast(int)buf_len(parent_so.children.buffer);i+=1
@@ -274,5 +281,5 @@ get_local_p :: proc(id : u64) -> ^f3
 
 get_so :: proc(id : u64) -> ^SceneObject
 {
-    return buf_ptr(&asset_ctx.scene_objects,id);    
+    return con.buf_ptr(&asset_ctx.scene_objects,id);    
 }

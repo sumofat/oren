@@ -1,5 +1,7 @@
 package graphics
 
+import con "../containers"
+
 RenderCommand :: struct
 {
     geometry : RenderGeometry,
@@ -18,18 +20,19 @@ RenderCommand :: struct
 
 Renderer :: struct
 {
-    command_buffer : Buffer(RenderCommand),
+    command_buffer : con.Buffer(RenderCommand),
 };
 
 renderer_init :: proc() -> Renderer
 {
     result : Renderer;
-    result.command_buffer = buf_init(100,RenderCommand);
+    result.command_buffer = con.buf_init(100,RenderCommand);
     return result;
 }
 
 process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
 {
+    using con;
     for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1
     {
         child_so_id := buf_get(&so.children.buffer,cast(u64)i);
@@ -98,6 +101,7 @@ process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat 
 
 issue_render_commands :: proc(render : ^Renderer,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
 {
+    using con;
     //Start at root node
     for i := 0;i < cast(int)buf_len(s.buffer.buffer);i +=1 
     {
@@ -114,3 +118,12 @@ issue_render_commands :: proc(render : ^Renderer,s : ^Scene,ctx : ^AssetContext,
     }
 }
 
+RenderPass :: struct
+{
+    
+};
+
+execute_renderpasses :: proc()
+{
+    
+}

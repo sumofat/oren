@@ -21,3 +21,15 @@ data/
 *.nsight-gfxproj
 
 *.ngfx-proj
+
+library/windows/GPATH
+
+library/windows/GRTAGS
+
+library/windows/GTAGS
+
+main.bc
+
+main.ll
+
+main.obj

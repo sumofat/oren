@@ -13,6 +13,8 @@ import "../external/odin_stb/stbi"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
+import con "../containers"
+
 asset_ctx : AssetContext;
 
 Texture :: struct
@@ -97,7 +99,7 @@ Model :: struct
 {
     id : u32,
     model_name : string,
-    meshes : Buffer(Mesh),
+    meshes : con.Buffer(Mesh),
 };
 
 ModelLoadResult :: struct
@@ -164,16 +166,17 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         //Have each sceneobject tree hold its own string meme
         mesh_name := string(child.name);
         child_id := add_child_to_scene_object_with_transform(ctx,so_id,&trans,&mptr,mesh_name);
-        child_so := buf_chk_out(&ctx.scene_objects,child_id);
+        child_so := con.buf_chk_out(&ctx.scene_objects,child_id);
         child_so.type = type;
         child_so.primitives_range = mesh_range;
-        buf_chk_in(&ctx.scene_objects);                    	
+        con.buf_chk_in(&ctx.scene_objects);                    	
         load_meshes_recursively_gltf_node(result,child^,ctx,file_path, material,child_id);
     }
 }
 
 asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : RenderMaterial) -> ModelLoadResult
 {
+    using con;
     result : ModelLoadResult;
     is_success := false;
 
@@ -260,6 +263,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
 
 create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial) -> f2
 {
+    using con;
     assert(ma != nil);
     mesh_id := buf_len(ctx.asset_tables.meshes);
     
@@ -537,6 +541,7 @@ texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture
 
 texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D12DescriptorHeap) -> u64
 {
+    using con;
     tex_id := buf_push(&ctx.asset_tables.textures,texture^);
 
     hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -589,8 +594,10 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
         &tex_resource);
     
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
+    //Texture2D(texture,cast(u32)tex_id,&tex_resource,heap.value);
+
+    texture_2d(texture,cast(u32)tex_id,&tex_resource,heap.value);
     
-    Texture2D(texture,cast(u32)tex_id,&tex_resource,heap.value);
     //TODO(ray):Add assert to how many textures are allowed in acertain heap that
     //we are using to store the texture on the gpu.
     //texid is a slot on the gpu heap??
@@ -598,18 +605,20 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
     return tex_id;
 }
 
-set_buffer :: proc(ctx : ^AssetContext,buff : ^GPUArena,stride : u32,size : u64,data : ^f32) -> u64
+set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,size : u64,data : ^f32) -> u64
 {
     v_size := size;
     buff^ = AllocateStaticGPUArena(v_size);
     SetArenaToVertexBufferView(buff,v_size,stride);
-    UploadBufferData(buff,data,v_size);
-    id := buf_push(&ctx.asset_tables.vertex_buffers,buff.buffer_view.vertex_buffer_view);
+    //UploadBufferData(buff,data,v_size);
+    upload_buffer_data(buff,data,v_size);    
+    id := con.buf_push(&ctx.asset_tables.vertex_buffers,buff.buffer_view.vertex_buffer_view);
     return id;
 }
 
 upload_meshes :: proc(ctx : ^AssetContext,range : f2)
 {
+    using con;
     for i := range.x;i <= range.y;i+=1
     {
         is_valid := 0;
@@ -652,7 +661,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
             mesh.index_component_size = IndexComponentSize.size_32;
             format = platform.DXGI_FORMAT.DXGI_FORMAT_R32_UINT;                
             SetArenaToIndexVertexBufferView(&mesh_r.element_buff,size,format);
-            UploadBufferData(&mesh_r.element_buff,mesh.index_32_data,size);            
+            upload_buffer_data(&mesh_r.element_buff,mesh.index_32_data,size);            
             index_id := buf_push(&ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
             
             mesh_r.index_id = cast(u32)index_id;
@@ -668,7 +677,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
             format = platform.DXGI_FORMAT.DXGI_FORMAT_R16_UINT;
 	    
             SetArenaToIndexVertexBufferView(&mesh_r.element_buff,size,format);
-            UploadBufferData(&mesh_r.element_buff,mesh.index_16_data,size);            
+            upload_buffer_data(&mesh_r.element_buff,mesh.index_16_data,size);            
             index_id := buf_push(&ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
             
             mesh_r.index_id = cast(u32)index_id;
@@ -692,6 +701,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
 
 get_mesh_id_by_name :: proc(name : string,ctx : ^AssetContext, start : ^SceneObject,result : ^u64) -> bool
 {
+    using con;
     s := cast(int)start.primitives_range.y;
     for i := 0;i <= s;i+=1
     {
@@ -721,6 +731,7 @@ get_mesh_id_by_name :: proc(name : string,ctx : ^AssetContext, start : ^SceneObj
 
 create_model_instance :: proc(ctx : ^AssetContext,model : ModelLoadResult) -> u64
 {
+    using con;
     src := buf_get(&ctx.scene_objects,model.scene_object_id);
 
     dest_ := copy_scene_object(ctx,&src);
@@ -748,6 +759,7 @@ create_model_instance :: proc(ctx : ^AssetContext,model : ModelLoadResult) -> u6
 
 copy_scene_object :: proc(ctx : ^AssetContext,so : ^SceneObject)  -> SceneObject 
 {
+    using con;
     assert(so != nil);
     result : SceneObject = so^;
     result.children.buffer = buf_copy(&so.children.buffer);
@@ -762,6 +774,7 @@ copy_scene_object :: proc(ctx : ^AssetContext,so : ^SceneObject)  -> SceneObject
 
 copy_model_data_recursively_ :: proc(ctx : ^AssetContext,dest_id : u64,src_id : u64)
 {
+    using con;
     src := buf_get(&ctx.scene_objects,src_id);
     for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
     {

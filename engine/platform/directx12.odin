@@ -6,6 +6,8 @@ import fmj "../fmj"
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
+import con "../containers"
+
 UINT :: c.uint;
 UINT64 :: u64;
 UINT16 :: u16;
@@ -13,43 +15,123 @@ UINT8 :: u8;
 FLOAT :: f32;
 D3D12_GPU_VIRTUAL_ADDRESS :: UINT64;
 
+D3D12_FLOAT32_MAX : f32 : 3.402823466e+38;
+
 CompatibilityProfile :: struct
 {
     level : c.int,
 };
 
-RenderDevice :: struct
+D3D12_ROOT_DESCRIPTOR_TABLE1 :: struct
 {
-    device : rawptr,
-    device_context : rawptr,
-    max_render_targets : u32,//GRAPHICS_MAX_RENDER_TARGETS;
-    profile : CompatibilityProfile, 
-    //TODO(Ray):- newArgumentEncoderWithArguments:
-    //Creates a new argument encoder for a specific array of arguments.
-    //Required.
-    //ArgumentBuffersTier argument_buffers_support;
-    //This limit is only applicable to samplers that have their supportArgumentBuffers property set to YES.
-    max_argument_buffer_sampler_count : u32,
-};
+    NumDescriptorRanges : windows.UINT,
+    //    _Field_size_full_(NumDescriptorRanges)  const D3D12_DESCRIPTOR_RANGE1 *pDescriptorRanges;
+    pDescriptorRanges : ^D3D12_DESCRIPTOR_RANGE1,
+}
 
-CreateDeviceResult :: struct
+D3D12_ROOT_SIGNATURE_FLAGS :: enum u32
 {
-    is_init : bool,
-    compatible_level : c.int,
-    dim : fmj.f2,
-    device : RenderDevice
-};
+    D3D12_ROOT_SIGNATURE_FLAG_NONE	= 0,
+    D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT	= 0x1,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS	= 0x2,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS	= 0x4,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS	= 0x8,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS	= 0x10,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS	= 0x20,
+    D3D12_ROOT_SIGNATURE_FLAG_ALLOW_STREAM_OUTPUT	= 0x40,
+    D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE	= 0x80,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS	= 0x100,
+    D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS	= 0x200,
+    D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED	= 0x400,
+    D3D12_ROOT_SIGNATURE_FLAG_SAMPLER_HEAP_DIRECTLY_INDEXED	= 0x800
+}
 
-UploadOperations :: struct
+D3D12_DESCRIPTOR_RANGE_TYPE :: enum u32
 {
-    count : u64,
-//    table_cache : fmj.AnyCache,
-//    ticket_mutex : fmj.FMJTicketMutex,
-    current_op_id : u64,
-    fence_value : u64,
-    fence : rawptr,//ID3D12Fence*,
-    fence_event : window32.Handle,
-};
+    D3D12_DESCRIPTOR_RANGE_TYPE_SRV	= 0,
+    D3D12_DESCRIPTOR_RANGE_TYPE_UAV	= ( D3D12_DESCRIPTOR_RANGE_TYPE_SRV + 1 ) ,
+    D3D12_DESCRIPTOR_RANGE_TYPE_CBV	= ( D3D12_DESCRIPTOR_RANGE_TYPE_UAV + 1 ) ,
+    D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER	= ( D3D12_DESCRIPTOR_RANGE_TYPE_CBV + 1 ) 
+}
+
+D3D12_DESCRIPTOR_RANGE_FLAGS :: enum u32
+{
+    D3D12_DESCRIPTOR_RANGE_FLAG_NONE	= 0,
+    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE	= 0x1,
+    D3D12_DESCRIPTOR_RANGE_FLAG_DATA_VOLATILE	= 0x2,
+    D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE	= 0x4,
+    D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC	= 0x8,
+    D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_STATIC_KEEPING_BUFFER_BOUNDS_CHECKS	= 0x10000
+}
+
+D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND := cast(u32)0xffffffff;
+
+D3D12_ROOT_CONSTANTS :: struct
+{
+    ShaderRegister : windows.UINT,
+    RegisterSpace : windows.UINT,
+    Num32BitValues : windows.UINT,
+}
+
+D3D12_ROOT_DESCRIPTOR_FLAGS :: enum u32
+{
+    D3D12_ROOT_DESCRIPTOR_FLAG_NONE	= 0,
+    D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE	= 0x2,
+    D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE	= 0x4,
+    D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC	= 0x8
+}
+
+D3D12_ROOT_DESCRIPTOR1 :: struct
+{
+    ShaderRegister : windows.UINT,
+    RegisterSpace : windows.UINT,
+    Flags : D3D12_ROOT_DESCRIPTOR_FLAGS,
+}
+
+ROOT_PARAMETER1_UNION :: struct #raw_union
+{
+    DescriptorTable : D3D12_ROOT_DESCRIPTOR_TABLE1,
+    Constants : D3D12_ROOT_CONSTANTS,
+    Descriptor : D3D12_ROOT_DESCRIPTOR1,
+}
+
+D3D12_ROOT_PARAMETER_TYPE ::  enum u32
+{
+    D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE	= 0,
+    D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS	= ( D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE + 1 ) ,
+    D3D12_ROOT_PARAMETER_TYPE_CBV	= ( D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS + 1 ) ,
+    D3D12_ROOT_PARAMETER_TYPE_SRV	= ( D3D12_ROOT_PARAMETER_TYPE_CBV + 1 ) ,
+    D3D12_ROOT_PARAMETER_TYPE_UAV	= ( D3D12_ROOT_PARAMETER_TYPE_SRV + 1 ) 
+}
+
+D3D12_SHADER_VISIBILITY :: enum u32
+{
+    D3D12_SHADER_VISIBILITY_ALL	= 0,
+    D3D12_SHADER_VISIBILITY_VERTEX	= 1,
+    D3D12_SHADER_VISIBILITY_HULL	= 2,
+    D3D12_SHADER_VISIBILITY_DOMAIN	= 3,
+    D3D12_SHADER_VISIBILITY_GEOMETRY	= 4,
+    D3D12_SHADER_VISIBILITY_PIXEL	= 5,
+    D3D12_SHADER_VISIBILITY_AMPLIFICATION	= 6,
+    D3D12_SHADER_VISIBILITY_MESH	= 7
+}
+
+D3D12_ROOT_PARAMETER1 :: struct
+{
+    ParameterType : D3D12_ROOT_PARAMETER_TYPE,
+    ShaderVisibility : D3D12_SHADER_VISIBILITY,
+    root_parameter1_union : ROOT_PARAMETER1_UNION,
+}
+
+D3D12_DESCRIPTOR_RANGE1 :: struct
+{
+    RangeType  : D3D12_DESCRIPTOR_RANGE_TYPE,
+    NumDescriptors : windows.UINT,
+    BaseShaderRegister : windows.UINT,
+    RegisterSpace : windows.UINT,
+    Flags : D3D12_DESCRIPTOR_RANGE_FLAGS,
+    OffsetInDescriptorsFromTableStart : windows.UINT,
+}
 
 D3D12_INPUT_ELEMENT_DESC :: struct
 {
@@ -60,7 +142,94 @@ D3D12_INPUT_ELEMENT_DESC :: struct
     AlignedByteOffset : c.uint,
     InputSlotClass : D3D12_INPUT_CLASSIFICATION,
     InstanceDataStepRate : c.uint,
-};
+}
+
+D3D12_STATIC_BORDER_COLOR :: enum u32
+{
+    D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK	= 0,
+    D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK	= ( D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK + 1 ) ,
+    D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE	= ( D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK + 1 ) 
+}
+
+D3D12_FILTER :: enum u32
+{
+    D3D12_FILTER_MIN_MAG_MIP_POINT	= 0,
+    D3D12_FILTER_MIN_MAG_POINT_MIP_LINEAR	= 0x1,
+    D3D12_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT	= 0x4,
+    D3D12_FILTER_MIN_POINT_MAG_MIP_LINEAR	= 0x5,
+    D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT	= 0x10,
+    D3D12_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR	= 0x11,
+    D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT	= 0x14,
+    D3D12_FILTER_MIN_MAG_MIP_LINEAR	= 0x15,
+    D3D12_FILTER_ANISOTROPIC	= 0x55,
+    D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT	= 0x80,
+    D3D12_FILTER_COMPARISON_MIN_MAG_POINT_MIP_LINEAR	= 0x81,
+    D3D12_FILTER_COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT	= 0x84,
+    D3D12_FILTER_COMPARISON_MIN_POINT_MAG_MIP_LINEAR	= 0x85,
+    D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT	= 0x90,
+    D3D12_FILTER_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR	= 0x91,
+    D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT	= 0x94,
+    D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR	= 0x95,
+    D3D12_FILTER_COMPARISON_ANISOTROPIC	= 0xd5,
+    D3D12_FILTER_MINIMUM_MIN_MAG_MIP_POINT	= 0x100,
+    D3D12_FILTER_MINIMUM_MIN_MAG_POINT_MIP_LINEAR	= 0x101,
+    D3D12_FILTER_MINIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT	= 0x104,
+    D3D12_FILTER_MINIMUM_MIN_POINT_MAG_MIP_LINEAR	= 0x105,
+    D3D12_FILTER_MINIMUM_MIN_LINEAR_MAG_MIP_POINT	= 0x110,
+    D3D12_FILTER_MINIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR	= 0x111,
+    D3D12_FILTER_MINIMUM_MIN_MAG_LINEAR_MIP_POINT	= 0x114,
+    D3D12_FILTER_MINIMUM_MIN_MAG_MIP_LINEAR	= 0x115,
+    D3D12_FILTER_MINIMUM_ANISOTROPIC	= 0x155,
+    D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_POINT	= 0x180,
+    D3D12_FILTER_MAXIMUM_MIN_MAG_POINT_MIP_LINEAR	= 0x181,
+    D3D12_FILTER_MAXIMUM_MIN_POINT_MAG_LINEAR_MIP_POINT	= 0x184,
+    D3D12_FILTER_MAXIMUM_MIN_POINT_MAG_MIP_LINEAR	= 0x185,
+    D3D12_FILTER_MAXIMUM_MIN_LINEAR_MAG_MIP_POINT	= 0x190,
+    D3D12_FILTER_MAXIMUM_MIN_LINEAR_MAG_POINT_MIP_LINEAR	= 0x191,
+    D3D12_FILTER_MAXIMUM_MIN_MAG_LINEAR_MIP_POINT	= 0x194,
+    D3D12_FILTER_MAXIMUM_MIN_MAG_MIP_LINEAR	= 0x195,
+    D3D12_FILTER_MAXIMUM_ANISOTROPIC	= 0x1d5
+}
+
+D3D12_FILTER_TYPE :: enum u32
+{
+    D3D12_FILTER_TYPE_POINT	= 0,
+    D3D12_FILTER_TYPE_LINEAR	= 1
+}
+
+D3D12_FILTER_REDUCTION_TYPE :: enum u32
+{
+    D3D12_FILTER_REDUCTION_TYPE_STANDARD	= 0,
+    D3D12_FILTER_REDUCTION_TYPE_COMPARISON	= 1,
+    D3D12_FILTER_REDUCTION_TYPE_MINIMUM	= 2,
+    D3D12_FILTER_REDUCTION_TYPE_MAXIMUM	= 3
+}
+
+D3D12_TEXTURE_ADDRESS_MODE :: enum u32
+{
+    D3D12_TEXTURE_ADDRESS_MODE_WRAP	= 1,
+    D3D12_TEXTURE_ADDRESS_MODE_MIRROR	= 2,
+    D3D12_TEXTURE_ADDRESS_MODE_CLAMP	= 3,
+    D3D12_TEXTURE_ADDRESS_MODE_BORDER	= 4,
+    D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE	= 5
+}
+
+D3D12_STATIC_SAMPLER_DESC :: struct
+{
+    Filter : D3D12_FILTER ,
+    AddressU : D3D12_TEXTURE_ADDRESS_MODE ,
+    AddressV : D3D12_TEXTURE_ADDRESS_MODE,
+    AddressW : D3D12_TEXTURE_ADDRESS_MODE ,
+    MipLODBias : f32 ,
+    MaxAnisotropy : windows.UINT,
+    ComparisonFunc : D3D12_COMPARISON_FUNC ,
+    BorderColor : D3D12_STATIC_BORDER_COLOR ,
+    MinLOD : f32 ,
+    MaxLOD : f32 ,
+    ShaderRegister : windows.UINT ,
+    RegisterSpace : windows.UINT ,
+    ShaderVisibility : D3D12_SHADER_VISIBILITY ,
+}
 
 //typedef D3D_PRIMITIVE_TOPOLOGY D3D12_PRIMITIVE_TOPOLOGY;
 D3D12_PRIMITIVE_TOPOLOGY :: enum u32
@@ -798,18 +967,6 @@ D3D12_DSV_FLAGS :: enum u32
     D3D12_DSV_FLAG_READ_ONLY_STENCIL	= 0x2
 };
 
-//DEFINE_ENUM_FLAG_OPERATORS( D3D12_DSV_FLAGS );
-D3D12_DSV_DIMENSION : enum u32
-{
-    D3D12_DSV_DIMENSION_UNKNOWN	= 0,
-    D3D12_DSV_DIMENSION_TEXTURE1D	= 1,
-    D3D12_DSV_DIMENSION_TEXTURE1DARRAY	= 2,
-    D3D12_DSV_DIMENSION_TEXTURE2D	= 3,
-    D3D12_DSV_DIMENSION_TEXTURE2DARRAY	= 4,
-    D3D12_DSV_DIMENSION_TEXTURE2DMS	= 5,
-    D3D12_DSV_DIMENSION_TEXTURE2DMSARRAY	= 6
-};
-
 /*
 D3D12_DEPTH_STENCIL_VIEW_DESC : struct
     {
@@ -889,21 +1046,21 @@ D3D12_RANGE :: struct
     End : windows.SIZE_T,
 };
 
-create_descriptor_heap_desc :: proc(device : RenderDevice/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
+create_descriptor_heap_ :: proc(device : rawptr/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;
     l_desc := desc;
-    result.value = CreateDescriptorHeap(device.device,l_desc);        
+    result.value = CreateDescriptorHeap(device,l_desc);        
     return result;
 }
 
-create_descriptor_heap_type_num :: proc(device : RenderDevice/*ID3D12Device2**/ ,type : D3D12_DESCRIPTOR_HEAP_TYPE, num_of_descriptors : u32) -> ID3D12DescriptorHeap
+create_descriptor_heap_type_num :: proc(device : rawptr/*ID3D12Device2**/ ,type : D3D12_DESCRIPTOR_HEAP_TYPE, num_of_descriptors : u32) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;    
     desc : D3D12_DESCRIPTOR_HEAP_DESC;
     desc.NumDescriptors = num_of_descriptors;
     desc.Type = type;
-    result.value = CreateDescriptorHeap(device.device,desc);    
+    result.value = CreateDescriptorHeap(device,desc);    
     return result;
 }
 
@@ -964,6 +1121,52 @@ D3D12_FEATURE_DATA_FORMAT_SUPPORT :: struct
     Support1 : D3D12_FORMAT_SUPPORT1,
     Support2 : D3D12_FORMAT_SUPPORT2,
 };
+
+D3D12_FEATURE :: enum u32
+{
+    D3D12_FEATURE_D3D12_OPTIONS	= 0,
+    D3D12_FEATURE_ARCHITECTURE	= 1,
+    D3D12_FEATURE_FEATURE_LEVELS	= 2,
+    D3D12_FEATURE_FORMAT_SUPPORT	= 3,
+    D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS	= 4,
+    D3D12_FEATURE_FORMAT_INFO	= 5,
+    D3D12_FEATURE_GPU_VIRTUAL_ADDRESS_SUPPORT	= 6,
+    D3D12_FEATURE_SHADER_MODEL	= 7,
+    D3D12_FEATURE_D3D12_OPTIONS1	= 8,
+    D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_SUPPORT	= 10,
+    D3D12_FEATURE_ROOT_SIGNATURE	= 12,
+    D3D12_FEATURE_ARCHITECTURE1	= 16,
+    D3D12_FEATURE_D3D12_OPTIONS2	= 18,
+    D3D12_FEATURE_SHADER_CACHE	= 19,
+    D3D12_FEATURE_COMMAND_QUEUE_PRIORITY	= 20,
+    D3D12_FEATURE_D3D12_OPTIONS3	= 21,
+    D3D12_FEATURE_EXISTING_HEAPS	= 22,
+    D3D12_FEATURE_D3D12_OPTIONS4	= 23,
+    D3D12_FEATURE_SERIALIZATION	= 24,
+    D3D12_FEATURE_CROSS_NODE	= 25,
+    D3D12_FEATURE_D3D12_OPTIONS5	= 27,
+    D3D12_FEATURE_DISPLAYABLE	= 28,
+    D3D12_FEATURE_D3D12_OPTIONS6	= 30,
+    D3D12_FEATURE_QUERY_META_COMMAND	= 31,
+    D3D12_FEATURE_D3D12_OPTIONS7	= 32,
+    D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPE_COUNT	= 33,
+    D3D12_FEATURE_PROTECTED_RESOURCE_SESSION_TYPES	= 34,
+    D3D12_FEATURE_D3D12_OPTIONS8	= 36,
+    D3D12_FEATURE_D3D12_OPTIONS9	= 37,
+    D3D12_FEATURE_D3D12_OPTIONS10	= 39
+}
+
+D3D_ROOT_SIGNATURE_VERSION :: enum u32
+{
+    D3D_ROOT_SIGNATURE_VERSION_1	= 0x1,
+    D3D_ROOT_SIGNATURE_VERSION_1_0	= 0x1,
+    D3D_ROOT_SIGNATURE_VERSION_1_1	= 0x2
+}
+
+D3D12_FEATURE_DATA_ROOT_SIGNATURE :: struct
+{
+    HighestVersion : D3D_ROOT_SIGNATURE_VERSION,
+}
 
 D12Resource :: struct
 {
@@ -1124,67 +1327,177 @@ D3D12_CLEAR_VALUE :: struct
     clear_value : ClearValueUnion,
 }
 
-create_descriptor_heap :: proc{create_descriptor_heap_desc,create_descriptor_heap_type_num};
-
-execute_frame :: proc()
+D3D12_COMMAND_LIST_TYPE :: enum u32
 {
+    D3D12_COMMAND_LIST_TYPE_DIRECT	= 0,
+    D3D12_COMMAND_LIST_TYPE_BUNDLE	= 1,
+    D3D12_COMMAND_LIST_TYPE_COMPUTE	= 2,
+    D3D12_COMMAND_LIST_TYPE_COPY	= 3,
+    D3D12_COMMAND_LIST_TYPE_VIDEO_DECODE	= 4,
+    D3D12_COMMAND_LIST_TYPE_VIDEO_PROCESS	= 5,
+    D3D12_COMMAND_LIST_TYPE_VIDEO_ENCODE	= 6
+}
 
-//    upload_operations : UploadOperations;
+DEPTH_STENCIL_UNION :: struct #raw_union 
+{
+    Texture1D : D3D12_TEX1D_DSV,
+    Texture1DArray : D3D12_TEX1D_ARRAY_DSV,
+    Texture2D : D3D12_TEX2D_DSV,
+    Texture2DArray : D3D12_TEX2D_ARRAY_DSV,
+    Texture2DMS : D3D12_TEX2DMS_DSV,
+    Texture2DMSArray : D3D12_TEX2DMS_ARRAY_DSV,
+}
 
-//    fmj.fmj_thread_begin_ticket_mutex(&upload_operations.ticket_mutex);
-//    current_backbuffer_index := GetCurrentBackBufferIndex();
-/*    
-    if(is_resource_cl_recording)
-    {
-        resource_cl->Close();
-        is_resource_cl_recording = false;
-    }
-*/
+D3D12_TEX1D_DSV :: struct
+{
+    MipSlice : windows.UINT,
+}
 
-/*        
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(D12RendererCode::rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart(),
-                                          current_backbuffer_index, D12RendererCode::rtv_desc_size);
+D3D12_TEX1D_ARRAY_DSV :: struct
+{
+    MipSlice :     windows.UINT,
+    FirstArraySlice : windows.UINT,
+    ArraySize : windows.UINT,
+}
+
+D3D12_TEX2D_DSV :: struct
+{
+    MipSlice : windows.UINT,
+}
+
+D3D12_TEX2D_ARRAY_DSV :: struct
+{
+    MipSlice : windows.UINT,
+    FirstArraySlice : windows.UINT,
+    ArraySize : windows.UINT,
+}
+
+D3D12_TEX2DMS_DSV :: struct
+{
+    UnusedField_NothingToDefine : windows.UINT, 
+} 
+
+D3D12_TEX2DMS_ARRAY_DSV :: struct
+{
+    FirstArraySlice :     windows.UINT,
+    ArraySize : windows.UINT,
+}
+
+
+D3D12_DSV_DIMENSION:: enum u32
+{
+    D3D12_DSV_DIMENSION_UNKNOWN	= 0,
+    D3D12_DSV_DIMENSION_TEXTURE1D	= 1,
+    D3D12_DSV_DIMENSION_TEXTURE1DARRAY	= 2,
+    D3D12_DSV_DIMENSION_TEXTURE2D	= 3,
+    D3D12_DSV_DIMENSION_TEXTURE2DARRAY	= 4,
+    D3D12_DSV_DIMENSION_TEXTURE2DMS	= 5,
+    D3D12_DSV_DIMENSION_TEXTURE2DMSARRAY	= 6
+}
+
+D3D12_DEPTH_STENCIL_VIEW_DESC :: struct
+{
+    Format : DXGI_FORMAT,
+    ViewDimension : D3D12_DSV_DIMENSION,
+    Flags  : D3D12_DSV_FLAGS,
+    depth_stencil : DEPTH_STENCIL_UNION, 
+}
+
+BufferView :: struct #raw_union
+{
+    vertex_buffer_view : D3D12_VERTEX_BUFFER_VIEW,
+    index_buffer_view : D3D12_INDEX_BUFFER_VIEW,
+};
+
+UploadOp :: struct
+{
+    id : u64,
+    thread_id : u64,
+    arena : GPUArena,
+    temp_arena : GPUArena,
+};
+
+UploadOpKey :: struct
+{
+    id : u64,
+};
+
+UploadOperations :: struct
+{
+    count : u64,
+    table_cache : con.AnyCache(UploadOpKey,UploadOp),
+    ticket_mutex : TicketMutex,
+    current_op_id : u64,
+    fence_value : u64,
+    fence : rawptr,//ID3D12Fence;
+    fence_event : windows.HANDLE,
+};
+
+GPUArena :: struct
+{
+    size : u64,
+    heap : rawptr,//    ID3D12Heap* 
+    resource : rawptr, //    ID3D12Resource* 
+    slot : u32,
+    buffer_view : BufferView,    
+};
+
+D12CommandAllocatorEntry :: struct
+{
+    allocator : rawptr, //ID3D12CommandAllocator* ;
+    used_list_indexes : con.Buffer(u64),//Queued list indexes inflight being processed 
+    index : u64,
+    fence_value : u64,
+    thread_id : u64,
+    type : D3D12_COMMAND_LIST_TYPE,
+}
+
+//similar to MTLRenderCommandEncoder
+D12CommandListEntry :: struct
+{
+    index : u64,
+    list : rawptr,//^ID3D12GraphicsCommandList;
+    encoding_thread_index : u64,
+    is_encoding : bool,
+    type : D3D12_COMMAND_LIST_TYPE,
+    temp_resources : con.Buffer(rawptr),//ID3D12Object*//temp resources to release after execution is finished.
+};
+ 
+D12CommandAlloctorToCommandListKeyEntry :: struct
+{
+    command_allocator_index : u64,
+    command_list_index : u64,
+};
+
+//Similar to a MTLCommandBuffer
+D12CommandAllocatorKey :: struct
+{
+    ptr : u64,
+    thread_id : u64,
+};
+
+D12CommandAllocatorTables :: struct
+{
+//    command_buffers : Buffer(),
+//    free_command_buffers : Buffer,
+    free_allocators : con.Buffer(D12CommandAllocatorEntry),
+    command_lists : con.Buffer(D12CommandListEntry),
+    allocator_to_list_table : con.Buffer(D12CommandAlloctorToCommandListKeyEntry),
     
+    //One for each type 
+    free_allocator_table_direct : con.Buffer(^D12CommandAllocatorEntry),
+    free_allocator_table_compute : con.Buffer(^D12CommandAllocatorEntry),
+    free_allocator_table_copy : con.Buffer(^D12CommandAllocatorEntry),
 
-        D3D12_CPU_DESCRIPTOR_HANDLE dsv_cpu_handle = dsv_heap->GetCPUDescriptorHandleForHeapStart();
-        
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_cpu_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart(),
-                                                                                     current_backbuffer_index, rtv_desc_size);
-        
-        //D12Present the current framebuffer
-        //Commandbuffer
-        D12CommandAllocatorEntry* allocator_entry = D12RendererCode::GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
-        
-        D12CommandListEntry command_list = GetAssociatedCommandList(allocator_entry);
-        
-        //Graphics
-        
-        ID3D12Resource* back_buffer = D12RendererCode::GetCurrentBackBuffer();
-        
-        bool fc = IsFenceComplete(fence,allocator_entry->fence_value);
-        
-        ASSERT(fc);
-        allocator_entry->allocator->Reset();
-        
-        command_list.list->Reset(allocator_entry->allocator, nullptr);
-        
-        // Clear the render target.
-        TransitionResource(command_list,back_buffer,D3D12_RESOURCE_STATE_PRESENT,D3D12_RESOURCE_STATE_RENDER_TARGET);
-        
-        FLOAT clearColor[] = { 0.4f, 0.6f, 0.9f, 1.0f };
-        
-        command_list.list->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
-        command_list.list->ClearDepthStencilView(dsv_cpu_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
-        
-        //finish up
-        EndCommandListEncodingAndExecute(allocator_entry,command_list);
-        //insert signal in queue to so we know when we have executed up to this point. 
-        //which in this case is up to the command clear and tranition back to present transition 
-        //for back buffer.
-        allocator_entry->fence_value = D12RendererCode::Signal(command_queue, fence, fence_value);
-        
-        D12RendererCode::WaitForFenceValue(fence, allocator_entry->fence_value, fence_event);
-*/    
-//    fmj.fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
+    temp_queue_command_list : con.Buffer(rawptr),    //ID3D12GraphicsCommandList*
+    fl_ca : con.AnyCache(D12CommandAllocatorKey,D12CommandAllocatorEntry),//command_allocators
+}
 
+create_descriptor_heap :: proc{create_descriptor_heap_,create_descriptor_heap_type_num};
+
+D3D12_SUBRESOURCE_DATA :: struct
+{
+    pData : rawptr,
+    RowPitch : int,//windows.LONG_PTR,
+    SlicePitch : int,//windows.LONG_PTR,
 }
