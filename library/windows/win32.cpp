@@ -13,9 +13,80 @@ void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** dat
 {
     resource->Map(sub_resource,range,data);
 }
-void ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT[4] ColorRGBA,UINT NumRects,D3D12_RECT *pRects)
+
+void IASetVertexBuffers(ID3D12GraphicsCommandList* list,u32 StartSlot,u32 NumViews,D3D12_VERTEX_BUFFER_VIEW *pViews)
 {
-    ClearRenderTargetView(RenderTargetView,ColorRGBA,NumRects,pRects);
+    ASSERT(list);
+    list->IASetVertexBuffers(StartSlot,NumViews,pViews);    
+}
+
+void DrawInstanced(ID3D12GraphicsCommandList* list,u32 VertexCountPerInstance,u32 InstanceCount,u32 StartVertexLocation,u32 StartInstanceLocation)
+{
+    ASSERT(list);
+    list->DrawInstanced(VertexCountPerInstance,InstanceCount,StartVertexLocation,StartInstanceLocation);    
+}
+
+void SetPipelineState(ID3D12GraphicsCommandList* list,ID3D12PipelineState *pPipelineState)
+{
+    ASSERT(list);
+    list->SetPipelineState(pPipelineState);
+}
+
+void DrawIndexedInstanced(ID3D12GraphicsCommandList* list,u32 IndexCountPerInstance,u32 InstanceCount,u32 StartIndexLocation,s32  BaseVertexLocation,u32 StartInstanceLocation)
+{
+    ASSERT(list);
+    list->DrawIndexedInstanced(IndexCountPerInstance,InstanceCount,StartIndexLocation,BaseVertexLocation,StartInstanceLocation);    
+}
+
+void SetGraphicsRootSignature(ID3D12GraphicsCommandList* list,ID3D12RootSignature *pRootSignature)
+{
+    ASSERT(list);
+    list->SetGraphicsRootSignature(pRootSignature);
+}
+
+void RSSetViewports(ID3D12GraphicsCommandList* list,u32 NumViewports,D3D12_VIEWPORT *pViewports)
+{
+    list->RSSetViewports(NumViewports, pViewports);    
+}
+
+void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects)
+{
+    ASSERT(list);
+    list->RSSetScissorRects(NumRects,pRects);    
+}
+
+void ClearRenderTargetView(ID3D12GraphicsCommandList* list,D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT ColorRGBA[4] ,UINT NumRects,D3D12_RECT *pRects)
+{
+    list->ClearRenderTargetView(RenderTargetView,ColorRGBA,NumRects,pRects);
+}
+
+void OMSetRenderTargets(ID3D12GraphicsCommandList* list,u32 NumRenderTargetDescriptors,D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,bool RTsSingleHandleToDescriptorRange,D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor)
+{
+    ASSERT(list);
+    list->OMSetRenderTargets(NumRenderTargetDescriptors,pRenderTargetDescriptors,RTsSingleHandleToDescriptorRange,pDepthStencilDescriptor);
+}
+
+void IASetPrimitiveTopology(ID3D12GraphicsCommandList*list,D3D12_PRIMITIVE_TOPOLOGY PrimitiveTopology)
+{
+    ASSERT(list);
+    list->IASetPrimitiveTopology(PrimitiveTopology);
+}
+
+void IASetIndexBuffer(ID3D12GraphicsCommandList* list,D3D12_INDEX_BUFFER_VIEW *pView)
+{
+    ASSERT(list);
+    list->IASetIndexBuffer(pView);    
+}
+
+void ClearDepthStencilView(ID3D12GraphicsCommandList* list,
+                           D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView,
+                           D3D12_CLEAR_FLAGS           ClearFlags,
+                           f32                       Depth,
+                           u8                       Stencil,
+                           u32                        NumRects,
+                           D3D12_RECT            *pRects)
+{
+    list->ClearDepthStencilView(DepthStencilView,ClearFlags,Depth,Stencil,NumRects,pRects);    
 }
 
 void CloseCommandList(ID3D12GraphicsCommandList* list)
@@ -1853,7 +1924,7 @@ void CheckReuseCommandAllocators()
         }
     }
 }
-*/
+
 
 static CommandAllocToListResult GetFirstAssociatedList(D12CommandAllocatorEntry* allocator)
 {
@@ -1906,7 +1977,8 @@ D12CommandListEntry GetAssociatedCommandList(D12CommandAllocatorEntry* ca)
     fmj_stretch_buffer_push(&ca->used_list_indexes, (void*)&cl_index);
     return command_list_entry;
 }
-    
+
+
 void EndCommandListEncodingAndExecute(D12CommandAllocatorEntry* ca,D12CommandListEntry cl)
 {
     //Render encoder end encoding
@@ -1934,7 +2006,8 @@ void EndCommandListEncodingAndExecute(D12CommandAllocatorEntry* ca,D12CommandLis
     fmj_stretch_buffer_clear(&temp_queue_command_list);
     fmj_stretch_buffer_clear(&ca->used_list_indexes);
 }
-    
+*/
+
 // TODO(Ray Garner): // NOTE(Ray Garner): It has been reccommended that we store tranistions until the
 //copy draw dispatch or push needs to be executed and deffer them to the last minute as possible as 
 //batches. For now we ignore that advice but will come back to that later.
@@ -2255,4 +2328,3 @@ void EndFrame()
     fmj_arena_deallocate(&constants_arena,false);
 }
 */
-

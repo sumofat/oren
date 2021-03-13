@@ -317,7 +317,6 @@ main :: proc()
 
 	    has_update := false;
 
-
 	    if buf_len(render.command_buffer) > 0
 	    {
 		AddStartCommandListCommand();

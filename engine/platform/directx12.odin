@@ -17,10 +17,22 @@ D3D12_GPU_VIRTUAL_ADDRESS :: UINT64;
 
 D3D12_FLOAT32_MAX : f32 : 3.402823466e+38;
 
+D3D12_RECT :: window32.Rect;
+
 CompatibilityProfile :: struct
 {
     level : c.int,
 };
+
+D3D12_VIEWPORT :: struct
+{
+    TopLeftX : FLOAT,
+    TopLeftY : FLOAT,
+    Width : FLOAT ,
+    Height : FLOAT,
+    MinDepth : FLOAT,
+    MaxDepth : FLOAT,
+}
 
 D3D12_ROOT_DESCRIPTOR_TABLE1 :: struct
 {

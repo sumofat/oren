@@ -628,7 +628,9 @@ extern "C"
     void CloseCommandList(ID3D12CommandList* list);
     HRESULT D3D12UpdateSubresources(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pDestinationResource, ID3D12Resource* pIntermediate,u32 FirstSubresource,u32 NumSubresources,u64 RequiredSize,D3D12_SUBRESOURCE_DATA* pSrcData);
     bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value);
-    void ExecuteCommandLists(ID3D12CommandList* lists,u32 list_count);
+
+    void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList* lists,u32 list_count);
+    //    void ExecuteCommandLists(ID3D12CommandList* lists,u32 list_count);
     u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue);
     void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration);
 
@@ -638,7 +640,22 @@ extern "C"
     void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,  D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
     ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags);
     void TransitionResource(D12CommandListEntry cle,ID3D12Resource* resource,D3D12_RESOURCE_STATES from,D3D12_RESOURCE_STATES to);
-    void ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT[4] ColorRGBA,UINT NumRects,D3D12_RECT *pRects);    
+    void ClearRenderTargetView(ID3D12GraphicsCommandList* list,D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT ColorRGBA[4] ,UINT NumRects,D3D12_RECT *pRects);
+    void ClearDepthStencilView(ID3D12GraphicsCommandList* list,
+                           D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView,
+                           D3D12_CLEAR_FLAGS           ClearFlags,
+                           f32                       Depth,
+                           u8                       Stencil,
+                           u32                        NumRects,
+                               D3D12_RECT            *pRects);
+    void OMSetRenderTargets(ID3D12GraphicsCommandList* list,u32 NumRenderTargetDescriptors,D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,bool RTsSingleHandleToDescriptorRange,D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor); 
+    void RSSetViewports(ID3D12GraphicsCommandList* list,u32 NumViewports,D3D12_VIEWPORT *pViewports);
+    void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects);
+    void IASetPrimitiveTopology(ID3D12GraphicsCommandList*list,D3D12_PRIMITIVE_TOPOLOGY PrimitiveTopology);
+    void DrawInstanced(ID3D12GraphicsCommandList* list,u32 VertexCountPerInstance,u32 InstanceCount,u32 StartVertexLocation,u32 StartInstanceLocation);
+    void IASetIndexBuffer(ID3D12GraphicsCommandList* list,D3D12_INDEX_BUFFER_VIEW *pView);
+    void IASetVertexBuffers(ID3D12GraphicsCommandList* list,u32 StartSlot,u32 NumViews,D3D12_VERTEX_BUFFER_VIEW *pViews);
+    void SetPipelineState(ID3D12GraphicsCommandList* list,ID3D12PipelineState *pPipelineState);    
 }
 //end declare
 
