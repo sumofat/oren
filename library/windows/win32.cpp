@@ -14,6 +14,27 @@ void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** dat
     resource->Map(sub_resource,range,data);
 }
 
+void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,
+  u32                 NumDescriptorHeaps,
+  ID3D12DescriptorHeap *ppDescriptorHeaps
+)
+{
+    ASSERT(list);
+    list->SetDescriptorHeaps(NumDescriptorHeaps,ppDescriptorHeaps); 
+}
+
+void SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list, u32 RootParameterIndex,D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
+{
+    ASSERT(list);
+    list->SetGraphicsRootDescriptorTable(RootParameterIndex,BaseDescriptor);
+}
+
+void SetGraphicsRoot32BitConstants(ID3D12GraphicsCommandList* list,u32 RootParameterIndex,u32 Num32BitValuesToSet,void *pSrcData,u32 DestOffsetIn32BitValues)
+{
+    ASSERT(list);
+    list->SetGraphicsRoot32BitConstants(RootParameterIndex,Num32BitValuesToSet,pSrcData,DestOffsetIn32BitValues);
+}
+
 void IASetVertexBuffers(ID3D12GraphicsCommandList* list,u32 StartSlot,u32 NumViews,D3D12_VERTEX_BUFFER_VIEW *pViews)
 {
     ASSERT(list);
