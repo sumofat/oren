@@ -1,4 +1,6 @@
 package graphics
+import platform "../platform"
+import con "../containers"
 
 RenderCommand :: struct
 {
@@ -18,18 +20,124 @@ RenderCommand :: struct
 
 Renderer :: struct
 {
-    command_buffer : Buffer(RenderCommand),
+    command_buffer : con.Buffer(RenderCommand),
 };
+
+//Commands
+
+D12CommandBasicDraw :: struct
+{
+    vertex_offset : u32,
+    count : u32,
+    topology : platform.D3D12_PRIMITIVE_TOPOLOGY,
+    heap_count : u32,
+    //ID3D12DescriptorHeap* heaps;
+    buffer_view : platform.D3D12_VERTEX_BUFFER_VIEW,// TODO(Ray Garner): add a way to bind multiples
+    // TODO(Ray Garner): add a way to bind multiples
+};
+
+D12CommandIndexedDraw :: struct
+{
+    index_count : u32,
+    index_offset : u32,
+    topology : platform.D3D12_PRIMITIVE_TOPOLOGY,
+    heap_count : u32,
+//    D3D12_VERTEX_BUFFER_VIEW uv_view,
+//    D3D12_VERTEX_BUFFER_VIEW buffer_view,// TODO(Ray Garner): add a way to bind multiples
+    
+    index_buffer_view :     platform.D3D12_INDEX_BUFFER_VIEW,
+    // TODO(Ray Garner): add a way to bind multiples
+};
+
+render_commands : con.Buffer(D12RenderCommand);
+
+D12CommandSetVertexBuffer :: struct
+{
+    slot : u32,
+    buffer_view : platform.D3D12_VERTEX_BUFFER_VIEW,
+};
+
+D12CommandViewport :: struct
+{
+    viewport : f4,
+};
+
+D12CommandRootSignature :: struct
+{
+    root_sig :  rawptr /*ID3D12RootSignature**/ ,
+};
+
+D12RenderCommand :: union
+{
+    D12CommandBasicDraw,
+    D12CommandIndexedDraw,
+    D12CommandSetVertexBuffer,
+    D12CommandViewport,
+    D12CommandRootSignature,
+    D12CommandPipelineState,
+    D12CommandScissorRect,
+    D12CommandGraphicsRootDescTable,
+    D12CommandGraphicsRoot32BitConstant,
+    D12CommandStartCommandList,
+    D12CommandEndCommmandList,
+    D12RenderTargets,    
+}
+
+D12CommandPipelineState :: struct
+{
+    pipeline_state : rawptr /*ID3D12PipelineState* */,
+};
+
+D12CommandScissorRect :: struct
+{
+    rect : platform.D3D12_RECT,
+    //f4 rect,
+};
+
+D12CommandGraphicsRootDescTable :: struct
+{
+    index : u64,
+    heap : rawptr /*(ID3D12DescriptorHeap* )*/,
+    gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE,
+}
+
+D12CommandGraphicsRoot32BitConstant :: struct
+{
+    index : u32,
+    num_values : u32,
+    gpuptr : rawptr,
+    offset : u32,
+}
+
+D12CommandStartCommandList :: struct
+{
+    dummy : bool,
+    handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+};
+
+D12CommandEndCommmandList :: struct
+{
+    dummy : bool,
+};
+
+D12RenderTargets :: struct
+{
+    is_desc_range : bool,
+    count : u32,
+    descriptors : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+    depth_stencil_handle : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+}
 
 renderer_init :: proc() -> Renderer
 {
     result : Renderer;
-    result.command_buffer = buf_init(100,RenderCommand);
+    result.command_buffer = con.buf_init(100,RenderCommand);
     return result;
 }
 
 process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
 {
+    using con;
     for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1
     {
         child_so_id := buf_get(&so.children.buffer,cast(u64)i);
@@ -98,6 +206,7 @@ process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat 
 
 issue_render_commands :: proc(render : ^Renderer,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
 {
+    using con;
     //Start at root node
     for i := 0;i < cast(int)buf_len(s.buffer.buffer);i +=1 
     {
@@ -113,4 +222,3 @@ issue_render_commands :: proc(render : ^Renderer,s : ^Scene,ctx : ^AssetContext,
         buf_chk_in(&ctx.scene_objects);
     }
 }
-

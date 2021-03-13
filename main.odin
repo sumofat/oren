@@ -10,7 +10,7 @@ import la "core:math/linalg"
 import platform "engine/platform"
 import fmj "engine/fmj"
 import gfx "engine/graphics"
-
+import con "engine/containers"
 //Graphics
 /*
 Basic rendering working
@@ -129,7 +129,8 @@ handle_msgs :: proc(window : ^WindowData) -> bool
 main :: proc()
 {
     using la;
-    using gfx;    
+    using gfx;
+    using con;
     fmt.println("Hellope!");
 
     x :f32 = fmj.degrees(20);
@@ -165,14 +166,17 @@ main :: proc()
 //	fmt.println(ps.time);
 	//Lets init directx12
 	
-	init_result := platform.Init(&ps.window.handle,ps.window.dim);
+	init_result := gfx.Init(&ps.window.handle,ps.window.dim);
 
 	if (init_result.is_init)
 	{
+	    device = init_result.device;
+	    
             //Do some setup if needed
             fmt.println("Graphics are initialized...");
-	    device = init_result.device;
-	    gfx.init(&ps);	    
+
+	    gfx.init(&ps);
+	    
 	}
 	else
 	{
@@ -213,7 +217,7 @@ main :: proc()
 	desc_heap_desc.NumDescriptors =  MAX_SRV_DESC_HEAP_COUNT;	    
 	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	default_srv_desc_heap = create_descriptor_heap(device,desc_heap_desc);
+	default_srv_desc_heap = platform.create_descriptor_heap(device.device,desc_heap_desc);
 
 	def_r := quaternion_angle_axis(degrees(cast(f32)0.0),f3{0,0,1});	
 
@@ -312,6 +316,7 @@ main :: proc()
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
 
 	    has_update := false;
+
 	    if buf_len(render.command_buffer) > 0
 	    {
 		AddStartCommandListCommand();
@@ -378,7 +383,7 @@ main :: proc()
 		buf_clear(&matrix_quad_buffer);
             }
 	    
-	    platform.EndFrame();
+	    execute_frame();
 	    platform.HandleWindowsMessages(&ps);
 
 	    buf_clear(&render.command_buffer);

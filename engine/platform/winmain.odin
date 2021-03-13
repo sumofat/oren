@@ -187,13 +187,13 @@ foreign platform
     platformtest :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2) -> bool ---;
     PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2,n_show_cmd : c.int) -> bool ---;    
     HandleWindowsMessages :: proc "c" (ps : ^PlatformState) ---;
-    Init :: proc "c" (window : ^window32.Hwnd,dim : la.Vector2) -> CreateDeviceResult ---;
+
     CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2) ---;
     CreateDefaultRootSig :: proc "c"()  -> rawptr ---;    
     GetDevice :: proc "c"() -> rawptr ---;
     GetCurrentBackBufferIndex :: proc "c"() -> u32 ---;
     GetCurrentBackBuffer :: proc "c"() -> rawptr ---;
-    EndFrame :: proc "c"() ---;
+//    EndFrame :: proc "c"() ---;
     AddCommand_ :: proc "c"(size : u32) -> rawptr ---;
     AddHeader :: proc "c"(type : CommandType) ---;    
     AddSetVertexBufferCommand :: proc "c"(slot : u32 ,buffer_view : D3D12_VERTEX_BUFFER_VIEW) ---;
@@ -216,6 +216,11 @@ foreign platform
     GetDesc :: proc "c"(desc_heap : rawptr) ->  D3D12_DESCRIPTOR_HEAP_DESC ---;
     GetGPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr) ->D3D12_GPU_DESCRIPTOR_HANDLE ---;    
     GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;
+    CreateCommandAllocator ::  proc "c"(device : rawptr,type : D3D12_COMMAND_LIST_TYPE) -> rawptr ---/*ID3D12CommandAllocator**/;
+    CreateCommandList :: proc "c"(device : rawptr,commandAllocator : rawptr/*^ID3D12CommandAllocator*/, type  : D3D12_COMMAND_LIST_TYPE) -> rawptr---;//ID3D12GraphicsCommandList* ;
+    CreateFence :: proc "c"(device : rawptr) -> rawptr/*ID3D12Fence**/---;
+    CreateEventHandle :: proc "c"() ->windows.HANDLE ---;
+    IsFenceComplete :: proc "c"(fence : rawptr /*ID3D12Fence* */,fence_value : u64) -> bool ---;
 }
 
 AddCommand :: proc($T: typeid) -> ^T

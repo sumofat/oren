@@ -14,6 +14,124 @@ void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** dat
     resource->Map(sub_resource,range,data);
 }
 
+void IASetVertexBuffers(ID3D12GraphicsCommandList* list,u32 StartSlot,u32 NumViews,D3D12_VERTEX_BUFFER_VIEW *pViews)
+{
+    ASSERT(list);
+    list->IASetVertexBuffers(StartSlot,NumViews,pViews);    
+}
+
+void DrawInstanced(ID3D12GraphicsCommandList* list,u32 VertexCountPerInstance,u32 InstanceCount,u32 StartVertexLocation,u32 StartInstanceLocation)
+{
+    ASSERT(list);
+    list->DrawInstanced(VertexCountPerInstance,InstanceCount,StartVertexLocation,StartInstanceLocation);    
+}
+
+void SetPipelineState(ID3D12GraphicsCommandList* list,ID3D12PipelineState *pPipelineState)
+{
+    ASSERT(list);
+    list->SetPipelineState(pPipelineState);
+}
+
+void DrawIndexedInstanced(ID3D12GraphicsCommandList* list,u32 IndexCountPerInstance,u32 InstanceCount,u32 StartIndexLocation,s32  BaseVertexLocation,u32 StartInstanceLocation)
+{
+    ASSERT(list);
+    list->DrawIndexedInstanced(IndexCountPerInstance,InstanceCount,StartIndexLocation,BaseVertexLocation,StartInstanceLocation);    
+}
+
+void SetGraphicsRootSignature(ID3D12GraphicsCommandList* list,ID3D12RootSignature *pRootSignature)
+{
+    ASSERT(list);
+    list->SetGraphicsRootSignature(pRootSignature);
+}
+
+void RSSetViewports(ID3D12GraphicsCommandList* list,u32 NumViewports,D3D12_VIEWPORT *pViewports)
+{
+    list->RSSetViewports(NumViewports, pViewports);    
+}
+
+void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects)
+{
+    ASSERT(list);
+    list->RSSetScissorRects(NumRects,pRects);    
+}
+
+void ClearRenderTargetView(ID3D12GraphicsCommandList* list,D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT ColorRGBA[4] ,UINT NumRects,D3D12_RECT *pRects)
+{
+    list->ClearRenderTargetView(RenderTargetView,ColorRGBA,NumRects,pRects);
+}
+
+void OMSetRenderTargets(ID3D12GraphicsCommandList* list,u32 NumRenderTargetDescriptors,D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,bool RTsSingleHandleToDescriptorRange,D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor)
+{
+    ASSERT(list);
+    list->OMSetRenderTargets(NumRenderTargetDescriptors,pRenderTargetDescriptors,RTsSingleHandleToDescriptorRange,pDepthStencilDescriptor);
+}
+
+void IASetPrimitiveTopology(ID3D12GraphicsCommandList*list,D3D12_PRIMITIVE_TOPOLOGY PrimitiveTopology)
+{
+    ASSERT(list);
+    list->IASetPrimitiveTopology(PrimitiveTopology);
+}
+
+void IASetIndexBuffer(ID3D12GraphicsCommandList* list,D3D12_INDEX_BUFFER_VIEW *pView)
+{
+    ASSERT(list);
+    list->IASetIndexBuffer(pView);    
+}
+
+void ClearDepthStencilView(ID3D12GraphicsCommandList* list,
+                           D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView,
+                           D3D12_CLEAR_FLAGS           ClearFlags,
+                           f32                       Depth,
+                           u8                       Stencil,
+                           u32                        NumRects,
+                           D3D12_RECT            *pRects)
+{
+    list->ClearDepthStencilView(DepthStencilView,ClearFlags,Depth,Stencil,NumRects,pRects);    
+}
+
+void CloseCommandList(ID3D12GraphicsCommandList* list)
+{
+    ASSERT(list);
+    list->Close();
+}
+
+void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList*  const* lists,u32 list_count)
+{
+    queue->ExecuteCommandLists(list_count, lists);    
+}
+
+u64 GetIntermediateSize(ID3D12Resource* resource,u32 firstSubResource,u32 NumSubresources)
+{
+    return GetRequiredIntermediateSize(resource,firstSubResource,NumSubresources);
+}
+
+void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,  D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor)
+{
+    device->CreateDepthStencilView(pResource,
+                               pDesc,
+                               DestDescriptor);
+}
+
+
+HRESULT D3D12UpdateSubresources(
+ID3D12GraphicsCommandList* pCmdList,
+ ID3D12Resource* pDestinationResource,
+ ID3D12Resource* pIntermediate,
+u32 FirstSubresource,
+u32 NumSubresources,
+u64 RequiredSize,
+D3D12_SUBRESOURCE_DATA* pSrcData)
+{
+    return UpdateSubresources(pCmdList, 
+                       pDestinationResource,
+                       pIntermediate,
+                       FirstSubresource,
+                       NumSubresources,
+                       RequiredSize,
+                       pSrcData);    
+}
+
+
 ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
 {
     ID3D12CommandAllocator* commandAllocator;
@@ -26,12 +144,12 @@ ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMM
     return commandAllocator;
 }
 
-void CreateCommittedResource(ID3D12Device2* device,D3D12_HEAP_PROPERTIES *pHeapProperties,
+HRESULT CreateCommittedResource(ID3D12Device2* device,D3D12_HEAP_PROPERTIES *pHeapProperties,
                              D3D12_HEAP_FLAGS HeapFlags,
                              D3D12_RESOURCE_DESC *pDesc,
                              D3D12_RESOURCE_STATES InitialResourceState,
                              D3D12_CLEAR_VALUE *pOptimizedClearValue,
-                             D12Resource* resource)
+                             ID3D12Resource* resource)
 
 {
     HRESULT r = (device->CreateCommittedResource(
@@ -40,8 +158,9 @@ void CreateCommittedResource(ID3D12Device2* device,D3D12_HEAP_PROPERTIES *pHeapP
                      pDesc,
                      InitialResourceState,            
                      pOptimizedClearValue,
-                     IID_PPV_ARGS(&resource->state)));
-    ASSERT(SUCCEEDED(r));    
+                     IID_PPV_ARGS(&resource)));
+    ASSERT(SUCCEEDED(r));
+    return r;
 }
 
 FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
@@ -82,9 +201,13 @@ D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE t
     return  result;
 }
     
-u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue)
+u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64* fenceValue)
 {
-    u64 fenceValueForSignal = ++fenceValue;
+    ASSERT(commandQueue);
+    ASSERT(fence);
+    ASSERT(fenceValue);
+    fenceValue += 1;
+    u64 fenceValueForSignal = *fenceValue;
     (commandQueue->Signal(fence, fenceValueForSignal));
     return fenceValueForSignal;
 }
@@ -226,7 +349,7 @@ void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
 }
-    
+/*
 D12CommandAllocatorEntry* GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE  type)
 {
     D12CommandAllocatorEntry* result;
@@ -263,7 +386,21 @@ D12CommandAllocatorEntry* GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE  
     ASSERT(result);
     return result;
 }
-    
+*/
+
+HRESULT ResetCommandAllocator(ID3D12CommandAllocator* a)
+{
+    ASSERT(a);
+    return a->Reset();
+}
+
+HRESULT ResetCommandList(ID3D12GraphicsCommandList* l,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState)
+{
+    ASSERT(pAllocator);
+    ASSERT(pInitialState);
+    return l->Reset(pAllocator,pInitialState);
+}
+/*
 void UploadBufferData(GPUArena* g_arena,void* data,u64 size)
 {
     D12CommandAllocatorEntry* free_ca  = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_COPY);
@@ -368,7 +505,8 @@ void UploadBufferData(GPUArena* g_arena,void* data,u64 size)
     }
     fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
 }
-    
+*/
+
 void SetArenaToVertexBufferView(GPUArena* g_arena,u64 size,u32 stride)
 {
     g_arena->buffer_view = 
@@ -861,10 +999,11 @@ void AddScissorRectCommand(f4 rect)
     com->rect = CD3DX12_RECT(rect.x,rect.y,rect.z,rect.w);
 }
     
-void AddStartCommandListCommand()
+void AddStartCommandListCommand(D3D12_CPU_DESCRIPTOR_HANDLE* handles)
 {
     AddHeader(CommandType_StartCommandList);
     D12CommandStartCommandList* com = AddCommand(D12CommandStartCommandList);
+    com->handles = handles;
 }
     
 void AddEndCommandListCommand()
@@ -1033,7 +1172,7 @@ static ID3D12Device2* CreateDevice(IDXGIAdapter4* adapter)
 }
 
     
-static ID3D12CommandQueue* CreateCommandQueue(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
+ID3D12CommandQueue* CreateCommandQueue(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
 {
     ID3D12CommandQueue* d3d12CommandQueue;
         
@@ -1165,8 +1304,7 @@ ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIP
     return descriptorHeap;
 }
     
-static void UpdateRenderTargetViews(ID3D12Device2* device,
-                                    IDXGISwapChain4* swapChain, ID3D12DescriptorHeap* descriptorHeap)
+void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, ID3D12DescriptorHeap* descriptorHeap)
 {
     auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
@@ -1207,6 +1345,7 @@ ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12Command
     return command_list;
 }
 
+/*
 void CreateDefaultDepthStencilBuffer(f2 dim)
 {
     //Create the depth buffer
@@ -1223,8 +1362,7 @@ void CreateDefaultDepthStencilBuffer(f2 dim)
                                       1, 0, 1, 0, D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL),
         D3D12_RESOURCE_STATE_DEPTH_WRITE,
         &optimizedClearValue,
-        IID_PPV_ARGS(&depth_buffer)
-                                    );
+        IID_PPV_ARGS(&depth_buffer));
     
     // Update the depth-stencil view.
     D3D12_DEPTH_STENCIL_VIEW_DESC dsv = {};
@@ -1236,7 +1374,8 @@ void CreateDefaultDepthStencilBuffer(f2 dim)
                                    dsv_heap->GetCPUDescriptorHandleForHeapStart());
     fflush(stdout);
 }
-    
+*/
+
 ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
     ID3D12RootSignature* result;
@@ -1267,7 +1406,8 @@ ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_
     ASSERT(SUCCEEDED(r));
     return result;
 }
-    
+
+/*
 ID3D12RootSignature* CreateDefaultRootSig()
 {
     // Create the descriptor heap for the depth-stencil view.
@@ -1386,6 +1526,7 @@ ID3D12RootSignature* CreateDefaultRootSig()
 
     return root_sig = CreatRootSignature(root_params,_countof(root_params),tex_static_samplers,2,root_sig_flags);
 }
+*/
 
 PipelineStateStream local_ppss = {};
 
@@ -1544,29 +1685,28 @@ CreateDeviceResult Init(HWND* window,f2 dim)
     dxgiAdapter4 = GetAdapter(g_UseWarp);
     device = CreateDevice(dxgiAdapter4);
 
-    command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-    copy_command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_COPY);
-    compute_command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+//    command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+//    copy_command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_COPY);
+//    compute_command_queue = CreateCommandQueue(device, D3D12_COMMAND_LIST_TYPE_COMPUTE);
 
-    swap_chain = CreateSwapChain(*window, command_queue,dim.x, dim.y, num_of_back_buffers);
+//    swap_chain = CreateSwapChain(*window, command_queue,dim.x, dim.y, num_of_back_buffers);
 
-    u32 current_back_buffer_index = swap_chain->GetCurrentBackBufferIndex();
-    rtv_descriptor_heap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, num_of_back_buffers);
-    rtv_desc_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    UpdateRenderTargetViews(device, swap_chain, rtv_descriptor_heap);
+//    u32 current_back_buffer_index = swap_chain->GetCurrentBackBufferIndex();
+    //rtv_descriptor_heap = CreateDescriptorHeap(device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, num_of_back_buffers);
+//    rtv_desc_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+//    UpdateRenderTargetViews(device, swap_chain, rtv_descriptor_heap);
         
-    fence = CreateFence(device);
-    fence_event = CreateEventHandle();
+//    fence = CreateFence(device);
+//    fence_event = CreateEventHandle();
         
     result.is_init = true;
     Init();
     result.device.device = device;
-
     
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    desc.NumDescriptors = 1;
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+//    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
+//    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+//    desc.NumDescriptors = 1;
+//    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 //    if (device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&main_desc_heap)) != S_OK)
 //    {
 //        result.is_init = false;
@@ -1599,25 +1739,57 @@ ID3D12Resource* GetCurrentBackBuffer()
     return result;
 }
 
-    
-void CheckFeatureSupport(D12Resource* resource)
+bool CheckFeatureSupport(ID3D12Device2* device,
+  D3D12_FEATURE Feature,
+  void          *pFeatureSupportData,
+  UINT          FeatureSupportDataSize)
+{
+    HRESULT hr = device->CheckFeatureSupport(
+            Feature,
+            pFeatureSupportData,
+            FeatureSupportDataSize);
+
+    if(SUCCEEDED(hr))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }    
+}
+
+/*
+bool CheckFeatureSupport(D12Resource* resource)
 {
     if (resource && resource->state)
     {
         auto desc = resource->state->GetDesc();
         resource->format_support.Format = desc.Format;
-        HRESULT hr = device->CheckFeatureSupport(
+{
+    HRESULT hr = device->CheckFeatureSupport(
             D3D12_FEATURE_FORMAT_SUPPORT,
             &resource->format_support,
             sizeof(D3D12_FEATURE_DATA_FORMAT_SUPPORT));
-        ASSERT(SUCCEEDED(hr));
+
+    if(SUCCEEDED(hr))
+    {
+        return true;
+    }
+    else
+    {
+        return false;
+    }    
     }
     else
     {
         resource->format_support = {};
     }
-}
 
+}
+*/
+
+/*
 // NOTE(Ray Garner): This is kind of like the OpenGL Texture 2D
 // we will make space on the gpu and upload the texture from cpu
 //to gpu right away. LoadedTexture is like the descriptor and also
@@ -1711,7 +1883,8 @@ void Texture2D(Texture* lt,u32 heap_index,D12Resource* tex_resource,ID3D12Descri
     }
     fmj_thread_end_ticket_mutex(&upload_operations.ticket_mutex);
 }
-    
+
+
 bool GetCAPredicateCOPY(void* ca)
 {
     D12CommandAllocatorEntry* entry = (D12CommandAllocatorEntry*)ca;
@@ -1721,7 +1894,8 @@ bool GetCAPredicateCOPY(void* ca)
     }
     return false;
 }
-    
+
+
 bool GetCAPredicateDIRECT(void* ca)
 {
     D12CommandAllocatorEntry* entry = (D12CommandAllocatorEntry*)ca;
@@ -1731,7 +1905,8 @@ bool GetCAPredicateDIRECT(void* ca)
     }
     return false;
 }
-    
+
+
 void CheckReuseCommandAllocators()
 {
     fmj_stretch_buffer_clear(&allocator_tables.free_allocator_table);
@@ -1749,6 +1924,7 @@ void CheckReuseCommandAllocators()
         }
     }
 }
+
 
 static CommandAllocToListResult GetFirstAssociatedList(D12CommandAllocatorEntry* allocator)
 {
@@ -1801,7 +1977,8 @@ D12CommandListEntry GetAssociatedCommandList(D12CommandAllocatorEntry* ca)
     fmj_stretch_buffer_push(&ca->used_list_indexes, (void*)&cl_index);
     return command_list_entry;
 }
-    
+
+
 void EndCommandListEncodingAndExecute(D12CommandAllocatorEntry* ca,D12CommandListEntry cl)
 {
     //Render encoder end encoding
@@ -1829,7 +2006,8 @@ void EndCommandListEncodingAndExecute(D12CommandAllocatorEntry* ca,D12CommandLis
     fmj_stretch_buffer_clear(&temp_queue_command_list);
     fmj_stretch_buffer_clear(&ca->used_list_indexes);
 }
-    
+*/
+
 // TODO(Ray Garner): // NOTE(Ray Garner): It has been reccommended that we store tranistions until the
 //copy draw dispatch or push needs to be executed and deffer them to the last minute as possible as 
 //batches. For now we ignore that advice but will come back to that later.
@@ -1906,6 +2084,7 @@ D3D12_SHADER_BYTECODE GetShaderByteCode(ID3DBlob* blob)
     return result;
 }
 
+/*
 void EndFrame()
 {
     fmj_thread_begin_ticket_mutex(&upload_operations.ticket_mutex);
@@ -1916,23 +2095,14 @@ void EndFrame()
         is_resource_cl_recording = false;
     }
     //Prepare
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv
-        (rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart(),
-         current_backbuffer_index, rtv_desc_size);
-        
     D3D12_CPU_DESCRIPTOR_HANDLE dsv_cpu_handle = dsv_heap->GetCPUDescriptorHandleForHeapStart();
-        
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_cpu_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart(),
-                                                                                 current_backbuffer_index, rtv_desc_size);
-        
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtv_cpu_handle = CD3DX12_CPU_DESCRIPTOR_HANDLE(rtv_descriptor_heap->GetCPUDescriptorHandleForHeapStart(),current_backbuffer_index, rtv_desc_size);
     //D12Present the current framebuffer
     //Commandbuffer
     D12CommandAllocatorEntry* allocator_entry = GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
-        
     D12CommandListEntry command_list = GetAssociatedCommandList(allocator_entry);
-        
+
     //Graphics
-        
     ID3D12Resource* back_buffer = GetCurrentBackBuffer();
         
     bool fc = IsFenceComplete(fence,allocator_entry->fence_value);
@@ -2157,5 +2327,4 @@ void EndFrame()
     //Reset state of constant buffer
     fmj_arena_deallocate(&constants_arena,false);
 }
-
-
+*/
