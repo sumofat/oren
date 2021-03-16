@@ -509,8 +509,8 @@ ID3D12CommandQueue* compute_command_queue;
 IDXGISwapChain4* swap_chain;
 //ID3D12DescriptorHeap* rtv_descriptor_heap;
 UINT rtv_desc_size;
-const uint8_t num_of_back_buffers = 3;
-ID3D12Resource* back_buffers[num_of_back_buffers];
+//const uint8_t num_of_back_buffers = 3;
+//ID3D12Resource* back_buffers[num_of_back_buffers];
 //ID3D12Fence* fence;
 ID3D12Fence* end_frame_fence;
 ID3D12Fence* compute_fence;
@@ -518,7 +518,7 @@ ID3D12Fence* compute_fence;
 u64 fence_value;
 u64 compute_fence_value;
     
-u64 frame_fence_values[num_of_back_buffers] = {};
+//u64 frame_fence_values[num_of_back_buffers] = {};
 //HANDLE fence_event;
 u64 current_allocator_index;
 D12CommandAllocatorTables allocator_tables;
@@ -625,13 +625,14 @@ extern "C"
     ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12CommandAllocator* commandAllocator, D3D12_COMMAND_LIST_TYPE type);
     HRESULT ResetCommandAllocator(ID3D12CommandAllocator* a);
     HRESULT ResetCommandList(ID3D12GraphicsCommandList* l,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState);
-    void CloseCommandList(ID3D12CommandList* list);
+    void CloseCommandList(ID3D12GraphicsCommandList* list);    
     HRESULT D3D12UpdateSubresources(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pDestinationResource, ID3D12Resource* pIntermediate,u32 FirstSubresource,u32 NumSubresources,u64 RequiredSize,D3D12_SUBRESOURCE_DATA* pSrcData);
     bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value);
 
-    void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList* lists,u32 list_count);
+    void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList*  const* lists,u32 list_count);
+    
     //    void ExecuteCommandLists(ID3D12CommandList* lists,u32 list_count);
-    u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64& fenceValue);
+    u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64* fenceValue);    
     void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration);
 
     bool CheckFeatureSupport(ID3D12Device2* device,D3D12_FEATURE Feature,void *pFeatureSupportData,UINT FeatureSupportDataSize);
@@ -653,9 +654,17 @@ extern "C"
     void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects);
     void IASetPrimitiveTopology(ID3D12GraphicsCommandList*list,D3D12_PRIMITIVE_TOPOLOGY PrimitiveTopology);
     void DrawInstanced(ID3D12GraphicsCommandList* list,u32 VertexCountPerInstance,u32 InstanceCount,u32 StartVertexLocation,u32 StartInstanceLocation);
+    void DrawIndexedInstanced(ID3D12GraphicsCommandList* list,u32 IndexCountPerInstance,u32 InstanceCount,u32 StartIndexLocation,s32  BaseVertexLocation,u32 StartInstanceLocation);    
     void IASetIndexBuffer(ID3D12GraphicsCommandList* list,D3D12_INDEX_BUFFER_VIEW *pView);
     void IASetVertexBuffers(ID3D12GraphicsCommandList* list,u32 StartSlot,u32 NumViews,D3D12_VERTEX_BUFFER_VIEW *pViews);
-    void SetPipelineState(ID3D12GraphicsCommandList* list,ID3D12PipelineState *pPipelineState);    
+    void SetPipelineState(ID3D12GraphicsCommandList* list,ID3D12PipelineState *pPipelineState);
+    void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,u32 NumDescriptorHeaps,ID3D12DescriptorHeap* const* ppDescriptorHeaps);    
+    void SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list, u32 RootParameterIndex,D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor);
+    void SetGraphicsRoot32BitConstants(ID3D12GraphicsCommandList* list,u32 RootParameterIndex,u32 Num32BitValuesToSet,void *pSrcData,u32 DestOffsetIn32BitValues);
+    void SetGraphicsRootSignature(ID3D12GraphicsCommandList* list,ID3D12RootSignature *pRootSignature);    
+    HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags);
+    HRESULT GetBuffer(IDXGISwapChain4* swapChain,UINT Buffer,ID3D12Resource* ppSurface);
+    void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,const D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);    
 }
 //end declare
 

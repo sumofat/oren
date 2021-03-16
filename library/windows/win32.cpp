@@ -14,14 +14,17 @@ void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** dat
     resource->Map(sub_resource,range,data);
 }
 
-void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,
-  u32                 NumDescriptorHeaps,
-  ID3D12DescriptorHeap *ppDescriptorHeaps
-)
+void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,u32 NumDescriptorHeaps,ID3D12DescriptorHeap* const* ppDescriptorHeaps)
 {
     ASSERT(list);
     list->SetDescriptorHeaps(NumDescriptorHeaps,ppDescriptorHeaps); 
 }
+
+HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags)
+{
+    return swap_chain->Present(SyncInterval,Flags);    
+}
+
 
 void SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list, u32 RootParameterIndex,D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
 {
@@ -1324,7 +1327,18 @@ ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIP
     (l_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
     return descriptorHeap;
 }
-    
+
+void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,const D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor)
+{
+    device->CreateRenderTargetView(pResource, pDesc,DestDescriptor);    
+}
+
+HRESULT GetBuffer(IDXGISwapChain4* swapChain,UINT Buffer,ID3D12Resource* ppSurface)
+{
+    return swapChain->GetBuffer(Buffer, IID_PPV_ARGS(&ppSurface));
+}
+
+/*
 void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, ID3D12DescriptorHeap* descriptorHeap)
 {
     auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -1338,7 +1352,8 @@ void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, I
         rtvHandle.Offset(rtvDescriptorSize);
     }
 }
-    
+*/
+
 ID3D12Fence* CreateFence(ID3D12Device2* device)
 {
     ID3D12Fence* fence;
@@ -1751,7 +1766,8 @@ u32 GetCurrentBackBufferIndex()
 {
     return swap_chain->GetCurrentBackBufferIndex();
 }
-    
+
+/*
 ID3D12Resource* GetCurrentBackBuffer()
 {
     u32 bbi = GetCurrentBackBufferIndex();
@@ -1759,6 +1775,7 @@ ID3D12Resource* GetCurrentBackBuffer()
     ASSERT(result);
     return result;
 }
+*/
 
 bool CheckFeatureSupport(ID3D12Device2* device,
   D3D12_FEATURE Feature,

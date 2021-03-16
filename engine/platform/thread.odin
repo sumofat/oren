@@ -3,6 +3,8 @@ package platform;
 import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
+import intrin "core:intrinsics"
+
 TicketMutex :: struct
 {
     ticket : i64,
@@ -16,8 +18,10 @@ atomic_add64 :: proc(value : ^i64/*volatile*/,amount : i64)-> i64
 //#if IOS || OSX
 //    result = __sync_fetch_and_add((s64* volatile)value,(s64)amount);
     //#elif WINDOWS
-    
-    result := window32.interlocked_exchange_add64(value,amount);
+
+    result := intrin.atomic_add(value,amount);    
+//     result := window32.interlocked_exchange_add64;
+//    result := InterlockedExchangeAdd64(value,amount);    
 //#endif
     return result;
 }
@@ -30,7 +34,8 @@ ticket_mutex_begin :: proc(mutex : ^TicketMutex)
 //#else
     for ;;
     {
-	if ticket != mutex.serving {window32.mm_pause();}
+	//	if ticket != mutex.serving {window32.mm_pause();}
+	if ticket != mutex.serving {intrin.cpu_relax();}	
 	else {break};	
     }
     

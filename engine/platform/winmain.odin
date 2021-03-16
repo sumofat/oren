@@ -178,7 +178,9 @@ Window :: struct
     is_full_screen_mode : bool,
 };
 
+foreign import winkernal "system:kernel32.lib";
 foreign import platform "../../library/windows/build/win32.lib"
+
 
 @(default_calling_convention="c")
 foreign platform
@@ -221,6 +223,14 @@ foreign platform
     CreateFence :: proc "c"(device : rawptr) -> rawptr/*ID3D12Fence**/---;
     CreateEventHandle :: proc "c"() ->windows.HANDLE ---;
     IsFenceComplete :: proc "c"(fence : rawptr /*ID3D12Fence* */,fence_value : u64) -> bool ---;
+}
+
+
+
+@(default_calling_convention="c")
+foreign winkernal
+{
+    InterlockedExchangeAdd64 :: proc "c"(dst: ^i64, desired: i64) -> i64 ---;    
 }
 
 AddCommand :: proc($T: typeid) -> ^T
