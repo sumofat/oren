@@ -591,7 +591,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
         &res_d,
         .D3D12_RESOURCE_STATE_COMMON,
         nil,
-        &tex_resource);
+        &tex_resource.state);
     
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
     //Texture2D(texture,cast(u32)tex_id,&tex_resource,heap.value);
@@ -608,7 +608,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
 set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,size : u64,data : ^f32) -> u64
 {
     v_size := size;
-    buff^ = AllocateStaticGPUArena(v_size);
+    buff^ = AllocateStaticGPUArena(device.device,v_size);
     SetArenaToVertexBufferView(buff,v_size,stride);
     //UploadBufferData(buff,data,v_size);
     upload_buffer_data(buff,data,v_size);    
@@ -656,7 +656,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
         if mesh.index32_count > 0
         {
             size := mesh.index_32_data_size;
-            mesh_r.element_buff = AllocateStaticGPUArena(size);
+            mesh_r.element_buff = AllocateStaticGPUArena(device.device,size);
             format : platform.DXGI_FORMAT;
             mesh.index_component_size = IndexComponentSize.size_32;
             format = platform.DXGI_FORMAT.DXGI_FORMAT_R32_UINT;                
@@ -671,7 +671,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
         else if mesh.index16_count > 0
         {
             size := mesh.index_16_data_size;
-            mesh_r.element_buff = AllocateStaticGPUArena(size);
+            mesh_r.element_buff = AllocateStaticGPUArena(device.device,size);
             format : platform.DXGI_FORMAT;
             mesh.index_component_size = IndexComponentSize.size_16;
             format = platform.DXGI_FORMAT.DXGI_FORMAT_R16_UINT;

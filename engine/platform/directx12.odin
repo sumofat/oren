@@ -132,8 +132,8 @@ D3D12_SHADER_VISIBILITY :: enum u32
 D3D12_ROOT_PARAMETER1 :: struct
 {
     ParameterType : D3D12_ROOT_PARAMETER_TYPE,
-    ShaderVisibility : D3D12_SHADER_VISIBILITY,
     root_parameter1_union : ROOT_PARAMETER1_UNION,
+    ShaderVisibility : D3D12_SHADER_VISIBILITY,
 }
 
 D3D12_DESCRIPTOR_RANGE1 :: struct
@@ -1133,8 +1133,8 @@ D3D12_DESCRIPTOR_HEAP_FLAGS :: enum u32
 
 D3D12_DESCRIPTOR_HEAP_DESC :: struct
 {
-    Type :     D3D12_DESCRIPTOR_HEAP_TYPE,
-    NumDescriptors : u32,//windows.UINT,
+    Type : D3D12_DESCRIPTOR_HEAP_TYPE,
+    NumDescriptors : windows.UINT,
     Flags : D3D12_DESCRIPTOR_HEAP_FLAGS,
     NodeMask : windows.UINT,
 };
@@ -1160,23 +1160,25 @@ D3D12_RANGE :: struct
     End : windows.SIZE_T,
 };
 
-create_descriptor_heap_ :: proc(device : rawptr/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
+create_descriptor_heap :: proc(device : rawptr/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;
     l_desc := desc;
-    result.value = CreateDescriptorHeap(device,l_desc);        
+    result.value = CreateDescriptorHeap(device,l_desc.NumDescriptors,l_desc.Type,l_desc.Flags);        
     return result;
 }
 
+/*
 create_descriptor_heap_type_num :: proc(device : rawptr/*ID3D12Device2**/ ,type : D3D12_DESCRIPTOR_HEAP_TYPE, num_of_descriptors : u32) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;    
     desc : D3D12_DESCRIPTOR_HEAP_DESC;
     desc.NumDescriptors = num_of_descriptors;
     desc.Type = type;
-    result.value = CreateDescriptorHeap(device,desc);    
+    result.value = create_descriptor_heap(device,desc);//CreateDescriptorHeap(device,desc);    
     return result;
 }
+*/
 
 D3D12_FORMAT_SUPPORT1 :: enum u32
 {
@@ -1607,7 +1609,7 @@ D12CommandAllocatorTables :: struct
     fl_ca : con.AnyCache(D12CommandAllocatorKey,D12CommandAllocatorEntry),//command_allocators
 }
 
-create_descriptor_heap :: proc{create_descriptor_heap_,create_descriptor_heap_type_num};
+//create_descriptor_heap :: proc{create_descriptor_heap_,create_descriptor_heap_type_num};
 
 D3D12_SUBRESOURCE_DATA :: struct
 {

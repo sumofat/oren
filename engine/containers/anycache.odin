@@ -90,7 +90,7 @@ anycache_init :: proc($key_type,$value_type : typeid,use_free_list : bool)-> Any
 
     if use_free_list
     {
-        result.free_list = buf_init(1,u64);	
+        result.free_list = buf_init(1,u64);
     }
     result.is_init = true;
     return result;
@@ -103,7 +103,7 @@ anycache_exist :: proc(cache : ^AnyCache($key_type, $value_type),key : key_type)
 
 anycache_add_to_free_list :: proc(cache : ^AnyCache($key_type,$value_type),key : key_type,thing : value_type) -> bool
 {
-    assert(cache.is_using_free_list);
+    assert(cache.is_using_free_list == true);
     index : u64 = 0;
     if anycache_exist(cache,key)
     {

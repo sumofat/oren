@@ -36,7 +36,6 @@ the info on resources and references etc...
 
 */
 
-
 ErrorStr :: cstring;
 
 WindowData :: struct {
@@ -131,7 +130,7 @@ main :: proc()
     using la;
     using gfx;
     using con;
-    fmt.println("Hellope!");
+    fmt.println("Executing Main!");
 
     x :f32 = fmj.degrees(20);
     fmt.println(x);
@@ -163,20 +162,15 @@ main :: proc()
 	fmt.println(ps.window.handle);
 	fmt.println(ps.window.dim);
 	fmt.println("Initializing graphics Window and api's.");
-//	fmt.println(ps.time);
 	//Lets init directx12
-	
-	init_result := gfx.Init(&ps.window.handle,ps.window.dim);
 
+	init_result := gfx.init(&ps);
+	
 	if (init_result.is_init)
 	{
 	    device = init_result.device;
-	    
             //Do some setup if needed
             fmt.println("Graphics are initialized...");
-
-	    gfx.init(&ps);
-	    
 	}
 	else
 	{
@@ -287,7 +281,7 @@ main :: proc()
 	model_so_id := add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 
 	matrix_mem_size : u64 = (size_of(f4x4)) * 100;
-	matrix_gpu_arena := AllocateGPUArena(matrix_mem_size);
+	matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
 	
 	set_arena_constant_buffer(device.device,&matrix_gpu_arena,4,default_srv_desc_heap);
 	mapped_matrix_data : rawptr;
@@ -319,8 +313,7 @@ main :: proc()
 
 	    if buf_len(render.command_buffer) > 0
 	    {
-		AddStartCommandListCommand();
-
+		add_start_command_list_command();
 		for command in render.command_buffer.buffer
 		{
                     m_mat := buf_get(matrix_buffer,command.model_matrix_id);
@@ -336,45 +329,46 @@ main :: proc()
 		    
                     buf_push(&matrix_quad_buffer,finalmat);        
 
-		    AddRootSignatureCommand(gfx.default_root_sig);
+		    add_root_signature_command(gfx.default_root_sig);		    
 
-		    rect := fmj.f4{0,0,window_dim.x,window_dim.y};	    
+		    rect := f4{0,0,window_dim.x,window_dim.y};	    
 
-		    AddViewportCommand(rect);
-		    AddScissorRectCommand(rect);
+		    add_viewport_command(rect);
+
+		    add_scissor_command(rect);
 		    
 		    material := asset_ctx.asset_tables.materials[command.material_name];
-		    AddPipelineStateCommand(material.pipeline_state);
+		    add_pipeline_state_command(material.pipeline_state);
 
-		    AddGraphicsRoot32BitConstant(0,16,&m_mat,0);
-		    AddGraphicsRoot32BitConstant(2,16,&finalmat,0);
+		    add_graphics_root32_bit_constant(0,16,&m_mat,0);
+		    add_graphics_root32_bit_constant(2,16,&finalmat,0);
 
 		    tex_index := command.texture_id;	    
-		    AddGraphicsRoot32BitConstant(4,4,&tex_index,0);
+		    add_graphics_root32_bit_constant(4,4,&tex_index,0);
 
 		    gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
-		    AddGraphicsRootDescTable(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
+		    add_graphics_root_desc_table(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
 
 		    slot : int = 0;
 		    for j := command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;j+=1 
 		    {
 			bv := buf_get(&asset_ctx.asset_tables.vertex_buffers,cast(u64)j);
-			AddSetVertexBufferCommand(cast(u32)slot,bv);
+			add_set_vertex_buffer_command(cast(u32)slot,bv);
 			slot += 1;
 		    }
 
 		    if command.is_indexed
                     {
 			ibv := buf_get(&asset_ctx.asset_tables.index_buffers,command.geometry.index_id);
-			AddDrawIndexedCommand(cast(u32)command.geometry.index_count,cast(u32)command.geometry.offset,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
+			add_draw_indexed_command(cast(u32)command.geometry.index_count,cast(u32)command.geometry.offset,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
                     }
 		    else
-                    {
-			AddDrawCommand(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
+                    {		/**/
+			add_draw_command(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
                     }
                     has_update = true;		    
 		}
-		platform.AddEndCommandListCommand();		
+		add_end_command_list_command();		
 	    }
 
             if(has_update)

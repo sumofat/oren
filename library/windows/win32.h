@@ -499,50 +499,6 @@ struct Texture
 PlatformState local_copy_ps = {0};
 //declarations
 
-IDXGIAdapter4* dxgiAdapter4;
-bool g_UseWarp = false;
-ID3D12Device2* device;
-	
-ID3D12CommandQueue* command_queue;
-ID3D12CommandQueue* copy_command_queue;
-ID3D12CommandQueue* compute_command_queue;
-IDXGISwapChain4* swap_chain;
-//ID3D12DescriptorHeap* rtv_descriptor_heap;
-UINT rtv_desc_size;
-//const uint8_t num_of_back_buffers = 3;
-//ID3D12Resource* back_buffers[num_of_back_buffers];
-//ID3D12Fence* fence;
-ID3D12Fence* end_frame_fence;
-ID3D12Fence* compute_fence;
-    
-u64 fence_value;
-u64 compute_fence_value;
-    
-//u64 frame_fence_values[num_of_back_buffers] = {};
-//HANDLE fence_event;
-u64 current_allocator_index;
-D12CommandAllocatorTables allocator_tables;
-FMJStretchBuffer temp_queue_command_list;
-D12RenderCommandList render_com_buf;
-
-    
-    ID3D12CommandAllocator* resource_ca;
-    ID3D12GraphicsCommandList* resource_cl;
-    bool is_resource_cl_recording = false;
-    
-    UploadOperations upload_operations;
-    
-//    ID3D12PipelineState* pipeline_state;
-//    ID3D12Resource* depth_buffer;
-//    ID3D12DescriptorHeap* dsv_heap;
-    ID3D12RootSignature* root_sig;
-    D3D12_VERTEX_BUFFER_VIEW buffer_view;
-    D12ResourceTables resource_tables;
-    FMJMemoryArena constants_arena;
-//    ID3D12DescriptorHeap* default_srv_desc_heap;
-//    ID3D12DescriptorHeap* main_desc_heap = NULL;
-
-
 #define MAX_SRV_DESC_HEAP_COUNT 512// NOTE(Ray Garner): totally arbiturary number
 #define GRAPHICS_MAX_RENDER_TARGETS 4
 #define SHADER_DEBUG_FLAGS D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION | D3DCOMPILE_PACK_MATRIX_ROW_MAJOR | D3DCOMPILE_PARTIAL_PRECISION | D3DCOMPILE_OPTIMIZATION_LEVEL0 | D3DCOMPILE_WARNINGS_ARE_ERRORS //| D3DCOMPILE_ENABLE_BACKWARDS_COMPATIBILITY
@@ -564,11 +520,11 @@ extern "C"
 
     //Graphics
     CreateDeviceResult Init(HWND* window,f2 dim);
-
+    
     void CreateDefaultDepthStencilBuffer(f2 dim);
     ID3D12RootSignature* CreateDefaultRootSig();    
     ID3D12Device2* GetDevice();
-    u32 GetCurrentBackBufferIndex();
+    u32 GetCurrentBackBufferIndex(IDXGISwapChain4* swap_chain);
     ID3D12Resource* GetCurrentBackBuffer();
     void EndFrame();
     void* AddCommand_(u32 size);
@@ -588,9 +544,11 @@ extern "C"
     GPUMemoryResult QueryGPUFastMemory();
     void CompileShader_(char* file_name,void** blob,char* shader_version_and_type);
     D3D12_SHADER_BYTECODE GetShaderByteCode(ID3DBlob* blob);
-    ID3D12PipelineState*  CreatePipelineState(D3D12_PIPELINE_STATE_STREAM_DESC pssd);
+
+    ID3D12PipelineState*  CreatePipelineState(ID3D12Device2* device,D3D12_PIPELINE_STATE_STREAM_DESC pssd);
+    
     PipelineStateStream CreateDefaultPipelineStateStreamDesc(D3D12_INPUT_ELEMENT_DESC* input_layout,int input_layout_count,ID3DBlob* vs_blob,ID3DBlob* fs_blob,bool depth_enable = false);
-    ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_DESC desc);
+    ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* device,u32 num_desc,D3D12_DESCRIPTOR_HEAP_TYPE type,D3D12_DESCRIPTOR_HEAP_FLAGS  flags);
     D3D12_DESCRIPTOR_HEAP_DESC  GetDesc(ID3D12DescriptorHeap* desc_heap);
     D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap);
     D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap); 
@@ -602,10 +560,11 @@ extern "C"
                                  D3D12_RESOURCE_DESC *pDesc,
                                  D3D12_RESOURCE_STATES InitialResourceState,
                                  D3D12_CLEAR_VALUE *pOptimizedClearValue,
-                                 ID3D12Resource* resource);
+                                 ID3D12Resource** resource);
         
-    GPUArena AllocateStaticGPUArena(u64 size);
-    GPUArena AllocateGPUArena(u64 size);
+    GPUArena AllocateGPUArena(ID3D12Device2* device,u64 size);
+    GPUArena AllocateStaticGPUArena(ID3D12Device2* device,u64 size);
+    
     void UploadBufferData(GPUArena* g_arena,void* data,u64 size);    
     void SetArenaToVertexBufferView(GPUArena* g_arena,u64 size,u32 stride);    
     void SetArenaToIndexVertexBufferView(GPUArena* g_arena,u64 size,DXGI_FORMAT format);
@@ -624,8 +583,8 @@ extern "C"
     ID3D12CommandAllocator* CreateCommandAllocator(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type);
     ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12CommandAllocator* commandAllocator, D3D12_COMMAND_LIST_TYPE type);
     HRESULT ResetCommandAllocator(ID3D12CommandAllocator* a);
-    HRESULT ResetCommandList(ID3D12GraphicsCommandList* l,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState);
-    void CloseCommandList(ID3D12GraphicsCommandList* list);    
+    HRESULT ResetCommandList(ID3D12GraphicsCommandList* list,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState);
+    HRESULT CloseCommandList(ID3D12GraphicsCommandList* list);    
     HRESULT D3D12UpdateSubresources(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* pDestinationResource, ID3D12Resource* pIntermediate,u32 FirstSubresource,u32 NumSubresources,u64 RequiredSize,D3D12_SUBRESOURCE_DATA* pSrcData);
     bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value);
 
@@ -639,7 +598,9 @@ extern "C"
     
     u64 GetIntermediateSize(ID3D12Resource* resource,u32 firstSubResource,u32 NumSubresources);
     void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_DEPTH_STENCIL_VIEW_DESC *pDesc,  D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
-    ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags);
+
+    ID3D12RootSignature* CreateRootSignature(ID3D12Device2* device,D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags);
+
     void TransitionResource(D12CommandListEntry cle,ID3D12Resource* resource,D3D12_RESOURCE_STATES from,D3D12_RESOURCE_STATES to);
     void ClearRenderTargetView(ID3D12GraphicsCommandList* list,D3D12_CPU_DESCRIPTOR_HANDLE RenderTargetView,FLOAT ColorRGBA[4] ,UINT NumRects,D3D12_RECT *pRects);
     void ClearDepthStencilView(ID3D12GraphicsCommandList* list,
@@ -663,8 +624,10 @@ extern "C"
     void SetGraphicsRoot32BitConstants(ID3D12GraphicsCommandList* list,u32 RootParameterIndex,u32 Num32BitValuesToSet,void *pSrcData,u32 DestOffsetIn32BitValues);
     void SetGraphicsRootSignature(ID3D12GraphicsCommandList* list,ID3D12RootSignature *pRootSignature);    
     HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags);
-    HRESULT GetBuffer(IDXGISwapChain4* swapChain,UINT Buffer,ID3D12Resource* ppSurface);
-    void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,const D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);    
+    HRESULT GetBuffer(IDXGISwapChain4* swapChain,UINT Buffer,ID3D12Resource** ppSurface);
+    void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
+    ID3D12Device2* CreateDevice(IDXGIAdapter4* adapter);
+    IDXGIAdapter4* GetAdapter(bool useWarp);
 }
 //end declare
 
