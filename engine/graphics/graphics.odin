@@ -1,4 +1,4 @@
- package graphics
+package graphics
 
 import "core:fmt"
 import "core:c"
@@ -42,42 +42,51 @@ upload_operations : platform.UploadOperations;
 
 fence : rawptr;
 fence_event : windows.HANDLE;
-fence_value : u64;
+fence_value : u64 = 0;
+
+swap_chain : rawptr;
+num_of_back_buffers : int :  3;
+back_buffers : [num_of_back_buffers]rawptr;/*ID3D12Resource* */
+
+is_resource_cl_recording : bool;
 
 @(default_calling_convention="c")
 foreign gfx
 {
 //    Texture2D  :: proc "c"(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Resource,heap : rawptr) ---;
-    AllocateStaticGPUArena :: proc "c"(size : u64 ) -> platform.GPUArena ---;
+    AllocateStaticGPUArena :: proc "c"(device : rawptr,size : u64 ) -> platform.GPUArena ---;
+    AllocateGPUArena :: proc "c"(device : rawptr,size : u64)-> platform.GPUArena ---;    
 //    UploadBufferData :: proc "c"(g_arena : ^platform.GPUArena,data : rawptr,size : u64 ) ---;    
     SetArenaToVertexBufferView :: proc "c"(g_arena  : ^platform.GPUArena,size : u64 ,stride : u32) ---;    
     SetArenaToIndexVertexBufferView :: proc "c"(g_arena : ^platform.GPUArena,size : u64 ,format : platform.DXGI_FORMAT) ---;
     GetDescriptorHandleIncrementSize :: proc "c"(device : rawptr,DescriptorHeapType :  platform.D3D12_DESCRIPTOR_HEAP_TYPE) -> c.uint  ---;
     CreateShaderResourceView :: proc "c"(device : rawptr,resource : rawptr,desc : ^platform.D3D12_SHADER_RESOURCE_VIEW_DESC,handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
     Map :: proc "c"(resource : rawptr,sub_resource : u32,range : ^platform.D3D12_RANGE,data : ^rawptr) ---;
-    AllocateGPUArena :: proc "c"(size : u64)-> platform.GPUArena ---;
+
     CreateCommittedResource :: proc "c"(device : rawptr,
 					pHeapProperties : ^platform.D3D12_HEAP_PROPERTIES,
 					HeapFlags : platform.D3D12_HEAP_FLAGS,
 					pDesc : ^platform.D3D12_RESOURCE_DESC,
 					InitialResourceState : platform.D3D12_RESOURCE_STATES,
 					pOptimizedClearValue : ^platform.D3D12_CLEAR_VALUE,
-					resource : rawptr)-> windows.HRESULT ---;
+					resource : ^rawptr)-> windows.HRESULT ---;
     CreateCommandQueue :: proc "c"(device : rawptr,type : platform.D3D12_COMMAND_LIST_TYPE) -> rawptr ---;
     CreateSwapChain :: proc "c"( hWnd : windows.HWND,commandQueue : rawptr,width : u32, height : u32,bufferCount :  u32) -> rawptr ---;
-    UpdateRenderTargetViews :: proc "c"(device : rawptr,swapChain : rawptr, descriptorHeap : rawptr) ---;
+//    UpdateRenderTargetViews :: proc "c"(device : rawptr,swapChain : rawptr, descriptorHeap : rawptr) ---;
     ResetCommandAllocator :: proc "c"(a  : rawptr/*ID3D12CommandAllocator* */) -> windows.LONG ---;
-    ResetCommandList :: proc "c"(l : rawptr/*^ID3D12GraphicsCommandList*/,/*ID3D12CommandAllocator **/pAllocator : rawptr,/*ID3D12PipelineState **/ pInitialState : rawptr) -> windows.LONG ---;
-    Init :: proc "c" (window : ^window32.Hwnd,dim : la.Vector2) -> CreateDeviceResult ---;
+    ResetCommandList :: proc "c"(list : rawptr,pAllocator : rawptr,pInitialState : rawptr) -> windows.HRESULT ---;    
+
+    //    Init :: proc "c" (window : ^window32.Hwnd,dim : la.Vector2) -> CreateDeviceResult ---;
+
     D3D12UpdateSubresources :: proc "c"(pCmdList : rawptr/*^ID3D12GraphicsCommandList*/, pDestinationResource : rawptr /*^ID3D12Resource*/, pIntermediate : rawptr/*^ID3D12Resource*/,FirstSubresource : u32,NumSubresources : u32,RequiredSize : u64,pSrcData  : ^platform.D3D12_SUBRESOURCE_DATA) -> windows.HRESULT  ---;
-    CloseCommandList :: proc "c"(/*ID3D12CommandList**/ list : rawptr) ---;
+    CloseCommandList :: proc "c"(/*ID3D12CommandList**/ list : rawptr) -> windows.HRESULT ---;
     ExecuteCommandLists :: proc "c"(queue : rawptr,/*ID3D12CommandList* takes array of lists*/ lists : rawptr,list_count : u32) ---;
     Signal :: proc "c"(/*ID3D12CommandQueue**/ commandQueue : rawptr, /*ID3D12Fence**/ fence : rawptr,fenceValue : ^u64) -> u64  ---;
     WaitForFenceValue :: proc "c"(/*ID3D12Fence**/ fence : rawptr,fenceValue : u64,fenceEvent : windows.HANDLE ,duration : f64) ---;
     CheckFeatureSupport :: proc "c"(device : rawptr,Feature : platform.D3D12_FEATURE,pFeatureSupportData : rawptr,FeatureSupportDataSize : windows.UINT) -> bool ---;
     GetIntermediateSize :: proc "c"(resource : rawptr/*ID3D12Resource* */,firstSubResource : u32,NumSubresources : u32) -> u64  ---;
     CreateDepthStencilView :: proc "c"(device : rawptr,pResource : rawptr/*ID3D12Resource **/,pDesc : ^platform.D3D12_DEPTH_STENCIL_VIEW_DESC,DestDescriptor : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
-    CreatRootSignature :: proc "c"(params : ^platform.D3D12_ROOT_PARAMETER1,param_count : int,samplers : ^platform.D3D12_STATIC_SAMPLER_DESC,sampler_count : int,flags : platform.D3D12_ROOT_SIGNATURE_FLAGS) -> rawptr /*    ID3D12RootSignature* */ ---;
+    CreateRootSignature :: proc "c"(device : rawptr,params : ^platform.D3D12_ROOT_PARAMETER1,param_count : int,samplers : ^platform.D3D12_STATIC_SAMPLER_DESC,sampler_count : int,flags : platform.D3D12_ROOT_SIGNATURE_FLAGS) -> rawptr /*    ID3D12RootSignature* */ ---;
     TransitionResource :: proc "c"(cle : platform.D12CommandListEntry,resource : /* ID3D12Resource*  */ rawptr,from : platform.D3D12_RESOURCE_STATES,to : platform.D3D12_RESOURCE_STATES) ---;
     ClearRenderTargetView :: proc "c"(list : rawptr,RenderTargetView : platform.D3D12_CPU_DESCRIPTOR_HANDLE,ColorRGBA : [4]f32,NumRects : windows.UINT,pRects : ^platform.D3D12_RECT)---;
     ClearDepthStencilView :: proc "c"(list : rawptr/*ID3D12GraphicsCommandList**/,DepthStencilView : platform.D3D12_CPU_DESCRIPTOR_HANDLE ,ClearFlags : platform.D3D12_CLEAR_FLAGS,Depth : f32,Stencil : u8,NumRects : u32,pRects : ^platform.D3D12_RECT) ---;
@@ -90,7 +99,15 @@ foreign gfx
     IASetIndexBuffer :: proc "c"(list : rawptr,pView : ^platform.D3D12_INDEX_BUFFER_VIEW) ---;
     DrawIndexedInstanced :: proc "c"(list : rawptr/*ID3D12GraphicsCommandList**/,IndexCountPerInstance : u32,InstanceCount : u32,StartIndexLocation : u32,BaseVertexLocation : i32,StartInstanceLocation : u32)---;
     IASetVertexBuffers :: proc "c"(list : rawptr,StartSlot : u32,NumViews : u32,pViews : ^platform.D3D12_VERTEX_BUFFER_VIEW) ---;
-    SetPipelineState :: proc "c"(list : rawptr,pPipelineState : /*^ID3D12PipelineState*/rawptr) ---;        
+    SetPipelineState :: proc "c"(list : rawptr,pPipelineState : /*^ID3D12PipelineState*/rawptr) ---;
+    SetDescriptorHeaps :: proc "c"(/*ID3D12GraphicsCommandList**/ list : rawptr,NumDescriptorHeaps : u32,ppDescriptorHeaps : /*ID3D12DescriptorHeap**/ rawptr)---;
+    SetGraphicsRootDescriptorTable :: proc "c"(/*ID3D12GraphicsCommandList* */list : rawptr,RootParameterIndex :  u32,BaseDescriptor : platform.D3D12_GPU_DESCRIPTOR_HANDLE) ---;
+    SetGraphicsRoot32BitConstants :: proc "c"(/*ID3D12GraphicsCommandList* */list : rawptr,RootParameterIndex : u32,Num32BitValuesToSet : u32,pSrcData : rawptr,DestOffsetIn32BitValues : u32) ---;
+    Present :: proc "c"(swap_chain : rawptr/*IDXGISwapChain4* */,SyncInterval : u32,Flags : u32) -> windows.HRESULT  ---;
+    GetBuffer :: proc "c"(swapChain : /*IDXGISwapChain4**/rawptr , Buffer : windows.UINT,ppSurface : ^rawptr) -> windows.HRESULT ---;
+    CreateRenderTargetView :: proc "c"(device : rawptr,pResource : rawptr,pDesc : ^platform.D3D12_RENDER_TARGET_VIEW_DESC,DestDescriptor : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
+    CreateDevice :: proc "c"(adapter : rawptr/*IDXGIAdapter4* */)-> rawptr ---;
+    GetAdapter :: proc "c"(useWarp : bool)-> rawptr ---/*IDXGIAdapter4**/;    
 }
 
 CommandAllocToListResult :: struct
@@ -185,10 +202,12 @@ CreateRenderShader :: proc(vs_file_name : cstring,fs_file_name : cstring) -> Ren
     return result;
 }
 
+/*
 RenderState :: struct
 {
     command_buffer : [dynamic]RenderCommand,//FMJStretchBuffer,
 };
+*/
 
 SwapChain :: struct
 {
@@ -307,7 +326,7 @@ create_pipeline_state :: proc(pss : platform.PipelineStateStream)->rawptr	  /*ID
     psslocal_copy := pss;
     pipeline_state_stream_desc : D3D12_PIPELINE_STATE_STREAM_DESC = {size_of(PipelineStateStream), &psslocal_copy};
     
-    result = CreatePipelineState(pipeline_state_stream_desc);
+    result = CreatePipelineState(device.device,pipeline_state_stream_desc);
     return result;
 }
 
@@ -359,13 +378,12 @@ create_default_depth_stencil_buffer :: proc(dim : f2)
     
     hp : D3D12_HEAP_PROPERTIES =  
         {
-		.D3D12_HEAP_TYPE_UPLOAD,
+		.D3D12_HEAP_TYPE_DEFAULT,
 		.D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
 		.D3D12_MEMORY_POOL_UNKNOWN,
             0,
             0
         };
-
 
     sd : DXGI_SAMPLE_DESC =
 	{
@@ -419,7 +437,7 @@ create_default_root_sig :: proc() -> rawptr
     dsv_h_d.NumDescriptors = 1;
     dsv_h_d.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
     dsv_h_d.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-    depth_heap := CreateDescriptorHeap(device.device,dsv_h_d);
+    depth_heap = create_descriptor_heap(device.device,dsv_h_d);
         
     feature_data : D3D12_FEATURE_DATA_ROOT_SIGNATURE;
     feature_data.HighestVersion = .D3D_ROOT_SIGNATURE_VERSION_1_1;
@@ -528,50 +546,60 @@ create_default_root_sig :: proc() -> rawptr
     
     tex_static_samplers[1] = ss;
 
-    return CreatRootSignature(mem.raw_slice_data(root_params[:]),len(root_params),mem.raw_slice_data(tex_static_samplers[:]),2,root_sig_flags);
+    return CreateRootSignature(device.device,mem.raw_slice_data(root_params[:]),len(root_params),mem.raw_slice_data(tex_static_samplers[:]),2,root_sig_flags);
 }
 
-init :: proc(ps : ^platform.PlatformState) -> RenderState
+update_render_target_views :: proc(device : rawptr ,swapChain : rawptr ,descriptorHeap : rawptr)
 {
     using platform;
-    result : RenderState;
+    rtv_desc_size := GetDescriptorHandleIncrementSize(device,.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    rtv_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(descriptorHeap);
+    for i := 0; i < num_of_back_buffers; i+=1
+    {
+        back_buffer : rawptr;
+        r : windows.HRESULT = GetBuffer(swapChain,cast(u32)i, &back_buffer);
+	assert(r == 0);
+	fmt.println("back_buffer : ",back_buffer, "\n");
+        CreateRenderTargetView(device,back_buffer, nil, rtv_handle);
+        back_buffers[i] = back_buffer;
+//	offset : u64 = cast(u64)rtv_desc_size * cast(u64)i;
+	rtv_handle.ptr = rtv_handle.ptr + cast(windows.SIZE_T)rtv_desc_size;//cast(windows.SIZE_T)offset;
+//        Offset(rtv_handle,rtvDescriptorSize);
+    }
+}
+
+init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
+{
+    using platform;
+    result : CreateDeviceResult;
+    adapter := GetAdapter(false);
+    device.device = CreateDevice(adapter);
+    result.device.device = device.device;
+    result.is_init = true;
 
     ////////////////////////////////
-    num_of_back_buffers := 2;
-    
     graphics_command_queue = create_command_queue(device,.D3D12_COMMAND_LIST_TYPE_DIRECT);
-    copy_command_queue = create_command_queue(device,.D3D12_COMMAND_LIST_TYPE_DIRECT);
-    compute_command_queue = create_command_queue(device,.D3D12_COMMAND_LIST_TYPE_DIRECT);
+    copy_command_queue = create_command_queue(device,.D3D12_COMMAND_LIST_TYPE_COPY);
+    compute_command_queue = create_command_queue(device,.D3D12_COMMAND_LIST_TYPE_COMPUTE);
     
     desc : D3D12_DESCRIPTOR_HEAP_DESC;
     desc.NumDescriptors = cast(u32)num_of_back_buffers;
     desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    rtv_descriptor_heap := platform.CreateDescriptorHeap(device.device, desc);
 
-    swap_chain := CreateSwapChain(cast(windows.HWND)ps.window.handle,graphics_command_queue,cast(u32)ps.window.dim.x, cast(u32)ps.window.dim.y, cast(u32)num_of_back_buffers);
-
+    swap_chain = CreateSwapChain(cast(windows.HWND)ps.window.handle,graphics_command_queue,cast(u32)ps.window.dim.x, cast(u32)ps.window.dim.y, cast(u32)num_of_back_buffers);
     rtv_desc_size := GetDescriptorHandleIncrementSize(device.device,.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-    UpdateRenderTargetViews(device.device,swap_chain,rtv_descriptor_heap);
-        
+    rtv_descriptor_heap = create_descriptor_heap(device.device, desc).value;    
+
+    update_render_target_views(device.device,swap_chain,rtv_descriptor_heap);
+    
     fence = CreateFence(device.device);
     fence_event = CreateEventHandle();
     
     //////////////////////////////////
-
-    
-    result.command_buffer = make([dynamic]RenderCommand,0,1);
     default_root_sig = create_default_root_sig();//platform.CreateDefaultRootSig();
-//    platform.CreateDefaultDepthStencilBuffer(ps.window.dim);
     create_default_depth_stencil_buffer(ps.window.dim);
 
     using fmj;
-/*    
-    input_layout :  [?]D3D12_INPUT_ELEMENT_DESC = {
-        D3D12_INPUT_ELEMENT_DESC{ "POSITION", 0, .DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, .D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        D3D12_INPUT_ELEMENT_DESC{ "COLOR"   , 0, .DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, .D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        D3D12_INPUT_ELEMENT_DESC{ "TEXCOORD", 0, .DXGI_FORMAT_R32G32_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT, .D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-    };
-*/
 
     input_layout :=  [?]D3D12_INPUT_ELEMENT_DESC{
         { "POSITION", 0, .DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT, .D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
@@ -676,6 +704,9 @@ init :: proc(ps : ^platform.PlatformState) -> RenderState
     fmj_asset_material_add(&asset_ctx,pn_render_material_mesh);
 
 */    
+    constants = arena_init(1024 * 1024 * 4);
+    dx12_init(device);
+    result.is_init = true;    
     return result;
 }
 
@@ -709,7 +740,7 @@ add_free_command_allocator :: proc(type : platform.D3D12_COMMAND_LIST_TYPE) -> ^
 get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST_TYPE) -> ^platform.D12CommandAllocatorEntry
 {
     using con;
-    result : ^platform.D12CommandAllocatorEntry;
+    result : ^platform.D12CommandAllocatorEntry = nil;
     //Forget the free list we will access the table directly and get the first free
     //remove and make a inflight allocator table.
     //This does not work with free lists due to the fact taht the top element might always be busy
@@ -727,7 +758,7 @@ get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST
         //otherwise we will need to do some other bookkeeping.
         //result = *YoyoPeekVectorElementPtr(D12CommandAllocatorEntry*,table);
 	//        result = *(D12CommandAllocatorEntry**)fmj_stretch_buffer_get_(table,table->fixed.count - 1);
-        result := buf_ptr(table,buf_len(table^) - 1)^;	
+        result = buf_ptr(table,buf_len(table^) - 1)^;	
         if !platform.IsFenceComplete(fence,result.fence_value)
         {
             result = nil;
@@ -738,7 +769,7 @@ get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST
         }
     }
     
-    if result != nil
+    if result == nil
     {
         result = add_free_command_allocator(list_type);
     }
@@ -811,7 +842,7 @@ texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Re
             &uop.temp_arena.resource);
         
 //    uop.temp_arena.resource.SetName(L"TEMP_UPLOAD_TEXTURE");
-//    ASSERT(SUCCEEDED(hr));
+    assert(hr == 0);
 
     hr = D3D12UpdateSubresources(resource_cl,tex_resource.state, uop.temp_arena.resource,0, 0, 1, &subresourceData);        
 
@@ -913,7 +944,7 @@ upload_buffer_data :: proc(g_arena : ^platform.GPUArena,data : rawptr,size : u64
         
 //    uop.temp_arena.resource->SetName(L"TEMP_UPLOAD_BUFFER");
         
-//    ASSERT(SUCCEEDED(hr));
+    assert(hr == 0);
         
     subresourceData : D3D12_SUBRESOURCE_DATA;
     subresourceData.pData = data;
@@ -1012,9 +1043,6 @@ get_table :: proc(type : platform.D3D12_COMMAND_LIST_TYPE) -> ^con.Buffer(^platf
     }
 }
 
-is_resource_cl_recording : bool;
-resouce_cl : rawptr;//CommandList
-
 check_reuse_command_allocators :: proc()
 {
     using con;
@@ -1037,12 +1065,11 @@ check_reuse_command_allocators :: proc()
 get_cpu_handle_srv :: proc(device : RenderDevice,heap : rawptr,heap_index : u32) -> platform.D3D12_CPU_DESCRIPTOR_HANDLE
 {
     using platform;
-    result : platform.D3D12_CPU_DESCRIPTOR_HANDLE;
-
-    hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);    
-    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap);
+    result : platform.D3D12_CPU_DESCRIPTOR_HANDLE = platform.GetCPUDescriptorHandleForHeapStart(heap);
+    hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    
     offset : u64 = cast(u64)hmdh_size * cast(u64)heap_index;
-    hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
+    result.ptr = result.ptr + cast(windows.SIZE_T)offset;
     return result;    
 }
 
@@ -1072,7 +1099,6 @@ get_first_associated_list :: proc(allocator : ^platform.D12CommandAllocatorEntry
         }
     }
     result.found = found;
-    //TODO(Ray):Create some validation feedback here that can be removed at compile time. 
     return result;
 }
     
@@ -1088,10 +1114,11 @@ get_associated_command_list :: proc(ca : ^platform.D12CommandAllocatorEntry)-> p
     {
         command_list_entry.list = CreateCommandList(device.device, ca.allocator, ca.type);
         command_list_entry.is_encoding = true;
-        command_list_entry.index = buf_len(allocator_tables.command_lists);
         command_list_entry.temp_resources = buf_init(1,rawptr);
 	
         cl_index = buf_push(&allocator_tables.command_lists,command_list_entry);
+        command_list_entry.index = cl_index;
+	
         a_t_l_e  : D12CommandAlloctorToCommandListKeyEntry;
         a_t_l_e.command_allocator_index = ca.index;
         a_t_l_e.command_list_index = cl_index;
@@ -1107,18 +1134,22 @@ end_command_list_encoding_and_execute :: proc(ca : ^platform.D12CommandAllocator
     using con;
     //Render encoder end encoding
     index : u64 = cl.index;
-    le : ^D12CommandListEntry =buf_ptr(&allocator_tables.command_lists, index);
-    CloseCommandList(le.list);
-    le.is_encoding = false;
+//    le := cl;//^D12CommandListEntry =buf_ptr(&allocator_tables.command_lists, index);
+//    r := CloseCommandList(cl.list);
+//    assert(r == 0);
+//    le.is_encoding = false;
         
-    commandLists : []rawptr = {
-        cl.list
-    };
+//    commandLists : []rawptr = {
+//        cl.list
+//    };
         
     for i := 0; i < cast(int)buf_len(ca.used_list_indexes); i+= 1
     {
         index_ : u64 = buf_get(&ca.used_list_indexes,cast(u64)i);//*((u64*)ca.used_list_indexes.fixed.base + i);
         cle : ^D12CommandListEntry = buf_ptr(&allocator_tables.command_lists,index_);
+	cle.is_encoding = false;	
+	r := CloseCommandList(cle.list);
+//	assert(r == 0);	
         buf_push(&temp_queue_command_list, cle.list);
     }
         
@@ -1133,112 +1164,140 @@ end_command_list_encoding_and_execute :: proc(ca : ^platform.D12CommandAllocator
     buf_clear(&ca.used_list_indexes);
 }
 
-
-
-void AddSetVertexBufferCommand(u32 slot,D3D12_VERTEX_BUFFER_VIEW buffer_view)
+add_set_vertex_buffer_command :: proc(slot : u32,buffer_view : platform.D3D12_VERTEX_BUFFER_VIEW)
 {
-    AddHeader(CommandType_SetVertexBuffer);
-    D12CommandSetVertexBuffer* com = AddCommand(D12CommandSetVertexBuffer);
-    com->slot = slot;
-    com->buffer_view = buffer_view;
+    com : D12CommandSetVertexBuffer;
+    com.slot = slot;
+    com.buffer_view = buffer_view;
+    con.buf_push(&render_commands,com);
 }
     
-void AddDrawIndexedCommand(u32 index_count,u32 index_offset,D3D12_PRIMITIVE_TOPOLOGY topology,D3D12_INDEX_BUFFER_VIEW index_buffer_view)
+add_draw_indexed_command :: proc(index_count : u32,index_offset : u32,topology : platform.D3D12_PRIMITIVE_TOPOLOGY, index_buffer_view : platform.D3D12_INDEX_BUFFER_VIEW)
 {
-    AddHeader(CommandType_DrawIndexed);
-    D12CommandIndexedDraw* com = AddCommand(D12CommandIndexedDraw);
-    com->index_count = index_count;
-    com->index_offset = index_offset;
-    com->topology = topology;
-    com->index_buffer_view = index_buffer_view;
+    com : D12CommandIndexedDraw;    
+    com.index_count = index_count;
+    com.index_offset = index_offset;
+    com.topology = topology;
+    com.index_buffer_view = index_buffer_view;
+    con.buf_push(&render_commands,com);    
 }
     
-void AddDrawCommand(u32 offset,u32 count,D3D12_PRIMITIVE_TOPOLOGY topology)
+add_draw_command :: proc(offset : u32,count : u32,topology : platform.D3D12_PRIMITIVE_TOPOLOGY)
 {
-    ASSERT(count != 0);
-    AddHeader(CommandType_Draw);
-    D12CommandBasicDraw* com = AddCommand(D12CommandBasicDraw);
-    com->count = count;
-    com->vertex_offset = offset;
-    com->topology = topology;
+    assert(count != 0);
+    com : D12CommandBasicDraw;    
+    com.count = count;
+    com.vertex_offset = offset;
+    com.topology = topology;
+    con.buf_push(&render_commands,com);
 }
     
-void AddViewportCommand(f4 vp)
+add_viewport_command :: proc(vp : f4)
 {
-    AddHeader(CommandType_Viewport);
-    D12CommandViewport* com = AddCommand(D12CommandViewport);
-    com->viewport = vp;
+    com : D12CommandViewport;    
+    com.viewport = vp;
+    con.buf_push(&render_commands,com);            
 }
     
-void AddRootSignatureCommand(ID3D12RootSignature* root)
+add_root_signature_command :: proc(root : /*ID3D12RootSignature**/rawptr)
 {
-    AddHeader(CommandType_RootSignature);
-    D12CommandRootSignature* com = AddCommand(D12CommandRootSignature);
-    com->root_sig = root;
+    com : D12CommandRootSignature; 
+    com.root_sig = root;
+    con.buf_push(&render_commands,com);                
 }
     
-void AddPipelineStateCommand(ID3D12PipelineState* ps)
+add_pipeline_state_command :: proc(ps : /*ID3D12PipelineState**/rawptr)
 {
-    AddHeader(CommandType_PipelineState);
-    D12CommandPipelineState* com = AddCommand(D12CommandPipelineState);
-    com->pipeline_state = ps;
+    com : D12CommandPipelineState;
+    com.pipeline_state = ps;
+    con.buf_push(&render_commands,com);                    
 }
     
-void AddScissorRectCommand(f4 rect)
+add_scissor_command :: proc(rect : f4)
 {
-    AddHeader(CommandType_ScissorRect);
-    D12CommandScissorRect* com = AddCommand(D12CommandScissorRect);
-    com->rect = CD3DX12_RECT(rect.x,rect.y,rect.z,rect.w);
+    com : D12CommandScissorRect;
+    com.rect = platform.D3D12_RECT{cast(i32)rect.x,cast(i32)rect.y,cast(i32)rect.z,cast(i32)rect.w};
+    con.buf_push(&render_commands,com);                        
 }
     
-void AddStartCommandListCommand(D3D12_CPU_DESCRIPTOR_HANDLE* handles)
+//add_start_command_list_command :: proc(handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE)
+add_start_command_list_command :: proc()
 {
-    AddHeader(CommandType_StartCommandList);
-    D12CommandStartCommandList* com = AddCommand(D12CommandStartCommandList);
-    com->handles = handles;
+    com :  D12CommandStartCommandList; 
+//    com.handles = handles;
+    con.buf_push(&render_commands,com);                            
 }
     
-void AddEndCommandListCommand()
+add_end_command_list_command :: proc()
 {
-    AddHeader(CommandType_EndCommandList);
-    D12CommandEndCommmandList* com = AddCommand(D12CommandEndCommmandList);
+    com : D12CommandEndCommmandList;
+    con.buf_push(&render_commands,com);                            
 }
     
 // TODO(Ray Garner): Replace these with something later
-void AddGraphicsRootDescTable(u64 index,ID3D12DescriptorHeap* heaps,D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)
+add_graphics_root_desc_table :: proc(index : u64,heaps : /*^ID3D12DescriptorHeap*/rawptr,gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE)
 {
-    AddHeader(CommandType_GraphicsRootDescTable);
-    D12CommandGraphicsRootDescTable* com = AddCommand(D12CommandGraphicsRootDescTable);
-    com->index = index;
-    com->heap = heaps;
-    com->gpu_handle = gpu_handle;
+    com : D12CommandGraphicsRootDescTable;
+    com.index = index;
+    com.heap = heaps;
+    com.gpu_handle = gpu_handle;
+    con.buf_push(&render_commands,com);                                
 };
-    
-void AddGraphicsRoot32BitConstant(u32 index,u32 num_values,void* gpuptr,u32 offset)
+
+arena_raw :: struct
 {
-    AddHeader(CommandType_GraphicsRootConstant);
-    D12CommandGraphicsRoot32BitConstant* com = AddCommand(D12CommandGraphicsRoot32BitConstant);
-    com->index = index;
-    com->num_values = num_values;
-    u32 byte_count = num_values*sizeof(u32);
-    void* mem_ptr = PUSHSIZE(&constants_arena,byte_count,fmj_arena_push_params_no_clear());
-    uint8_t* ptr = (uint8_t*)mem_ptr;
-    for(int i = 0;i < byte_count;++i)
-    {
-        *ptr++ = *((uint8_t*)gpuptr + i);
-    }
+    base : ^u8,
+    used : u64,
+    size : u64,
+}
+
+constants : arena_raw;
+
+arena_init :: proc(size : u64) -> arena_raw
+{
+    result : arena_raw;
+    result.base = cast(^u8)mem.alloc(int(size_of(u8) * size),cast(int)align_of(u8));
+    result.size = size;
+    return result;
+}
+
+push_size :: proc(arena_raw : ^arena_raw,size : u64) -> ^u8
+{
+    offset : u64 = 0;//fmj_arena_get_alignment_offset(arena,params.alignment);    
+    result : ^u8 = mem.ptr_offset(arena_raw.base,cast(int)(arena_raw.used + offset));
+    arena_raw.used = arena_raw.used + (size + offset);
+    return result;
+}
+
+add_graphics_root32_bit_constant :: proc(index : u32,num_values : u32,gpuptr : rawptr,offset : u32)
+{
+    com : D12CommandGraphicsRoot32BitConstant;
+    com.index = index;
+    com.num_values = num_values;
+    byte_count : u32 = num_values*size_of(u32);
+    mem_ptr := push_size(&constants,cast(u64)byte_count);    
+    //mem_ptr : rawptr = PUSHSIZE(&constants_arena,byte_count,fmj_arena_push_params_no_clear());
+    mem.copy(cast(rawptr)mem_ptr,gpuptr,cast(int)byte_count);
         
-    com->gpuptr = mem_ptr;
-    com->offset = offset;
+    com.gpuptr = mem_ptr;
+    com.offset = offset;
+    con.buf_push(&render_commands,com);                                    
 };
-    
+
+get_current_back_buffer :: proc() -> rawptr
+{
+    bbi : u32 = platform.GetCurrentBackBufferIndex(swap_chain);
+    result : rawptr = back_buffers[bbi];
+    assert(result != nil);
+    return result;
+}
 
 execute_frame :: proc()
 {
     using platform;
     using con;
     ticket_mutex_begin(&upload_operations.ticket_mutex);
-    current_backbuffer_index := GetCurrentBackBufferIndex();
+    current_backbuffer_index := GetCurrentBackBufferIndex(swap_chain);
 
     if is_resource_cl_recording == true
     {
@@ -1247,72 +1306,61 @@ execute_frame :: proc()
     }
     
     dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
-    rtv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE  = get_cpu_handle_srv(device,rtv_descriptor_heap,current_backbuffer_index);
+    rtv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,rtv_descriptor_heap,current_backbuffer_index);
 
     //D12Present the current framebuffer
     //Commandbuffer
-    //GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE_DIRECT);
     allocator_entry : ^D12CommandAllocatorEntry = get_free_command_allocator_entry(.D3D12_COMMAND_LIST_TYPE_DIRECT);
-
     command_list  : D12CommandListEntry = get_associated_command_list(allocator_entry);
 
     //Graphics
-    back_buffer  :/* ID3D12Resource**/ rawptr = GetCurrentBackBuffer();
-        
+    back_buffer  :/* ID3D12Resource**/ rawptr = get_current_back_buffer();
     fc : bool = platform.IsFenceComplete(fence,allocator_entry.fence_value);
-        
+    
     assert(fc == true);
-//    allocator_entry.allocator.Reset();
     ResetCommandAllocator(allocator_entry.allocator);        
-    //    command_list.list.Reset(allocator_entry.allocator, nullptr);
     ResetCommandList(command_list.list,allocator_entry.allocator,nil);
-        
+    
     // Clear the render target.
     TransitionResource(command_list,back_buffer,.D3D12_RESOURCE_STATE_PRESENT,.D3D12_RESOURCE_STATE_RENDER_TARGET);
-        
+    
     clearColor : [4]f32 = { 0.4, 0.6, 0.9,1.0};
-        
-//    command_list.list.ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+    
+    //    command_list.list.ClearRenderTargetView(rtv, clearColor, 0, nullptr);
     ClearRenderTargetView(command_list.list,rtv_cpu_handle,clearColor,0,nil);
-//    command_list.list.ClearDepthStencilView(dsv_cpu_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+    //    command_list.list.ClearDepthStencilView(dsv_cpu_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     ClearDepthStencilView(command_list.list,dsv_cpu_handle,.D3D12_CLEAR_FLAG_DEPTH,1.0,0,0,nil);
-        
+    
     //finish up
     end_command_list_encoding_and_execute(allocator_entry,command_list);
     //insert signal in queue to so we know when we have executed up to this point. 
     //which in this case is up to the command clear and tranition back to present transition 
     //for back buffer.
+    FETEST := fence_value;
     allocator_entry.fence_value = Signal(graphics_command_queue, fence, &fence_value);
-        
+    
     WaitForFenceValue(fence, allocator_entry.fence_value, fence_event,max(f64));
 
     //D12Rendering
     current_ae : ^D12CommandAllocatorEntry;
     current_cl : D12CommandListEntry;
-    
-    //    at : rawptr = render_com_buf.arena.base;
-    //    for i := 0;i < cast(int)buf_len(render_com_buf); i += 1
+
     for com in render_commands.buffer
     {
-        //D12CommandHeader* header = (D12CommandHeader^)at;
-	//        command_type : CommandType  = header->type;
-	//        at = (uint8_t*)at + sizeof(D12CommandHeader);
 	switch t in com
 	{
-
 	    case D12CommandStartCommandList :
 
-            current_ae := get_free_command_allocator_entry(.D3D12_COMMAND_LIST_TYPE_DIRECT);
+            current_ae = get_free_command_allocator_entry(.D3D12_COMMAND_LIST_TYPE_DIRECT);
             
-            current_cl := get_associated_command_list(current_ae);
+            current_cl = get_associated_command_list(current_ae);
             fcgeo : bool  = platform.IsFenceComplete(fence,current_ae.fence_value);
-            assert(fcgeo == false);
+            assert(fcgeo == true);
 
 	    ResetCommandAllocator(current_ae.allocator);	    
             ResetCommandList(current_cl.list,current_ae.allocator,nil);
 	    
             OMSetRenderTargets(current_cl.list,1, &rtv_cpu_handle, false, &dsv_cpu_handle);
-
             continue;
 	    
 	    case D12CommandEndCommmandList :
@@ -1371,59 +1419,60 @@ execute_frame :: proc()
             RSSetScissorRects(current_cl.list,1, &command.rect);
             continue;	    
 	    case D12CommandGraphicsRootDescTable :
-        command := com.(D12CommandGraphicsRootDescTable);   
-                
-            descriptorHeaps : []rawptr  = { command->heap };
-            SetDescriptorHeaps(current_cl.list,1, descriptorHeaps);
-            SetGraphicsRootDescriptorTable(urrent_cl.list,command.index, command.gpu_handle);
+            command := com.(D12CommandGraphicsRootDescTable);   
+            
+            descriptorHeaps : []rawptr  = { command.heap };
+            SetDescriptorHeaps(current_cl.list,1, mem.raw_slice_data(descriptorHeaps[:]));
+            SetGraphicsRootDescriptorTable(current_cl.list,cast(u32)command.index, command.gpu_handle);
             continue;	
 
 	    case D12CommandGraphicsRoot32BitConstant :
-        command := com.(D12CommandGraphicsRootDescTable);   
-                
-            SetGraphicsRoot32BitConstants(current_cl.list,com->index, command.num_values, command.gpuptr, command.offset);
+            command := com.(D12CommandGraphicsRoot32BitConstant);   
+            
+            SetGraphicsRoot32BitConstants(current_cl.list,command.index, command.num_values, command.gpuptr, command.offset);
             continue;	    
 	    case D12RenderTargets :
 	    
 	    case : 
 
+	}
     }
-   
-    final_allocator_entry : ^platform.D12CommandAllocatorEntry  = get_free_command_allocator_entry(D3D12_COMMAND_LIST_TYPE_DIRECT);
-        
+    
+    final_allocator_entry : ^platform.D12CommandAllocatorEntry  = get_free_command_allocator_entry(.D3D12_COMMAND_LIST_TYPE_DIRECT);
+    
     final_command_list : D12CommandListEntry  = get_associated_command_list(final_allocator_entry);
-        
-    bool final_fc := platform.IsFenceComplete(fence,final_allocator_entry->fence_value);
+    
+    final_fc : bool = platform.IsFenceComplete(fence,final_allocator_entry.fence_value);
     assert(final_fc == true);
     ResetCommandAllocator(final_allocator_entry.allocator);
 
-    final_command_list.list->Reset(final_allocator_entry->allocator, nullptr);
-    cbb : rawptr = GetCurrentBackBuffer();
+//    final_command_list.list.Reset(final_allocator_entry.allocator, nullptr);
+    ResetCommandList(final_command_list.list,final_allocator_entry.allocator,nil);
+    cbb : rawptr = get_current_back_buffer();
 
-    OMSetRenderTargets(final_command_list.list,1, &rtv_cpu_handle, FALSE, &dsv_cpu_handle);
+    OMSetRenderTargets(final_command_list.list,1, &rtv_cpu_handle, false, &dsv_cpu_handle);
     //tranistion the render target back to present mode. preparing for presentation.
-    TransitionResource(final_command_list,cbb,D3D12_RESOURCE_STATE_RENDER_TARGET,D3D12_RESOURCE_STATE_PRESENT);
-        
+    TransitionResource(final_command_list,cbb,.D3D12_RESOURCE_STATE_RENDER_TARGET,.D3D12_RESOURCE_STATE_PRESENT);
+    
     //finish up
     end_command_list_encoding_and_execute(final_allocator_entry,final_command_list);
     
     //insert signal in queue to so we know when we have executed up to this point. 
     //which in this case is up to the command clear and tranition back to present transition 
     //for back buffer.
-    final_allocator_entry.fence_value = Signal(command_queue, fence, fence_value);
-    WaitForFenceValue(fence, final_allocator_entry->fence_value, fence_event);
+    final_allocator_entry.fence_value = Signal(graphics_command_queue, fence, &fence_value);
+    WaitForFenceValue(fence, final_allocator_entry.fence_value, fence_event,max(f64));
 
     //execute the present flip
     sync_interval : windows.UINT;
-    present_flags : windows.UINT  = .DXGI_PRESENT_ALLOW_TEARING;
+    present_flags : windows.UINT  = DXGI_PRESENT_ALLOW_TEARING;
     Present(swap_chain,sync_interval, present_flags);
 
-
-     //wait for the gpu to execute up until this point before we procede this is the allocators..
+    //wait for the gpu to execute up until this point before we procede this is the allocators..
     //current fence value which we got when we signaled. 
     //the fence value that we give to each allocator is based on the fence value for the queue.
-    //D12RendererCode::WaitForFenceValue(fence, allocator_entry->fence_value, fence_event);
-    buf_clear(&allocator_entry->used_list_indexes);
+    //D12RendererCode::WaitForFenceValue(fence, allocator_entry.fence_value, fence_event);
+    buf_clear(&allocator_entry.used_list_indexes);
 
     is_resource_cl_recording = false;
     // NOTE(Ray Garner): Here we are doing bookkeeping for resuse of various resources.
@@ -1431,8 +1480,9 @@ execute_frame :: proc()
     //CheckReuseCommandAllocators();
     check_reuse_command_allocators();
     ticket_mutex_end(&upload_operations.ticket_mutex);
-        
+
     //Reset state of constant buffer
     //fmj_arena_deallocate(&constants_arena,false);
+    buf_clear(&render_commands);
 }
 

@@ -14,13 +14,15 @@ void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** dat
     resource->Map(sub_resource,range,data);
 }
 
-void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,
-  u32                 NumDescriptorHeaps,
-  ID3D12DescriptorHeap *ppDescriptorHeaps
-)
+void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,u32 NumDescriptorHeaps,ID3D12DescriptorHeap* const* ppDescriptorHeaps)
 {
     ASSERT(list);
     list->SetDescriptorHeaps(NumDescriptorHeaps,ppDescriptorHeaps); 
+}
+
+HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags)
+{
+    return swap_chain->Present(SyncInterval,Flags);    
 }
 
 void SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list, u32 RootParameterIndex,D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
@@ -110,10 +112,10 @@ void ClearDepthStencilView(ID3D12GraphicsCommandList* list,
     list->ClearDepthStencilView(DepthStencilView,ClearFlags,Depth,Stencil,NumRects,pRects);    
 }
 
-void CloseCommandList(ID3D12GraphicsCommandList* list)
+HRESULT CloseCommandList(ID3D12GraphicsCommandList* list)
 {
     ASSERT(list);
-    list->Close();
+    return list->Close();
 }
 
 void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList*  const* lists,u32 list_count)
@@ -132,7 +134,6 @@ void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D1
                                pDesc,
                                DestDescriptor);
 }
-
 
 HRESULT D3D12UpdateSubresources(
 ID3D12GraphicsCommandList* pCmdList,
@@ -170,20 +171,52 @@ HRESULT CreateCommittedResource(ID3D12Device2* device,D3D12_HEAP_PROPERTIES *pHe
                              D3D12_RESOURCE_DESC *pDesc,
                              D3D12_RESOURCE_STATES InitialResourceState,
                              D3D12_CLEAR_VALUE *pOptimizedClearValue,
-                             ID3D12Resource* resource)
+                             ID3D12Resource** resource)
 
 {
     HRESULT r = (device->CreateCommittedResource(
                      pHeapProperties,
                      HeapFlags,
                      pDesc,
-                     InitialResourceState,            
+                     InitialResourceState,
                      pOptimizedClearValue,
-                     IID_PPV_ARGS(&resource)));
+                     IID_PPV_ARGS(resource)));
     ASSERT(SUCCEEDED(r));
     return r;
 }
 
+ID3D12RootSignature* CreateRootSignature(ID3D12Device2* device,D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags)
+{
+    ID3D12RootSignature* result;
+        
+    CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC root_sig_d = {};
+    root_sig_d.Init_1_1(param_count, params, sampler_count, samplers, flags);
+        
+    D3D12_FEATURE_DATA_ROOT_SIGNATURE feature_data = {};
+    feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &feature_data, sizeof(feature_data))))
+    {
+        feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+    }
+        
+    // Serialize the root signature.
+    ID3DBlob* root_sig_blob;
+    ID3DBlob* err_blob;
+    D3DX12SerializeVersionedRootSignature(&root_sig_d,
+                                          feature_data.HighestVersion, &root_sig_blob, &err_blob);
+    if ( err_blob )
+    {
+        OutputDebugStringA( (const char*)err_blob->GetBufferPointer());
+        ASSERT(false);
+    }
+    // Create the root signature.
+    HRESULT r = device->CreateRootSignature(0, root_sig_blob->GetBufferPointer(), 
+                                            root_sig_blob->GetBufferSize(), IID_PPV_ARGS(&result));
+    ASSERT(SUCCEEDED(r));
+    return result;
+}
+
+/*
 FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
 {
     FMJStretchBuffer* table;
@@ -201,7 +234,7 @@ FMJStretchBuffer* GetTableForType(D3D12_COMMAND_LIST_TYPE type)
     }
     return table;
 }
-    
+
 D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE type)
 {
     D12CommandAllocatorEntry entry = {};
@@ -221,15 +254,15 @@ D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE t
     ASSERT(result);
     return  result;
 }
-    
+*/
+
 u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64* fenceValue)
 {
     ASSERT(commandQueue);
     ASSERT(fence);
-    ASSERT(fenceValue);
-    fenceValue += 1;
+    *fenceValue = (*fenceValue) + 1;
     u64 fenceValueForSignal = *fenceValue;
-    (commandQueue->Signal(fence, fenceValueForSignal));
+    commandQueue->Signal(fence, fenceValueForSignal);
     return fenceValueForSignal;
 }
     
@@ -247,7 +280,7 @@ void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,dou
     }
 }
 
-GPUArena AllocateGPUArena(u64 size)
+GPUArena AllocateGPUArena(ID3D12Device2* device,u64 size)
 {
     GPUArena result = {};
     size_t bufferSize = size;
@@ -291,8 +324,9 @@ GPUArena AllocateGPUArena(u64 size)
     ASSERT(SUCCEEDED(r));
     return result;
 }
-    
-GPUArena AllocateStaticGPUArena(u64 size)
+
+
+GPUArena AllocateStaticGPUArena(ID3D12Device2* device,u64 size)
 {
     GPUArena result = {};
     size_t bufferSize = size;
@@ -415,12 +449,13 @@ HRESULT ResetCommandAllocator(ID3D12CommandAllocator* a)
     return a->Reset();
 }
 
-HRESULT ResetCommandList(ID3D12GraphicsCommandList* l,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState)
+HRESULT ResetCommandList(ID3D12GraphicsCommandList* list,ID3D12CommandAllocator *pAllocator,ID3D12PipelineState *pInitialState)
 {
+    ASSERT(list);
     ASSERT(pAllocator);
-    ASSERT(pInitialState);
-    return l->Reset(pAllocator,pInitialState);
+    return list->Reset(pAllocator,pInitialState);
 }
+
 /*
 void UploadBufferData(GPUArena* g_arena,void* data,u64 size)
 {
@@ -940,7 +975,7 @@ bool platformtest(PlatformState* ps,f2 window_dim,f2 window_p)
 {
     return PlatformInit(ps,window_dim,window_p,5);
 }
-
+/*
 #define Pop(ptr,type) (type*)Pop_(ptr,sizeof(type));ptr = (uint8_t*)ptr + (sizeof(type));
 inline void* Pop_(void* ptr,u32 size)
 {
@@ -1060,7 +1095,8 @@ void AddGraphicsRoot32BitConstant(u32 index,u32 num_values,void* gpuptr,u32 offs
     com->gpuptr = mem_ptr;
     com->offset = offset;
 };
-    
+
+
 GPUMemoryResult QueryGPUFastMemory()
 {
     DXGI_QUERY_VIDEO_MEMORY_INFO info = {};
@@ -1073,6 +1109,7 @@ GPUMemoryResult QueryGPUFastMemory()
     GPUMemoryResult result = {info.Budget,info.CurrentUsage,info.AvailableForReservation,info.CurrentReservation};
     return result;
 }
+*/
 
 IDXGIAdapter4* GetAdapter(bool useWarp)
 {
@@ -1133,7 +1170,7 @@ bool EnableDebugLayer()
 #endif
 }
     
-static ID3D12Device2* CreateDevice(IDXGIAdapter4* adapter)
+ID3D12Device2* CreateDevice(IDXGIAdapter4* adapter)
 {
         
 #if USE_DEBUG_LAYER
@@ -1288,6 +1325,7 @@ IDXGISwapChain4* CreateSwapChain(HWND hWnd,ID3D12CommandQueue* commandQueue,u32 
     return dxgiSwapChain4;
 }
 
+/*
 ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_DESC desc)
 {
     ID3D12DescriptorHeap* result;
@@ -1298,8 +1336,9 @@ ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIP
     }
     return result;    
 }
-    
-ID3D12DescriptorHeap* CreateDescriptorHeap(int num_desc,D3D12_DESCRIPTOR_HEAP_TYPE type,D3D12_DESCRIPTOR_HEAP_FLAGS  flags)
+*/
+
+ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* device,u32 num_desc,D3D12_DESCRIPTOR_HEAP_TYPE type,D3D12_DESCRIPTOR_HEAP_FLAGS  flags)
 {
     ID3D12DescriptorHeap* result;
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {0};
@@ -1315,16 +1354,30 @@ ID3D12DescriptorHeap* CreateDescriptorHeap(int num_desc,D3D12_DESCRIPTOR_HEAP_TY
     return result;
 }
     
-ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_TYPE type, u32 numDescriptors)
+ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* l_device,D3D12_DESCRIPTOR_HEAP_TYPE type, u32 num_of_descriptors)
 {
     ID3D12DescriptorHeap* descriptorHeap;
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.NumDescriptors = numDescriptors;
+    desc.NumDescriptors = num_of_descriptors;
     desc.Type = type;
     (l_device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
     return descriptorHeap;
 }
-    
+
+void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor)
+{
+    device->CreateRenderTargetView(pResource, pDesc,DestDescriptor);    
+}
+
+HRESULT GetBuffer(IDXGISwapChain4* swapChain,UINT Buffer,ID3D12Resource** ppSurface)
+{
+    HRESULT r = swapChain->GetBuffer(Buffer, IID_PPV_ARGS(ppSurface));
+    ASSERT(ppSurface);
+    ASSERT(SUCCEEDED(r));
+    return r;
+}
+
+/*
 void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, ID3D12DescriptorHeap* descriptorHeap)
 {
     auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -1338,7 +1391,8 @@ void UpdateRenderTargetViews(ID3D12Device2* device,IDXGISwapChain4* swapChain, I
         rtvHandle.Offset(rtvDescriptorSize);
     }
 }
-    
+*/
+
 ID3D12Fence* CreateFence(ID3D12Device2* device)
 {
     ID3D12Fence* fence;
@@ -1362,6 +1416,7 @@ ID3D12GraphicsCommandList* CreateCommandList(ID3D12Device2* device,ID3D12Command
     HRESULT removed_reason = device->GetDeviceRemovedReason();
     DWORD e = GetLastError();
 #endif
+    ASSERT(SUCCEEDED(result));
     command_list->Close();
     return command_list;
 }
@@ -1395,40 +1450,8 @@ void CreateDefaultDepthStencilBuffer(f2 dim)
                                    dsv_heap->GetCPUDescriptorHandleForHeapStart());
     fflush(stdout);
 }
-*/
 
-ID3D12RootSignature* CreatRootSignature(D3D12_ROOT_PARAMETER1* params,int param_count,D3D12_STATIC_SAMPLER_DESC* samplers,int sampler_count,D3D12_ROOT_SIGNATURE_FLAGS flags)
-{
-    ID3D12RootSignature* result;
-        
-    CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC root_sig_d = {};
-    root_sig_d.Init_1_1(param_count, params, sampler_count, samplers, flags);
-        
-    D3D12_FEATURE_DATA_ROOT_SIGNATURE feature_data = {};
-    feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &feature_data, sizeof(feature_data))))
-    {
-        feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
-    }
-        
-    // Serialize the root signature.
-    ID3DBlob* root_sig_blob;
-    ID3DBlob* err_blob;
-    D3DX12SerializeVersionedRootSignature(&root_sig_d,
-                                          feature_data.HighestVersion, &root_sig_blob, &err_blob);
-    if ( err_blob )
-    {
-        OutputDebugStringA( (const char*)err_blob->GetBufferPointer());
-        ASSERT(false);
-    }
-    // Create the root signature.
-    HRESULT r = device->CreateRootSignature(0, root_sig_blob->GetBufferPointer(), 
-                                            root_sig_blob->GetBufferSize(), IID_PPV_ARGS(&result));
-    ASSERT(SUCCEEDED(r));
-    return result;
-}
 
-/*
 ID3D12RootSignature* CreateDefaultRootSig()
 {
     // Create the descriptor heap for the depth-stencil view.
@@ -1547,48 +1570,10 @@ ID3D12RootSignature* CreateDefaultRootSig()
 
     return root_sig = CreatRootSignature(root_params,_countof(root_params),tex_static_samplers,2,root_sig_flags);
 }
-*/
+
 
 PipelineStateStream local_ppss = {};
 
-ID3D12PipelineState*  CreatePipelineState(D3D12_PIPELINE_STATE_STREAM_DESC pssd)
-{
-    ID3D12PipelineState* result;
-    PipelineStateStream* psp = (PipelineStateStream*)pssd.pPipelineStateSubobjectStream;
-    
-    printf("size of rasterizer %d \n",(u32)sizeof(psp->RasterizerState));
-
-    CD3DX12_DEFAULT d = {};
-    
-    CD3DX12_RASTERIZER_DESC raster_desc = CD3DX12_RASTERIZER_DESC(d);
-    raster_desc.CullMode = D3D12_CULL_MODE_NONE;
-//    psp->RasterizerState = CD3DX12_PIPELINE_STATE_STREAM_RASTERIZER(raster_desc);
-    
-/*
-
-    printf("size of input_layout_l element %d \n",(u32)sizeof(input_layout_l[0]));    
-
-
-    printf("sizeof inputlayout desc struct local : %d\n",(u32)sizeof(local_ppss.InputLayout));    
-    printf("sizeof inputlayout desc struct : %d \n",(u32)sizeof(psp->InputLayout));
-
-    fflush( stdout );
-
-    psp->InputLayout = { input_layout_l,3 };
-    
-    D3D12_PIPELINE_STATE_STREAM_DESC pipeline_state_stream_desc = 
-        {
-            sizeof(PipelineStateStream), (void*)psp
-        };
-*/
-    //printf("%d",(int)sizeof(psstest));
-//    HRESULT r = device->CreatePipelineState(&pipeline_state_stream_desc, IID_PPV_ARGS(&result));
-    fflush( stdout );
-    HRESULT r = device->CreatePipelineState(&pssd, IID_PPV_ARGS(&result));    
-    ASSERT(SUCCEEDED(r));
-
-    return result;
-}
 
 PipelineStateStream CreateDefaultPipelineStateStreamDesc(D3D12_INPUT_ELEMENT_DESC* input_layout,int input_layout_count,ID3DBlob* vs_blob,ID3DBlob* fs_blob,bool depth_enable)
 {
@@ -1637,7 +1622,8 @@ PipelineStateStream CreateDefaultPipelineStateStreamDesc(D3D12_INPUT_ELEMENT_DES
     CreatePipelineState(pipeline_state_stream_desc);    
     return ppss;        
 }
-    
+
+
 void Init()
 {
 //        srv_heap_count = 0;
@@ -1658,24 +1644,14 @@ void Init()
     render_com_buf.arena = fmj_arena_allocate(FMJMEGABYTES(2));
         
     //Resource bookkeeping
-    resource_ca = CreateCommandAllocator(device,D3D12_COMMAND_LIST_TYPE_COPY);
+    //resource_ca = CreateCommandAllocator(device,D3D12_COMMAND_LIST_TYPE_COPY);
         
-    resource_cl = 
-        CreateCommandList(device,resource_ca,D3D12_COMMAND_LIST_TYPE_COPY);
+//    resource_cl = 
+//        CreateCommandList(device,resource_ca,D3D12_COMMAND_LIST_TYPE_COPY);
         
-    resource_ca->Reset();
-    resource_cl->Reset(resource_ca,nullptr);
-        
-    upload_operations = {};
-//        AnythingCacheCode::Init(&upload_operations.table_cache,4096,sizeof(UploadOp),sizeof(UploadOpKey),true);
-    upload_operations.table_cache = fmj_anycache_init(4096,sizeof(UploadOp),sizeof(UploadOpKey),true);
-        
-    upload_operations.ticket_mutex = {};
-    upload_operations.current_op_id = 1;
-    upload_operations.fence_value = 0;
-    upload_operations.fence = CreateFence(device);
-    upload_operations.fence_event = CreateEventHandle();
-        
+//    resource_ca->Reset();
+//    resource_cl->Reset(resource_ca,nullptr);
+
     //This is the global resources cache for direcx12 
     //resources
 //        AnythingCacheCode::Init(&resource_tables.resources,4096,sizeof(D12Resource),sizeof(D12ResourceKey));
@@ -1689,7 +1665,7 @@ void Init()
     //We put that here so that when executing it can be cross reference and checked to see if the sub resource is in the proper state BEFORE its used in the command list.
     //If not we create a new command list to transition that sub resource into the proper state ONLY if its needed other wise ensure we do absolutely nothing.
     resource_tables.global_sub_resrouce_state =  fmj_stretch_buffer_init(1,sizeof(D12ResourceStateEntry),8);
-    is_resource_cl_recording = true;
+    //is_resource_cl_recording = true;
         
     constants_arena = fmj_arena_allocate(FMJMEGABYTES(4));
         
@@ -1746,17 +1722,39 @@ inline ID3D12Device2* GetDevice()
 {
     return device;
 }
-    
-u32 GetCurrentBackBufferIndex()
+*/
+
+u32 GetCurrentBackBufferIndex(IDXGISwapChain4* swap_chain)
 {
     return swap_chain->GetCurrentBackBufferIndex();
 }
-    
+
+/*
 ID3D12Resource* GetCurrentBackBuffer()
 {
     u32 bbi = GetCurrentBackBufferIndex();
     ID3D12Resource* result = back_buffers[bbi];
     ASSERT(result);
+    return result;
+}
+*/
+
+ID3D12PipelineState*  CreatePipelineState(ID3D12Device2* device,D3D12_PIPELINE_STATE_STREAM_DESC pssd)
+{
+    ID3D12PipelineState* result;
+    PipelineStateStream* psp = (PipelineStateStream*)pssd.pPipelineStateSubobjectStream;
+    
+    printf("size of rasterizer %d \n",(u32)sizeof(psp->RasterizerState));
+
+    CD3DX12_DEFAULT d = {};
+    
+    CD3DX12_RASTERIZER_DESC raster_desc = CD3DX12_RASTERIZER_DESC(d);
+    raster_desc.CullMode = D3D12_CULL_MODE_NONE;
+
+    fflush( stdout );
+    HRESULT r = device->CreatePipelineState(&pssd, IID_PPV_ARGS(&result));    
+    ASSERT(SUCCEEDED(r));
+
     return result;
 }
 
@@ -2047,7 +2045,10 @@ D3D12_DESCRIPTOR_HEAP_DESC GetDesc(ID3D12DescriptorHeap* desc_heap)
  
 D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
 {
-    return desc_heap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE result = desc_heap->GetCPUDescriptorHandleForHeapStart();
+    printf("ptr : %d \n",(u32)(result.ptr));
+    fflush( stdout );
+    return result;
 }
 
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)

@@ -178,7 +178,9 @@ Window :: struct
     is_full_screen_mode : bool,
 };
 
+foreign import winkernal "system:kernel32.lib";
 foreign import platform "../../library/windows/build/win32.lib"
+
 
 @(default_calling_convention="c")
 foreign platform
@@ -191,9 +193,8 @@ foreign platform
     CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2) ---;
     CreateDefaultRootSig :: proc "c"()  -> rawptr ---;    
     GetDevice :: proc "c"() -> rawptr ---;
-    GetCurrentBackBufferIndex :: proc "c"() -> u32 ---;
+    GetCurrentBackBufferIndex :: proc "c"(swap_chain : rawptr) -> u32 ---;
     GetCurrentBackBuffer :: proc "c"() -> rawptr ---;
-//    EndFrame :: proc "c"() ---;
     AddCommand_ :: proc "c"(size : u32) -> rawptr ---;
     AddHeader :: proc "c"(type : CommandType) ---;    
     AddSetVertexBufferCommand :: proc "c"(slot : u32 ,buffer_view : D3D12_VERTEX_BUFFER_VIEW) ---;
@@ -210,9 +211,10 @@ foreign platform
     QueryGPUFastMemory :: proc "c" ()-> GPUMemoryResult ---;
     CompileShader_ :: proc "c" (file_name : cstring,blob : ^rawptr/*void** */,shader_version_and_type : cstring) ---;
     GetShaderByteCode :: proc"c"(blob : rawptr) -> D3D12_SHADER_BYTECODE ---;
-    CreatePipelineState :: proc "c"(pssd : D3D12_PIPELINE_STATE_STREAM_DESC)->  rawptr ---;//ID3D12PipelineState*  ;
+    CreatePipelineState :: proc "c"(device : rawptr,pssd : D3D12_PIPELINE_STATE_STREAM_DESC)->  rawptr ---;//ID3D12PipelineState*  ;
     CreateDefaultPipelineStateStreamDesc :: proc "c"(input_layout : ^D3D12_INPUT_ELEMENT_DESC ,input_layout_count : c.int,vs_blob : rawptr,fs_blob : rawptr,depth_enable : bool) -> PipelineStateStream ---;
-    CreateDescriptorHeap :: proc "c"(device : rawptr,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> rawptr /*ID3D12DescriptorHeap* */ ---;
+//    CreateDescriptorHeap :: proc "c"(device : rawptr,desc : D3D12_DESCRIPTOR_HEAP_DESC,num_of_descriptors : u32) -> rawptr /*ID3D12DescriptorHeap* */ ---;
+    CreateDescriptorHeap :: proc "c"(device : rawptr,num_desc : u32,type : D3D12_DESCRIPTOR_HEAP_TYPE,flags : D3D12_DESCRIPTOR_HEAP_FLAGS)-> rawptr --- /*ID3D12DescriptorHeap**/ ;    
     GetDesc :: proc "c"(desc_heap : rawptr) ->  D3D12_DESCRIPTOR_HEAP_DESC ---;
     GetGPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr) ->D3D12_GPU_DESCRIPTOR_HANDLE ---;    
     GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;
@@ -221,6 +223,14 @@ foreign platform
     CreateFence :: proc "c"(device : rawptr) -> rawptr/*ID3D12Fence**/---;
     CreateEventHandle :: proc "c"() ->windows.HANDLE ---;
     IsFenceComplete :: proc "c"(fence : rawptr /*ID3D12Fence* */,fence_value : u64) -> bool ---;
+}
+
+
+
+@(default_calling_convention="c")
+foreign winkernal
+{
+    InterlockedExchangeAdd64 :: proc "c"(dst: ^i64, desired: i64) -> i64 ---;    
 }
 
 AddCommand :: proc($T: typeid) -> ^T

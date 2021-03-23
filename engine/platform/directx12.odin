@@ -1,4 +1,5 @@
 package platform
+
 import "core:fmt"
 import "core:c"
 import fmj "../fmj"
@@ -131,8 +132,8 @@ D3D12_SHADER_VISIBILITY :: enum u32
 D3D12_ROOT_PARAMETER1 :: struct
 {
     ParameterType : D3D12_ROOT_PARAMETER_TYPE,
-    ShaderVisibility : D3D12_SHADER_VISIBILITY,
     root_parameter1_union : ROOT_PARAMETER1_UNION,
+    ShaderVisibility : D3D12_SHADER_VISIBILITY,
 }
 
 D3D12_DESCRIPTOR_RANGE1 :: struct
@@ -356,6 +357,25 @@ D3D12_INPUT_CLASSIFICATION :: enum u32
     D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA	= 0,
     D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA	= 1
 };
+
+DXGI_SWAP_CHAIN_FLAG ::  enum u32
+{
+    DXGI_SWAP_CHAIN_FLAG_NONPREROTATED	= 1,
+    DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH	= 2,
+    DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE	= 4,
+    DXGI_SWAP_CHAIN_FLAG_RESTRICTED_CONTENT	= 8,
+    DXGI_SWAP_CHAIN_FLAG_RESTRICT_SHARED_RESOURCE_DRIVER	= 16,
+    DXGI_SWAP_CHAIN_FLAG_DISPLAY_ONLY	= 32,
+    DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT	= 64,
+    DXGI_SWAP_CHAIN_FLAG_FOREGROUND_LAYER	= 128,
+    DXGI_SWAP_CHAIN_FLAG_FULLSCREEN_VIDEO	= 256,
+    DXGI_SWAP_CHAIN_FLAG_YUV_VIDEO	= 512,
+    DXGI_SWAP_CHAIN_FLAG_HW_PROTECTED	= 1024,
+    DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING	= 2048,
+    DXGI_SWAP_CHAIN_FLAG_RESTRICTED_TO_ALL_HOLOGRAPHIC_DISPLAYS	= 4096
+}
+
+DXGI_PRESENT_ALLOW_TEARING : u32 : 0x00000200;
 
 DXGI_FORMAT :: enum u32
 {
@@ -927,13 +947,95 @@ D3D12_LOGIC_OP :: enum u32
 };
 
 D3D12_COLOR_WRITE_ENABLE :: enum u32
-    {
-        D3D12_COLOR_WRITE_ENABLE_RED	= 1,
-        D3D12_COLOR_WRITE_ENABLE_GREEN	= 2,
-        D3D12_COLOR_WRITE_ENABLE_BLUE	= 4,
-        D3D12_COLOR_WRITE_ENABLE_ALPHA	= 8,
-        D3D12_COLOR_WRITE_ENABLE_ALL	= ( ( ( D3D12_COLOR_WRITE_ENABLE_RED | D3D12_COLOR_WRITE_ENABLE_GREEN )  | D3D12_COLOR_WRITE_ENABLE_BLUE )  | D3D12_COLOR_WRITE_ENABLE_ALPHA ) 
-    };
+{
+    D3D12_COLOR_WRITE_ENABLE_RED	= 1,
+    D3D12_COLOR_WRITE_ENABLE_GREEN	= 2,
+    D3D12_COLOR_WRITE_ENABLE_BLUE	= 4,
+    D3D12_COLOR_WRITE_ENABLE_ALPHA	= 8,
+    D3D12_COLOR_WRITE_ENABLE_ALL	= ( ( ( D3D12_COLOR_WRITE_ENABLE_RED | D3D12_COLOR_WRITE_ENABLE_GREEN )  | D3D12_COLOR_WRITE_ENABLE_BLUE )  | D3D12_COLOR_WRITE_ENABLE_ALPHA ) 
+}
+
+D3D12_BUFFER_RTV :: struct
+{
+    FirstElement :     u64,
+    NumElements :     windows.UINT,
+}
+
+D3D12_TEX1D_RTV :: struct
+{
+    MipSlice :     UINT,
+}
+
+D3D12_TEX1D_ARRAY_RTV :: struct
+{
+    MipSlice : windows.UINT,
+    FirstArraySlice : windows.UINT,
+    ArraySize : windows.UINT,
+}
+
+D3D12_TEX2D_RTV :: struct
+{
+    MipSlice : windows.UINT,
+    PlaneSlice : windows.UINT,
+}
+
+D3D12_TEX2DMS_RTV :: struct
+{
+    UnusedField_NothingToDefine : windows.UINT,
+}
+
+D3D12_TEX2D_ARRAY_RTV :: struct
+{
+    MipSlice :     windows.UINT,
+    FirstArraySlice : windows.UINT,
+    ArraySize :     windows.UINT,
+    PlaneSlice :     windows.UINT,
+}
+
+D3D12_TEX2DMS_ARRAY_RTV :: struct
+{
+    FirstArraySlice : windows.UINT,
+    ArraySize :     windows.UINT, 
+}
+
+D3D12_TEX3D_RTV :: struct
+{
+    MipSlice : windows.UINT,
+    FirstWSlice : windows.UINT ,
+    WSize : windows.UINT,
+}
+
+D3D12_RTV_DIMENSION :: enum u32
+{
+    D3D12_RTV_DIMENSION_UNKNOWN	= 0,
+    D3D12_RTV_DIMENSION_BUFFER	= 1,
+    D3D12_RTV_DIMENSION_TEXTURE1D	= 2,
+    D3D12_RTV_DIMENSION_TEXTURE1DARRAY	= 3,
+    D3D12_RTV_DIMENSION_TEXTURE2D	= 4,
+    D3D12_RTV_DIMENSION_TEXTURE2DARRAY	= 5,
+    D3D12_RTV_DIMENSION_TEXTURE2DMS	= 6,
+    D3D12_RTV_DIMENSION_TEXTURE2DMSARRAY	= 7,
+    D3D12_RTV_DIMENSION_TEXTURE3D	= 8
+}
+
+RenderTargetViewDescUnion :: struct #raw_union 
+{
+    Buffer : D3D12_BUFFER_RTV,
+    Texture1D : D3D12_TEX1D_RTV,
+    Texture1DArray : D3D12_TEX1D_ARRAY_RTV,
+    Texture2D : D3D12_TEX2D_RTV,
+    Texture2DArray : D3D12_TEX2D_ARRAY_RTV,
+    Texture2DMS : D3D12_TEX2DMS_RTV,
+    Texture2DMSArray : D3D12_TEX2DMS_ARRAY_RTV,
+    Texture3D : D3D12_TEX3D_RTV,
+}
+ 
+D3D12_RENDER_TARGET_VIEW_DESC :: struct
+{
+    Format : DXGI_FORMAT,
+    ViewDimension : D3D12_RTV_DIMENSION,
+    rtv_union : RenderTargetViewDescUnion,
+}
 
 D3D12_RENDER_TARGET_BLEND_DESC :: struct
 {
@@ -947,7 +1049,7 @@ D3D12_RENDER_TARGET_BLEND_DESC :: struct
     BlendOpAlpha : D3D12_BLEND_OP,
     LogicOp : D3D12_LOGIC_OP,
     RenderTargetWriteMask : D3D12_COLOR_WRITE_ENABLE, //UINT8 // char;
-};
+}
 
 DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC :: D3D12_RENDER_TARGET_BLEND_DESC{false, false, .D3D12_BLEND_ONE, .D3D12_BLEND_ZERO, .D3D12_BLEND_OP_ADD, .D3D12_BLEND_ONE, .D3D12_BLEND_ZERO, .D3D12_BLEND_OP_ADD, .D3D12_LOGIC_OP_NOOP, .D3D12_COLOR_WRITE_ENABLE_ALL};
 
@@ -1031,8 +1133,8 @@ D3D12_DESCRIPTOR_HEAP_FLAGS :: enum u32
 
 D3D12_DESCRIPTOR_HEAP_DESC :: struct
 {
-    Type :     D3D12_DESCRIPTOR_HEAP_TYPE,
-    NumDescriptors : u32,//windows.UINT,
+    Type : D3D12_DESCRIPTOR_HEAP_TYPE,
+    NumDescriptors : windows.UINT,
     Flags : D3D12_DESCRIPTOR_HEAP_FLAGS,
     NodeMask : windows.UINT,
 };
@@ -1058,23 +1160,25 @@ D3D12_RANGE :: struct
     End : windows.SIZE_T,
 };
 
-create_descriptor_heap_ :: proc(device : rawptr/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
+create_descriptor_heap :: proc(device : rawptr/*ID3D12Device2**/ ,desc : D3D12_DESCRIPTOR_HEAP_DESC) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;
     l_desc := desc;
-    result.value = CreateDescriptorHeap(device,l_desc);        
+    result.value = CreateDescriptorHeap(device,l_desc.NumDescriptors,l_desc.Type,l_desc.Flags);        
     return result;
 }
 
+/*
 create_descriptor_heap_type_num :: proc(device : rawptr/*ID3D12Device2**/ ,type : D3D12_DESCRIPTOR_HEAP_TYPE, num_of_descriptors : u32) -> ID3D12DescriptorHeap
 {
     result : ID3D12DescriptorHeap;    
     desc : D3D12_DESCRIPTOR_HEAP_DESC;
     desc.NumDescriptors = num_of_descriptors;
     desc.Type = type;
-    result.value = CreateDescriptorHeap(device,desc);    
+    result.value = create_descriptor_heap(device,desc);//CreateDescriptorHeap(device,desc);    
     return result;
 }
+*/
 
 D3D12_FORMAT_SUPPORT1 :: enum u32
 {
@@ -1505,7 +1609,7 @@ D12CommandAllocatorTables :: struct
     fl_ca : con.AnyCache(D12CommandAllocatorKey,D12CommandAllocatorEntry),//command_allocators
 }
 
-create_descriptor_heap :: proc{create_descriptor_heap_,create_descriptor_heap_type_num};
+//create_descriptor_heap :: proc{create_descriptor_heap_,create_descriptor_heap_type_num};
 
 D3D12_SUBRESOURCE_DATA :: struct
 {
