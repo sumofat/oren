@@ -17,6 +17,27 @@ import con "../containers"
 
 asset_ctx : AssetContext;
 
+AssetTables :: struct
+{
+    materials : map[string]RenderMaterial,
+    material_count : u64,
+    sprites : con.Buffer(Sprite),
+    textures : con.Buffer(Texture),
+    vertex_buffers : con.Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
+    index_buffers : con.Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
+    matrix_buffer : con.Buffer(f4x4),
+    meshes : con.Buffer(Mesh),
+};
+
+AssetContext :: struct
+{
+//    perm_mem : ^fmj.FMJMemoryArena,
+//    temp_mem : ^fmj.FMJMemoryArena,
+    asset_tables : AssetTables,
+    scene_objects : con.Buffer(SceneObject),
+    so_to_go : map[int]rawptr,//scene object to pointer of custom gameobject
+};
+
 Texture :: struct
 {
     texels : rawptr

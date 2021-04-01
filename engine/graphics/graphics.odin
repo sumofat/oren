@@ -50,6 +50,7 @@ back_buffers : [num_of_back_buffers]rawptr;/*ID3D12Resource* */
 
 is_resource_cl_recording : bool;
 
+
 @(default_calling_convention="c")
 foreign gfx
 {
@@ -706,7 +707,8 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
 */    
     constants = arena_init(1024 * 1024 * 4);
     dx12_init(device);
-    result.is_init = true;    
+    result.is_init = true;
+
     return result;
 }
 

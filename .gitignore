@@ -33,3 +33,5 @@ main.bc
 main.ll
 
 main.obj
+
+library/windows/.#win32.cpp

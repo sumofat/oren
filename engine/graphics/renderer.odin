@@ -2,6 +2,9 @@ package graphics
 import platform "../platform"
 import con "../containers"
 
+render_commands : con.Buffer(D12RenderCommand);
+render_commands_ptr : ^RenderCommandList;
+
 RenderCommand :: struct
 {
     geometry : RenderGeometry,
@@ -18,13 +21,31 @@ RenderCommand :: struct
     material_name : string,
 };
 
-Renderer :: struct
+RenderCommandList :: struct
 {
     command_buffer : con.Buffer(RenderCommand),
 };
 
-//Commands
+RenderProjectionPass  :: struct
+{
+    matrix_buffer : ^con.Buffer(f4x4),
+    matrix_quad_buffer : ^con.Buffer(f4x4),
+    root_sig : rawptr,
+}
 
+RenderPass :: struct(type : typeid)
+{
+    list : ^RenderCommandList,
+    data : type,
+}
+
+RenderPassProcs :: struct(type : typeid)
+{
+    setup_pass : proc(pass : RenderPass(type)),
+    execute_pass : proc(pass : RenderPass(type)),
+};
+
+//Commands
 D12CommandBasicDraw :: struct
 {
     vertex_offset : u32,
@@ -49,7 +70,7 @@ D12CommandIndexedDraw :: struct
     // TODO(Ray Garner): add a way to bind multiples
 };
 
-render_commands : con.Buffer(D12RenderCommand);
+
 
 D12CommandSetVertexBuffer :: struct
 {
@@ -128,14 +149,19 @@ D12RenderTargets :: struct
     depth_stencil_handle : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
 }
 
-renderer_init :: proc() -> Renderer
+renderer_init :: proc() -> RenderCommandList
 {
-    result : Renderer;
+    result : RenderCommandList;
     result.command_buffer = con.buf_init(100,RenderCommand);
     return result;
 }
 
-process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
+renderer_set_write_list :: proc(current_list : ^RenderCommandList)
+{
+    render_commands_ptr = current_list^;
+}
+
+process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
 {
     using con;
     for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1
@@ -204,7 +230,7 @@ process_children_recrusively :: proc(render : ^Renderer,so : ^SceneObject,c_mat 
     }
 }
 
-issue_render_commands :: proc(render : ^Renderer,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
+issue_render_commands :: proc(render : ^RenderCommandList,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
 {
     using con;
     //Start at root node
