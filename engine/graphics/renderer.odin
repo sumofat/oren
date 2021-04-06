@@ -70,8 +70,6 @@ D12CommandIndexedDraw :: struct
     // TODO(Ray Garner): add a way to bind multiples
 };
 
-
-
 D12CommandSetVertexBuffer :: struct
 {
     slot : u32,
@@ -158,7 +156,7 @@ renderer_init :: proc() -> RenderCommandList
 
 renderer_set_write_list :: proc(current_list : ^RenderCommandList)
 {
-    render_commands_ptr = current_list^;
+    render_commands_ptr = current_list;
 }
 
 process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)

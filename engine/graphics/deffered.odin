@@ -2,6 +2,7 @@ package graphics
 import "core:math"
 import platform "../platform"
 import con "../containers"
+import la "core:math/linalg"
 
 pers_proj_pass : RenderPass(RenderProjectionPass);
 
@@ -21,30 +22,31 @@ execute_perspective_projection_pass :: proc(pass : RenderPass(RenderProjectionPa
 {
     has_update := false;
     using con;
+    using la;
     if buf_len(pass.list.command_buffer) > 0
     {
 	renderer_set_write_list(pass.list);
 	list := pass.list;
-	matrix_buffer = pass.matrix_buffer;
-	matrix_quad_buffer = pass.matrix_quad_buffer;
+	matrix_buffer := pass.data.matrix_buffer;
+	matrix_quad_buffer := pass.data.matrix_quad_buffer;
 	
 	add_start_command_list_command();
-	for command in list.command_buffer
+	for command in list.command_buffer.buffer
 	{
             m_mat := buf_get(matrix_buffer,command.model_matrix_id);
             c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
             proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
             world_mat := mul(c_mat,m_mat);
             finalmat := mul(proj_mat,world_mat);
-            m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer) * size_of(f4x4);
+            m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
             m_mat[0].y = 5.0;
 
             base_color := command.geometry.base_color;
 	    m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
 	    
-            buf_push(&matrix_quad_buffer,finalmat);        
+            buf_push(matrix_quad_buffer,finalmat);        
 
-	    add_root_signature_command(gfx.default_root_sig);		    
+	    add_root_signature_command(default_root_sig);		    
 
 	    rect := f4{0,0,window_dim.x,window_dim.y};	    
 
