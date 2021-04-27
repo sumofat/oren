@@ -2,6 +2,8 @@ package platform
 
 import platform "../platform"
 
+ps : PlatformState;
+
 PlatformState :: struct
 {
     time : platform.Time,

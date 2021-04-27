@@ -150,7 +150,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         child : ^cgltf.node = child_ptr^;	
         trans := transform_init();
 
-        out_mat := la.MATRIX4_IDENTITY;
+        out_mat := la.MATRIX4F32_IDENTITY;
         if child.has_matrix == 1
         {
                     
@@ -232,7 +232,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 root_node : ^cgltf.node = mem.ptr_offset(root_scene.nodes,i)^;
 		
                 trans := transform_init();
-                out_mat := la.MATRIX4_IDENTITY;
+                out_mat := la.MATRIX4F32_IDENTITY;
                 if root_node.has_matrix == 1
                 {
                     out_mat = f4x4{{root_node.matrix[0],root_node.matrix[1],root_node.matrix[2],root_node.matrix[3]},
@@ -566,6 +566,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
     tex_id := buf_push(&ctx.asset_tables.textures,texture^);
 
     hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
     hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
     offset : u64 = cast(u64)hmdh_size * cast(u64)tex_id;
     hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
@@ -615,14 +616,9 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
         &tex_resource.state);
     
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
-    //Texture2D(texture,cast(u32)tex_id,&tex_resource,heap.value);
 
     texture_2d(texture,cast(u32)tex_id,&tex_resource,heap.value);
-    
-    //TODO(ray):Add assert to how many textures are allowed in acertain heap that
-    //we are using to store the texture on the gpu.
-    //texid is a slot on the gpu heap??
-//    ASSERT(tex_id < MAX_TEX_ID_FOR_HEAP)
+
     return tex_id;
 }
 
@@ -631,7 +627,7 @@ set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,si
     v_size := size;
     buff^ = AllocateStaticGPUArena(device.device,v_size);
     SetArenaToVertexBufferView(buff,v_size,stride);
-    //UploadBufferData(buff,data,v_size);
+
     upload_buffer_data(buff,data,v_size);    
     id := con.buf_push(&ctx.asset_tables.vertex_buffers,buff.buffer_view.vertex_buffer_view);
     return id;

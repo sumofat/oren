@@ -197,7 +197,7 @@ add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_s
 update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
 {
     assert(ctx != nil);    
-    product := la.QUATERNION_IDENTITY;
+    product := la.QUATERNIONF32_IDENTITY;
     sum := f3{};
     update_scene_objects(ctx,&scene.buffer,&sum,&product);
 }

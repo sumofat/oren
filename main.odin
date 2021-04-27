@@ -130,6 +130,7 @@ main :: proc()
     using la;
     using gfx;
     using con;
+    using platform;
     fmt.println("Executing Main!");
 
     x :f32 = fmj.degrees(20);
@@ -137,17 +138,17 @@ main :: proc()
     x = fmj.radians(x);
     fmt.println(x);    
     fmt.println(x);
-    ps : platform.PlatformState;
+
     window_dim := f2{1920,1080};
     window_p := f2{0,0};
     show_cmd : i32 = 0;
-//    ps.is_running  = true;
+//    platform.ps.is_running  = true;
 
-    //    testPlatformInit(&ps,100);
-    //fmt.println(ps);
+    //    testPlatformInit(&platform.ps,100);
+    //fmt.println(platform.ps);
     fmt.println(ps.is_running);
     fmt.println(ps.window.handle);
-    //    if !platformtest(&ps,window_dim,window_p)
+    //    if !platformtest(&platform.ps,window_dim,window_p)
     spawn_window(&ps,"test window",cast(u32)window_dim.x,cast(u32)window_dim.y);
     
     if !platform.PlatformInit(&ps,window_dim,window_p,5)    
@@ -180,7 +181,7 @@ main :: proc()
 	}
 
 	using gfx;
-	using platform;
+//	using platform;
 
 	//engine init
 	assetctx_init(&asset_ctx);
@@ -192,7 +193,7 @@ main :: proc()
 	scene := scenes["test"];
 	
 	test_scene := scene_init("test");
-	rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNION_IDENTITY,f3{1,1,1},"test_so");
+	rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNIONF32_IDENTITY ,f3{1,1,1},"test_so");
 
 	root_so := buf_chk_out(&asset_ctx.scene_objects,rn_id);	
 
@@ -233,7 +234,7 @@ main :: proc()
 	rc.fov = 80;
 	rc.near_far_planes = f2{0.1,1000};
 	rc.projection_matrix = init_pers_proj_matrix(ps.window.dim,rc.fov,rc.near_far_planes);
-	rc.matrix = la.MATRIX4_IDENTITY;
+	rc.matrix = la.MATRIX4F32_IDENTITY;
 	
 	matrix_buffer := &asset_ctx.asset_tables.matrix_buffer;
 	projection_matrix_id := buf_push(matrix_buffer,rc.projection_matrix);
@@ -245,13 +246,13 @@ main :: proc()
 	rc_ui.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0),f3{0,0,1});
 	rc_ui.ot.s = f3{1,1,1};
 	rc_ui.projection_matrix = init_screen_space_matrix(ps.window.dim);
-	rc_ui.matrix = MATRIX4_IDENTITY;
+	rc_ui.matrix = MATRIX4F32_IDENTITY;
 	
 	screen_space_matrix_id := buf_push(matrix_buffer,rc_ui.projection_matrix);
 	identity_matrix_id := buf_push(matrix_buffer,rc_ui.matrix);
 	//End Camera Setups
 
-	matrix_quad_buffer := buf_init(200,f4x4);
+	//matrix_quad_buffer := buf_init(200,f4x4);
 	
 	max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
 	lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
@@ -284,7 +285,7 @@ main :: proc()
 	matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
 	
 	set_arena_constant_buffer(device.device,&matrix_gpu_arena,4,default_srv_desc_heap);
-	mapped_matrix_data : rawptr;
+//	mapped_matrix_data : rawptr;
 	Map(matrix_gpu_arena.resource,0,nil,&mapped_matrix_data);
 	
 	/*
@@ -297,7 +298,12 @@ main :: proc()
 	buf_chk_in(&asset_ctx.scene_objects);
 	
 	test_mesh := buf_get(&asset_ctx.asset_tables.meshes,test_model_instance);	
-//end game object setup
+	//end game object setup
+
+	//experimental
+	init_perspective_projection_pass();
+///	init_gbuffer_pass();
+	//end experimental
 
         for ps.is_running
         {
@@ -305,10 +311,18 @@ main :: proc()
 	    get_local_p(model_so_id).x += 0.001;
 	    
 	    //End game update
-	    
 	    update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
 
+	    //GBUFFER Pass
+//	    setup_gbuffer_pass(&render,matrix_buffer,&matrix_quad_buffer);
+//	    execute_gbuffer_pass(gbuffer_pass);
+	    
+	    //Basic pass
+	    setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);
+	    execute_perspective_projection_pass(pers_proj_pass);
+
+	    /*	    
 	    has_update := false;
 
 	    if buf_len(render.command_buffer) > 0
@@ -376,7 +390,7 @@ main :: proc()
 		mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
 		buf_clear(&matrix_quad_buffer);
             }
-	    
+*/	    
 	    execute_frame();
 	    platform.HandleWindowsMessages(&ps);
 

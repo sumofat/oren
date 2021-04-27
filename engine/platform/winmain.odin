@@ -134,12 +134,12 @@ GamePad :: struct
 
 Mouse :: struct
 {
-    p : la.Vector2,
-    prev_p : la.Vector2,
-    delta_p : la.Vector2,
-    uv : la.Vector2,
-    prev_uv : la.Vector2,
-    delta_uv : la.Vector2,
+    p : la.Vector2f32,
+    prev_p : la.Vector2f32,
+    delta_p : la.Vector2f32,
+    uv : la.Vector2f32,
+    prev_uv : la.Vector2f32,
+    delta_uv : la.Vector2f32,
 
     lmb : DigitalButton,//left_mouse_button
     rmb : DigitalButton,
@@ -173,8 +173,8 @@ Window :: struct
     handle : window32.Hwnd,
     device_context : window32.Hdc,
     global_window_p : window32.Window_Placement,
-    dim : la.Vector2,
-    p : la.Vector2,
+    dim : la.Vector2f32,
+    p : la.Vector2f32,
     is_full_screen_mode : bool,
 };
 
@@ -186,11 +186,11 @@ foreign import platform "../../library/windows/build/win32.lib"
 foreign platform
 {
 //    testPlatformInit :: proc(ps : ^PlatformState,window_dim : f32) ---;
-    platformtest :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2) -> bool ---;
-    PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2,window_p : la.Vector2,n_show_cmd : c.int) -> bool ---;    
+    platformtest :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2f32,window_p : la.Vector2f32) -> bool ---;
+    PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2f32,window_p : la.Vector2f32,n_show_cmd : c.int) -> bool ---;    
     HandleWindowsMessages :: proc "c" (ps : ^PlatformState) ---;
 
-    CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2) ---;
+    CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2f32) ---;
     CreateDefaultRootSig :: proc "c"()  -> rawptr ---;    
     GetDevice :: proc "c"() -> rawptr ---;
     GetCurrentBackBufferIndex :: proc "c"(swap_chain : rawptr) -> u32 ---;

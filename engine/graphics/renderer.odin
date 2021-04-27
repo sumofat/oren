@@ -33,11 +33,16 @@ RenderProjectionPass  :: struct
     root_sig : rawptr,
 }
 
-RenderPass :: struct(type : typeid)
+GbufferPass  :: struct
 {
-    list : ^RenderCommandList,
-    data : type,
+    matrix_buffer : ^con.Buffer(f4x4),
+    matrix_quad_buffer : ^con.Buffer(f4x4),
+    root_sig : rawptr,
+    render_targets : con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
 }
+
+RenderPass :: struct(type : typeid) { list : ^RenderCommandList, data
+: type, }
 
 RenderPassProcs :: struct(type : typeid)
 {
@@ -130,8 +135,9 @@ D12CommandGraphicsRoot32BitConstant :: struct
 
 D12CommandStartCommandList :: struct
 {
-    dummy : bool,
-    handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+//    handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+    render_target_count : int,
+    render_targets : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
 };
 
 D12CommandEndCommmandList :: struct
@@ -236,8 +242,6 @@ issue_render_commands :: proc(render : ^RenderCommandList,s : ^Scene,ctx : ^Asse
     {
         so_id := buf_get(&s.buffer.buffer,cast(u64)i);        
         so := buf_chk_out(&ctx.scene_objects,so_id);
-//        FMJSceneObject* so = fmj_stretch_buffer_check_out(FMJSceneObject,&s.buffer.buffer,i);
-//        if(so.type == scene_object_type_mesh)
 
         if buf_len(so.children.buffer) > 0
         {

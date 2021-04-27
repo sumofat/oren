@@ -31,10 +31,10 @@ transform_init :: proc() -> Transform
 {
     using la;
     ot : Transform;
-    ot.r = QUATERNION_IDENTITY;
+    ot.r = QUATERNIONF32_IDENTITY;
     ot.s = f3{1,1,1};
     ot.p = f3{0,0,0};
-    ot.local_r = QUATERNION_IDENTITY;
+    ot.local_r = QUATERNIONF32_IDENTITY;
     ot.local_s = f3{1,1,1};
     ot.local_p = f3{0,0,0};
     transform_update(&ot);

@@ -6,12 +6,12 @@ import la "core:math/linalg"
 
 import platform "../platform"
 
-f4 :: la.Vector4;
-f3 :: la.Vector3;
-f2 :: la.Vector2;
+f4 :: la.Vector4f32;
+f3 :: la.Vector3f32;
+f2 :: la.Vector2f32;
 
-f4x4 :: la.Matrix4x4;
-Quat :: la.Quaternion;
+f4x4 :: la.Matrix4x4f32;
+Quat :: la.Quaternionf32;
 
 screen_to_world :: proc(projection_matrix : f4x4,cam_matrix : f4x4,buffer_dim : f2,screen_xy :  f2,z_depth :  f32) -> f3
 {

@@ -32,6 +32,8 @@ copy_command_queue : rawptr;
 compute_command_queue : rawptr;
 
 rtv_descriptor_heap : rawptr;
+render_texture_heap : rawptr;
+
 current_allocator_index : u64;            
 rtv_desc_size : u64;
  
@@ -47,8 +49,11 @@ fence_value : u64 = 0;
 swap_chain : rawptr;
 num_of_back_buffers : int :  3;
 back_buffers : [num_of_back_buffers]rawptr;/*ID3D12Resource* */
+num_of_render_textures : int;
 
 is_resource_cl_recording : bool;
+
+
 
 
 @(default_calling_convention="c")
@@ -368,8 +373,8 @@ add_material :: proc(ps : ^platform.PlatformState,stream : platform.PipelineStat
     new_material : RenderMaterial;
     new_material.pipeline_state = create_pipeline_state(stream);
     new_material.name = name;
-    new_material.viewport_rect = la.Vector4{0,0,ps.window.dim.x,ps.window.dim.y};
-    new_material.scissor_rect = la.Vector4{0,0,max(f32),max(f32)};
+    new_material.viewport_rect = la.Vector4f32{0,0,ps.window.dim.x,ps.window.dim.y};
+    new_material.scissor_rect = la.Vector4f32{0,0,max(f32),max(f32)};
     asset_material_store(&asset_ctx,name,new_material);
 }
 
@@ -588,7 +593,9 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
     swap_chain = CreateSwapChain(cast(windows.HWND)ps.window.handle,graphics_command_queue,cast(u32)ps.window.dim.x, cast(u32)ps.window.dim.y, cast(u32)num_of_back_buffers);
+
     rtv_desc_size := GetDescriptorHandleIncrementSize(device.device,.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
     rtv_descriptor_heap = create_descriptor_heap(device.device, desc).value;    
 
     update_render_target_views(device.device,swap_chain,rtv_descriptor_heap);
@@ -597,7 +604,7 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     fence_event = CreateEventHandle();
     
     //////////////////////////////////
-    default_root_sig = create_default_root_sig();//platform.CreateDefaultRootSig();
+    default_root_sig = create_default_root_sig();
     create_default_depth_stencil_buffer(ps.window.dim);
 
     using fmj;
@@ -652,14 +659,18 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     base_stream :  platform.PipelineStateStream =
 	create_default_pipeline_state_stream_desc(default_root_sig,&input_layout[0],input_layout_count,rs.vs_blob,rs.fs_blob);
 
-    add_material(ps,base_stream,"base");
+    add_material(&ps,base_stream,"base");
 
     //mesh
     mesh_stream :  platform.PipelineStateStream =
 	create_default_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,mesh_rs.vs_blob,mesh_rs.fs_blob);
 
-    add_material(ps,mesh_stream,"mesh");
+    add_material(&ps,mesh_stream,"mesh");
 
+    gbuff_stream : platform.PipelineStateStream = create_gbuffer_pipeline_state_stream_desc(default_root_sig,&input_layout[0],input_layout_count,rs.vs_blob,rs.fs_blob);
+
+    add_material(&ps,gbuff_stream,"gbuffer");
+    
         /*    
 
     PipelineStateStream color_ppss = D12RendererCode::CreateDefaultPipelineStateStreamDesc(input_layout,input_layout_count,rs.vs_blob,rs_color.fs_blob);
@@ -779,7 +790,80 @@ get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST
     return result;
 }
 
-texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Resource,heap : rawptr/*ID3D12DescriptorHeap* */)
+create_render_texture :: proc(ctx : ^AssetContext,dim : f2,heap : platform.ID3D12DescriptorHeap) -> int
+{
+    using platform;
+    texture : Texture;
+    tex_id := con.buf_push(&ctx.asset_tables.textures,texture);
+
+    //texture heap
+    hmdh_srv_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    hmdh_srv := platform.GetCPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
+    offset : u64 = cast(u64)hmdh_srv_size * cast(u64)tex_id;
+    hmdh_srv.ptr = hmdh_srv.ptr + cast(windows.SIZE_T)offset;
+
+    //render target heap
+    hmdh_size := GetDescriptorHandleIncrementSize(device.device,.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);    
+    
+    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
+    
+    offset = cast(u64)hmdh_size * cast(u64)num_of_render_textures;
+    hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
+
+    srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
+    srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
+    srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc2.Buffer.Texture2D.MipLevels = 1;
+
+    tex_resource : platform.D12Resource;
+    
+    sd : DXGI_SAMPLE_DESC =
+	{
+	    1,0
+	};
+    
+    res_d : D3D12_RESOURCE_DESC  = {
+	.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+        0,
+  	cast(u64)dim.x,
+	cast(u32)dim.y,
+	1,0,
+	.DXGI_FORMAT_R8G8B8A8_UNORM,
+	sd,
+	.D3D12_TEXTURE_LAYOUT_UNKNOWN,
+	.D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
+    };
+
+    hp : D3D12_HEAP_PROPERTIES  =  
+        {
+	    .D3D12_HEAP_TYPE_DEFAULT,
+            .D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+            .D3D12_MEMORY_POOL_UNKNOWN,
+            1,
+            1
+        };
+    
+    CreateCommittedResource(device.device,
+        &hp,
+        .D3D12_HEAP_FLAG_NONE,
+        &res_d,
+        .D3D12_RESOURCE_STATE_RENDER_TARGET,
+        nil,
+        &tex_resource.state);
+    
+    CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh_srv);
+
+    CreateRenderTargetView(device.device,tex_resource.state, nil, hmdh);
+    
+    result := num_of_render_textures;
+    num_of_render_textures = num_of_render_textures + 1;
+    
+    return result;    
+}
+
+texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Resource,heap : rawptr/*ID3D12DescriptorHeap* */,is_render_target : bool = false)
 {
     using platform;
     free_ca : ^platform.D12CommandAllocatorEntry = get_free_command_allocator_entry(platform.D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_COPY);    
@@ -806,6 +890,17 @@ texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Re
 	    1,0
 	};
 
+
+    resource_flags : D3D12_RESOURCE_FLAGS;     
+    if is_render_target
+    {
+	resource_flags = .D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+    }
+    else
+    {
+	resource_flags = .D3D12_RESOURCE_FLAG_NONE;
+    }
+    
     req_size := GetIntermediateSize( tex_resource.state, 0, 1);            
     res_d : D3D12_RESOURCE_DESC  =  
         {
@@ -818,7 +913,7 @@ texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Re
             .DXGI_FORMAT_UNKNOWN,
             sd,
             .D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-            .D3D12_RESOURCE_FLAG_NONE,
+	    resource_flags,
         };
     
     subresourceData : D3D12_SUBRESOURCE_DATA;
@@ -1223,13 +1318,23 @@ add_scissor_command :: proc(rect : f4)
 }
     
 //add_start_command_list_command :: proc(handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE)
-add_start_command_list_command :: proc()
+add_start_command_list_basic :: proc()
 {
     com :  D12CommandStartCommandList; 
 //    com.handles = handles;
     con.buf_push(&render_commands,com);                            
 }
-    
+
+add_start_command_list_with_render_targets :: proc(render_target_count : int,render_targets : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE)
+{
+    com :  D12CommandStartCommandList; 
+    com.render_targets = render_targets;
+    com.render_target_count = render_target_count;
+    con.buf_push(&render_commands,com);                            
+}
+
+add_start_command_list_command :: proc{add_start_command_list_basic,add_start_command_list_with_render_targets};
+
 add_end_command_list_command :: proc()
 {
     com : D12CommandEndCommmandList;
@@ -1353,6 +1458,7 @@ execute_frame :: proc()
 	{
 	    case D12CommandStartCommandList :
 
+	    tt := t;
             current_ae = get_free_command_allocator_entry(.D3D12_COMMAND_LIST_TYPE_DIRECT);
             
             current_cl = get_associated_command_list(current_ae);
@@ -1361,8 +1467,19 @@ execute_frame :: proc()
 
 	    ResetCommandAllocator(current_ae.allocator);	    
             ResetCommandList(current_cl.list,current_ae.allocator,nil);
-	    
-            OMSetRenderTargets(current_cl.list,1, &rtv_cpu_handle, false, &dsv_cpu_handle);
+
+//	    if t.render_target_count > 0
+	    {
+//		OMSetRenderTargets(current_cl.list,cast(u32)t.render_target_count,t.render_targets, false, &dsv_cpu_handle);
+		//		fmt.println("Multiple Render Targets");
+//		OMSetRenderTargets(current_cl.list,1, &rtv_cpu_handle, false, &dsv_cpu_handle);
+	    }
+//	    else
+	    {
+		OMSetRenderTargets(current_cl.list,1, &rtv_cpu_handle, false, &dsv_cpu_handle);
+//				fmt.println("Single Render Targets");
+	    }
+
             continue;
 	    
 	    case D12CommandEndCommmandList :
