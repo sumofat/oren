@@ -11,6 +11,7 @@ import platform "engine/platform"
 import fmj "engine/fmj"
 import gfx "engine/graphics"
 import con "engine/containers"
+
 //Graphics
 /*
 Basic rendering working
@@ -116,9 +117,12 @@ handle_msgs :: proc(window : ^WindowData) -> bool
 {
     msg : window32.Msg = {};
     cont : bool = true;
+
     for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE)
-    { 
-        if msg.message == window32.WM_QUIT do cont = false;
+    {
+
+	    if msg.message == window32.WM_QUIT do cont = false;
+	    
         window32.translate_message(&msg);
         window32.dispatch_message_a(&msg);
     }
@@ -142,7 +146,7 @@ main :: proc()
     window_dim := f2{1920,1080};
     window_p := f2{0,0};
     show_cmd : i32 = 0;
-//    platform.ps.is_running  = true;
+    //    platform.ps.is_running  = true;
 
     //    testPlatformInit(&platform.ps,100);
     //fmt.println(platform.ps);
@@ -153,176 +157,179 @@ main :: proc()
     
     if !platform.PlatformInit(&ps,window_dim,window_p,5)    
     {
-	fmt.println("Failed to initialize platform window!");
-	assert(false);
+	    fmt.println("Failed to initialize platform window!");
+	    assert(false);
     }
     else
     {
         fmt.println("Initialized platform window!");
         fmt.println(ps.is_running);
-	fmt.println(ps.window.handle);
-	fmt.println(ps.window.dim);
-	fmt.println("Initializing graphics Window and api's.");
-	//Lets init directx12
+	    fmt.println(ps.window.handle);
+	    fmt.println(ps.window.dim);
+	    fmt.println("Initializing graphics Window and api's.");
+	    //Lets init directx12
 
-	init_result := gfx.init(&ps);
-	
-	if (init_result.is_init)
-	{
-	    device = init_result.device;
+	    init_result := gfx.init(&ps);
+	    
+	    if (init_result.is_init)
+	    {
+	        device = init_result.device;
             //Do some setup if needed
             fmt.println("Graphics are initialized...");
-	}
-	else
-	{
+	    }
+	    else
+	    {
             //Could not initialize graphics device.
             fmt.println("Failed to initialize graphics...");	    	    
             assert(false);
-	}
+	    }
 
-	using gfx;
-//	using platform;
+	    using gfx;
+        //	using platform;
 
-	//engine init
-	assetctx_init(&asset_ctx);
-	render := renderer_init();
-	//scene
-	scenes := make(map[string]Scene);
-	defer delete(scenes);
-	
-	scene := scenes["test"];
-	
-	test_scene := scene_init("test");
-	rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNIONF32_IDENTITY ,f3{1,1,1},"test_so");
+	    //engine init
+	    assetctx_init(&asset_ctx);
+	    render := renderer_init();
+	    //scene
+	    scenes := make(map[string]Scene);
+	    defer delete(scenes);
+	    
+	    scene := scenes["test"];
+	    
+	    test_scene := scene_init("test");
+	    rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNIONF32_IDENTITY ,f3{1,1,1},"test_so");
 
-	root_so := buf_chk_out(&asset_ctx.scene_objects,rn_id);	
+	    root_so := buf_chk_out(&asset_ctx.scene_objects,rn_id);	
 
-	root_t := transform_init();
-	root_so.transform = root_t;
-	buf_chk_in(&asset_ctx.scene_objects);
-	
-	/*
-    scene_manager = {0};
-    scene_manager.current_scene = test_scene;
-    scene_manager.root_node_id = root_node_id;
-*/
+	    root_t := transform_init();
+	    root_so.transform = root_t;
+	    buf_chk_in(&asset_ctx.scene_objects);
 
-	desc_heap_desc : D3D12_DESCRIPTOR_HEAP_DESC;
-	MAX_SRV_DESC_HEAP_COUNT : u32 = 512;// NOTE(Ray Garner): totally arbiturary number
-	desc_heap_desc.NumDescriptors =  MAX_SRV_DESC_HEAP_COUNT;	    
-	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	default_srv_desc_heap = platform.create_descriptor_heap(device.device,desc_heap_desc);
+	    desc_heap_desc : D3D12_DESCRIPTOR_HEAP_DESC;
+	    MAX_SRV_DESC_HEAP_COUNT : u32 = 512;// NOTE(Ray Garner): totally arbiturary number
+	    desc_heap_desc.NumDescriptors =  MAX_SRV_DESC_HEAP_COUNT;	    
+	    desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	    desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	    default_srv_desc_heap.heap = platform.create_descriptor_heap(device.device,desc_heap_desc);
 
-	def_r := quaternion_angle_axis(degrees(cast(f32)0.0),f3{0,0,1});	
+	    def_r := quaternion_angle_axis(degrees(cast(f32)0.0),f3{0,0,1});	
 
-	top_right_screen_xy := f2{ps.window.dim.x,ps.window.dim.y};
-	bottom_left_xy := f2{0,0};
+	    top_right_screen_xy := f2{ps.window.dim.x,ps.window.dim.y};
+	    bottom_left_xy := f2{0,0};
 
-	rc : RenderCamera;
-	rc_ui : RenderCamera;
+	    rc : RenderCamera;
+	    rc_ui : RenderCamera;
 
-	//Camera setup
-	rc.ot.p = f3{};
-	rc.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0),f3{0,0,1});
-	rc.ot.s = f3{1,1,1};
+	    //Camera setup
+	    rc.ot.p = f3{};
+	    rc.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0),f3{0,0,1});
+	    rc.ot.s = f3{1,1,1};
 
-	aspect_ratio := ps.window.dim.x / ps.window.dim.y;
-	size := f2{300,300};
-	size.x = size.x * aspect_ratio;
-	//    rc.projection_matrix = init_ortho_proj_matrix(size,0.0f,1.0f);
-	rc.fov = 80;
-	rc.near_far_planes = f2{0.1,1000};
-	rc.projection_matrix = init_pers_proj_matrix(ps.window.dim,rc.fov,rc.near_far_planes);
-	rc.matrix = la.MATRIX4F32_IDENTITY;
-	
-	matrix_buffer := &asset_ctx.asset_tables.matrix_buffer;
-	projection_matrix_id := buf_push(matrix_buffer,rc.projection_matrix);
-	rc_matrix_id := buf_push(matrix_buffer,rc.matrix);
-	rc.projection_matrix_id = projection_matrix_id;
-	rc.matrix_id = rc_matrix_id;
+	    aspect_ratio := ps.window.dim.x / ps.window.dim.y;
+	    size := f2{300,300};
+	    size.x = size.x * aspect_ratio;
+	    //    rc.projection_matrix = init_ortho_proj_matrix(size,0.0f,1.0f);
+	    rc.fov = 80;
+	    rc.near_far_planes = f2{0.1,1000};
+	    rc.projection_matrix = init_pers_proj_matrix(ps.window.dim,rc.fov,rc.near_far_planes);
+	    rc.matrix = la.MATRIX4F32_IDENTITY;
+	    
+	    matrix_buffer := &asset_ctx.asset_tables.matrix_buffer;
+	    projection_matrix_id := buf_push(matrix_buffer,rc.projection_matrix);
+	    rc_matrix_id := buf_push(matrix_buffer,rc.matrix);
+	    rc.projection_matrix_id = projection_matrix_id;
+	    rc.matrix_id = rc_matrix_id;
 
-	rc_ui.ot.p = f3{};
-	rc_ui.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0),f3{0,0,1});
-	rc_ui.ot.s = f3{1,1,1};
-	rc_ui.projection_matrix = init_screen_space_matrix(ps.window.dim);
-	rc_ui.matrix = MATRIX4F32_IDENTITY;
-	
-	screen_space_matrix_id := buf_push(matrix_buffer,rc_ui.projection_matrix);
-	identity_matrix_id := buf_push(matrix_buffer,rc_ui.matrix);
-	//End Camera Setups
+	    rc_ui.ot.p = f3{};
+	    rc_ui.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0),f3{0,0,1});
+	    rc_ui.ot.s = f3{1,1,1};
+	    rc_ui.projection_matrix = init_screen_space_matrix(ps.window.dim);
+	    rc_ui.matrix = MATRIX4F32_IDENTITY;
+	    
+	    screen_space_matrix_id := buf_push(matrix_buffer,rc_ui.projection_matrix);
+	    identity_matrix_id := buf_push(matrix_buffer,rc_ui.matrix);
+	    //End Camera Setups
 
-	//matrix_quad_buffer := buf_init(200,f4x4);
-	
-	max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
-	lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
+	    //matrix_quad_buffer := buf_init(200,f4x4);
+	    
+	    max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
+	    lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
 
-	material := asset_ctx.asset_tables.materials["base"];
-	mesh_material := asset_ctx.asset_tables.materials["mesh"];
-	
-//game object setup 	
-//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
-	test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
-	test_model_instance := create_model_instance(&asset_ctx,test_model_result);
-	
-	add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
-	
-	test_trans := transform_init();
-	test_trans.r = quaternion_angle_axis(radians(f32(0.0)),f3{});
-    
-	test_so := buf_chk_out(&asset_ctx.scene_objects,test_model_result.scene_object_id);
-	test_so.name = string("track so");
-	
-	mesh_id : u64;
+	    material := asset_ctx.asset_tables.materials["base"];
+	    mesh_material := asset_ctx.asset_tables.materials["mesh"];
+	    
+        //game object setup 	
+        //	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
+	    test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
+	    test_model_instance := create_model_instance(&asset_ctx,test_model_result);
+	    
+	    add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
+	    
+	    test_trans := transform_init();
+	    test_trans.r = quaternion_angle_axis(radians(f32(0.0)),f3{});
+        
+	    test_so := buf_chk_out(&asset_ctx.scene_objects,test_model_result.scene_object_id);
+	    test_so.name = string("track so");
+	    
+	    mesh_id : u64;
 
-	new_trans := transform_init();
-	new_trans.s = f3{1,1,1};
-	new_trans.p = f3{0,-20,-30};
+	    new_trans := transform_init();
+	    new_trans.s = f3{1,1,1};
+	    new_trans.p = f3{0,-20,-30};
 
-	model_so_id := add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
+	    model_so_id := add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 
-	matrix_mem_size : u64 = (size_of(f4x4)) * 100;
-	matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
-	
-	set_arena_constant_buffer(device.device,&matrix_gpu_arena,4,default_srv_desc_heap);
-//	mapped_matrix_data : rawptr;
-	Map(matrix_gpu_arena.resource,0,nil,&mapped_matrix_data);
-	
-	/*
+	    matrix_mem_size : u64 = (size_of(f4x4)) * 100;
+	    matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
+	    
+	    set_arena_constant_buffer(device.device,&matrix_gpu_arena,default_srv_desc_heap.count,default_srv_desc_heap.heap);
+	    default_srv_desc_heap.count += 1;
+	    
+        //	mapped_matrix_data : rawptr;
+	    Map(matrix_gpu_arena.resource,0,nil,&mapped_matrix_data);
+	    
+	    /*
 	if(!get_mesh_id_by_name("Box",&asset_ctx,test_so,&mesh_id))
 	{
             assert(false);    
 	}
 */
 
-	buf_chk_in(&asset_ctx.scene_objects);
-	
-	test_mesh := buf_get(&asset_ctx.asset_tables.meshes,test_model_instance);	
-	//end game object setup
+	    buf_chk_in(&asset_ctx.scene_objects);
+	    
+	    test_mesh := buf_get(&asset_ctx.asset_tables.meshes,test_model_instance);	
+	    //end game object setup
 
-	//experimental
-	init_perspective_projection_pass();
-///	init_gbuffer_pass();
-	//end experimental
+	    //experimental
+	    init_gbuffer_pass();	
+
+	    init_perspective_projection_pass();
+        init_composite_pass(&asset_ctx);
+	    //end experimental
 
         for ps.is_running
         {
-	    //Game Update test_model_so
-	    get_local_p(model_so_id).x += 0.001;
-	    
-	    //End game update
-	    update_scene(&asset_ctx,&test_scene);
+	        //Game Update test_model_so
+	        get_local_p(model_so_id).x += 0.001;
+	        
+	        //End game update
+	        update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
 
-	    //GBUFFER Pass
-//	    setup_gbuffer_pass(&render,matrix_buffer,&matrix_quad_buffer);
-//	    execute_gbuffer_pass(gbuffer_pass);
-	    
-	    //Basic pass
-	    setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);
-	    execute_perspective_projection_pass(pers_proj_pass);
+	        //GBUFFER Pass
 
-	    /*	    
+	        setup_gbuffer_pass(&render,matrix_buffer,&matrix_quad_buffer);
+	        execute_gbuffer_pass(gbuffer_pass);
+	        
+	        //Basic pass
+//	        setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);
+//	        execute_perspective_projection_pass(pers_proj_pass);
+
+            //composite pass
+            setup_composite_pass();
+            execute_composite_pass(composite_pass);
+            
+	        /*	    
 	    has_update := false;
 
 	    if buf_len(render.command_buffer) > 0

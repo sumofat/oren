@@ -13,7 +13,7 @@ ConstantBuffer<ModelViewProjection> WorldProjectionCB : register(b1);
 struct VertexPosColor
 {
     float3 Position : POSITION;
-    float3 Normal : NORMAL;
+    float4 normal : NORMAL;
 };
  
 struct VertexShaderOutput
@@ -21,13 +21,12 @@ struct VertexShaderOutput
     float4 Position : SV_Position;
     float4 Color : COLOR;
     float2 UV : TEXCOORD;
-    float4 m_color : COLOR1;
+    float4 normal : NORMAL;
 };
 
 VertexShaderOutput main(VertexPosColor IN)
 {
     VertexShaderOutput OUT;
-
 
 //float4 world_p = mul(float4(IN.Position,1.0f),ModelViewProjectionCB.MVP);
 
@@ -56,9 +55,10 @@ float4 color = a._m10_m11_m12_m13;
 
     float4 world_p = mul(float4(IN.Position,1.0f),m);
 
-    OUT.m_color = float4(m0.xyz,(float)offset);    
+//    OUT.m_color = float4(m0.xyz,(float)offset);    
     OUT.Position = world_p;
     OUT.Color = color;//float4(1,1,1,1);
     OUT.UV = float2(0,0);
+    OUT.normal = IN.normal;
     return OUT;
 }

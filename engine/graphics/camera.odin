@@ -5,8 +5,6 @@ import la "core:math/linalg"
 
 import platform "../platform"
 
-
-
 init_pers_proj_matrix :: proc(buffer_dim : f2,fov_y : f32,far_near : f2) -> f4x4
 {
     using math;

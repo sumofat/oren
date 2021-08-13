@@ -40,7 +40,7 @@ AssetContext :: struct
 
 Texture :: struct
 {
-    texels : rawptr
+    texels : rawptr,
     dim : f2,
     size : u32,
     bytes_per_pixel : u32,
@@ -64,14 +64,14 @@ Sprite :: struct
 
 VertCompressionType :: enum
 {
-    none
+    none,
 };
 
 IndexComponentSize :: enum
 {
     none = 0,
     size_32 = 1,
-    size_16 = 2
+    size_16 = 2,
 };
 
 Mesh :: struct
@@ -139,7 +139,7 @@ RenderMaterial :: struct
     scissor_rect : f4,
     viewport_rect : f4,
     metallic_roughness_texture_id : u64,
-    base_color : f4
+    base_color : f4,
 };
 
 load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64)
@@ -169,6 +169,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
                      la.length(f3{out_mat[1].x,out_mat[1].y,out_mat[1].z}),
                      la.length(f3{out_mat[2].x,out_mat[2].y,out_mat[2].z})};
         trans.r = la.quaternion_from_matrix4(out_mat);
+
         trans.m = out_mat;                    
 
         type : u32 = 0;
@@ -201,18 +202,16 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     result : ModelLoadResult;
     is_success := false;
 
-    mem_options : cgltf.memory_options;
-
     options : cgltf.options;
     cgltf_data : ^cgltf.data;
     aresult := cgltf.parse_file(&options,file_path, &cgltf_data);    
     assert(aresult == cgltf.result.result_success);
     if cast(cgltf.result)aresult == cgltf.result.result_success
     {
-	
+	    
         for i := 0;i < cast(int)cgltf_data.buffers_count;i += 1
         {
-	    uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
+	        uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
             rs := cgltf.load_buffers(&options, cgltf_data, uri);
             assert(rs == cgltf.result.result_success);
         }
@@ -225,12 +224,14 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
             model_root_so_ : SceneObject = scene_object_init("model_root_so");
             model_root_so_id := buf_push(&ctx.scene_objects,model_root_so_);
             assert(cgltf_data.scenes_count == 1);
-	    scenes_count := mem.ptr_offset(cgltf_data.scenes,0).nodes_count;	    
+	        scenes_count := mem.ptr_offset(cgltf_data.scenes,0).nodes_count;	    
+
+		    root_scene := mem.ptr_offset(cgltf_data.scenes,0);
+            
             for i := 0;i < cast(int)scenes_count;i+=1
             {
-		root_scene := mem.ptr_offset(cgltf_data.scenes,0);
                 root_node : ^cgltf.node = mem.ptr_offset(root_scene.nodes,i)^;
-		
+		        
                 trans := transform_init();
                 out_mat := la.MATRIX4F32_IDENTITY;
                 if root_node.has_matrix == 1
@@ -256,7 +257,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 mesh_range := f2{};
                 if root_node.mesh != nil
                 {
-//                    result.model.model_name = string(file_path_mem);                
+                    //                    result.model.model_name = string(file_path_mem);                
                     mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material);
                     type = 1;
                     upload_meshes(ctx,mesh_range);
@@ -269,12 +270,12 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 child_so.type = type;
                 child_so.primitives_range = mesh_range;
                 buf_chk_in(&ctx.scene_objects);		
-		load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material,child_id);
+		        load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material,child_id);
             }
 
             buf_chk_in(&ctx.scene_objects);
             result.scene_object_id = model_root_so_id;	    
-	}
+	    }
 
         cgltf.free(cgltf_data);	
     }
@@ -325,7 +326,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     {
                         data_size := cast(u64)tv.texture.image.buffer_view.size;
 			tex :=  texture_from_mem(tex_data,cast(i32)data_size,4);                
-                        id := texture_add(ctx,&tex,default_srv_desc_heap);
+                        id := texture_add(ctx,&tex,&default_srv_desc_heap);
                         mesh.metallic_roughness_texture_id = id;                    
                     }                    
                 }
@@ -391,7 +392,6 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     mesh.index_16_data_size = size_of(u16) * cast(u64)prim.indices.count;
                     mesh.index16_count = cast(u64)prim.indices.count;                    
                 }
-
                 else if prim.indices.component_type == cgltf.component_type.component_type_r_32u
                 {
                     indices_size :=  cast(u64)prim.indices.count * size_of(u32);
@@ -411,7 +411,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
 
                 acdata := ac.data;
                 count := acdata.count;
-		bf := acdata.buffer_view;
+		        bf := acdata.buffer_view;
                 {
                     start_offset := bf.offset;
                     stride := bf.stride;
@@ -428,36 +428,33 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     outf := cast(^cgltf.cgltf_float)mem.alloc(cast(int)num_bytes);
                     csize := cgltf.accessor_unpack_floats(acdata,outf,num_floats);
 
+                    //NOTE(Ray):only support two set of uv data for now.                        
                     if ac.type == cgltf.attribute_type.attribute_type_position
                     {
                         mesh.vertex_data = outf;
                         mesh.vertex_data_size = cast(u64)num_bytes;
                         mesh.vertex_count = cast(u64)count;
                     }
-
                     else if ac.type == cgltf.attribute_type.attribute_type_normal
                     {
                         mesh.normal_data = outf;
                         mesh.normal_data_size = cast(u64)num_bytes;
                         mesh.normal_count = cast(u64)count;
                     }
-
                     else if ac.type == cgltf.attribute_type.attribute_type_tangent
                     {
                         mesh.tangent_data = outf;
                         mesh.tangent_data_size = cast(u64)num_bytes;
                         mesh.tangent_count = cast(u64)count;
                     }
-
-//NOTE(Ray):only support two set of uv data for now.
                     else if ac.type == cgltf.attribute_type.attribute_type_texcoord && !has_got_first_uv_set
                     {
+
                         mesh.uv_data = outf;
                         mesh.uv_data_size = cast(u64)num_bytes;
                         mesh.uv_count = cast(u64)count;
                         has_got_first_uv_set = true;
                     }
-                
                     else if ac.type == cgltf.attribute_type.attribute_type_texcoord && has_got_first_uv_set
                     {
                         mesh.uv2_data = outf;
@@ -468,16 +465,14 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 }
             }
         }
-	
+	    
         mesh.material_id = cast(u32)material.id;
-	mesh.material_name = material.name;
+	    mesh.material_name = material.name;
 
         last_id  := buf_push(&ctx.asset_tables.meshes,mesh);
-	//TODO(Ray):Does this cast properly? verify
+	    //TODO(Ray):Does this cast properly? verify
         result.y = cast(f32)last_id;
-
     }
-
     return result;    
 }
 
@@ -560,17 +555,19 @@ texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture
     return tex;
 }
 
-texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D12DescriptorHeap) -> u64
+texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> u64
 {
     using con;
     tex_id := buf_push(&ctx.asset_tables.textures,texture^);
 
     hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
-    offset : u64 = cast(u64)hmdh_size * cast(u64)tex_id;
+    hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.heap.value);
+    offset : u64 = cast(u64)hmdh_size * cast(u64)heap.count;
     hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
 
+    heap.count += 1;
+    
     srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
     srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
     srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -583,7 +580,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
 
     sd : DXGI_SAMPLE_DESC =
 	{
-	    1,0
+	    1,0,
 	};
     
     res_d : D3D12_RESOURCE_DESC  = {
@@ -604,7 +601,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
             .D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
             .D3D12_MEMORY_POOL_UNKNOWN,
             1,
-            1
+            1,
         };
     
     CreateCommittedResource(device.device,
@@ -617,7 +614,7 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : platform.ID3D1
     
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
 
-    texture_2d(texture,cast(u32)tex_id,&tex_resource,heap.value);
+    texture_2d(texture,cast(u32)tex_id,&tex_resource,heap.heap.value);
 
     return tex_id;
 }
@@ -684,7 +681,6 @@ upload_meshes :: proc(ctx : ^AssetContext,range : f2)
             mesh_r.index_id = cast(u32)index_id;
             is_valid += 1;
         }
-        
         else if mesh.index16_count > 0
         {
             size := mesh.index_16_data_size;

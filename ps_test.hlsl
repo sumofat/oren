@@ -1,4 +1,4 @@
-
+ 
 Texture2D ts[3] : register(t0);
 SamplerState s1 : register(s0);
 
@@ -16,7 +16,6 @@ struct PixelShaderInput
     float4 Position : SV_Position;
     float4 Color : COLOR;
     float2 UV : TEXCOORD;
-    float4 m_color : COLOR1;    
 };
 
 //NOTE(Ray):currenty everything is alphay blended change that later.

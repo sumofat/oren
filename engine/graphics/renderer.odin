@@ -39,10 +39,19 @@ GbufferPass  :: struct
     matrix_quad_buffer : ^con.Buffer(f4x4),
     root_sig : rawptr,
     render_targets : con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
+    shader : RenderShader,
 }
 
-RenderPass :: struct(type : typeid) { list : ^RenderCommandList, data
-: type, }
+CompositePass  :: struct
+{
+    root_sig : rawptr,
+    shader : RenderShader,
+    vertex_buffer_id : u64,
+    uv_buffer_id : u64,
+    render_target_start_id : u64,
+}
+
+RenderPass :: struct(type : typeid) { list : ^RenderCommandList, data : type, }
 
 RenderPassProcs :: struct(type : typeid)
 {
@@ -104,7 +113,9 @@ D12RenderCommand :: union
     D12CommandGraphicsRoot32BitConstant,
     D12CommandStartCommandList,
     D12CommandEndCommmandList,
-    D12RenderTargets,    
+    D12RenderTargets,
+    D12CommandClear,
+    D12CommandDepthStencilClear,
 }
 
 D12CommandPipelineState :: struct
@@ -115,7 +126,6 @@ D12CommandPipelineState :: struct
 D12CommandScissorRect :: struct
 {
     rect : platform.D3D12_RECT,
-    //f4 rect,
 };
 
 D12CommandGraphicsRootDescTable :: struct
@@ -135,7 +145,6 @@ D12CommandGraphicsRoot32BitConstant :: struct
 
 D12CommandStartCommandList :: struct
 {
-//    handles : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
     render_target_count : int,
     render_targets : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
 };
@@ -143,6 +152,21 @@ D12CommandStartCommandList :: struct
 D12CommandEndCommmandList :: struct
 {
     dummy : bool,
+};
+
+D12CommandClear :: struct
+{
+    color : f4,
+    resource_id : u64,
+    render_target : platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+};
+
+D12CommandDepthStencilClear :: struct
+{
+    depth : u32,
+    stencil : u32,
+    resource : rawptr,
+    render_target : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,    
 };
 
 D12RenderTargets :: struct
@@ -218,7 +242,7 @@ process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObje
                     com.geometry = geo;
 
                     com.material_id = cast(u64)mesh.material_id;
-		    com.material_name = mesh.material_name;
+		            com.material_name = mesh.material_name;
                     com.texture_id = mesh.metallic_roughness_texture_id;
                     com.model_matrix_id = child_so.m_id;
                     com.camera_matrix_id = c_mat;

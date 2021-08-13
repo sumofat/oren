@@ -22,7 +22,6 @@ struct VertexShaderOutput
     float4 Position : SV_Position;
     float4 Color : COLOR;
     float2 UV : TEXCOORD;
-    float4 m_color : COLOR1;
 };
 
 VertexShaderOutput main(VertexPosColor IN)
@@ -42,10 +41,11 @@ VertexShaderOutput main(VertexPosColor IN)
 	         m2.x,m2.y,m2.z,m2.w,
 	         m3.x,m3.y,m3.z,m3.w};
 
-    float4 world_p = mul(float4(IN.Position,1.0f),m);
+    float4 position = mul(float4(IN.Position,1.0f),m);
+    float4 world_p = mul(float4(IN.Position,1.0f),m);    
 
-    OUT.m_color = ModelViewProjectionCB.MVP[1];
-    OUT.Position = world_p;
+ //   OUT.m_color = ModelViewProjectionCB.MVP[1];
+    OUT.Position = world_p;//position;
     OUT.Color = IN.Color;
     OUT.UV = IN.UV;
     return OUT;

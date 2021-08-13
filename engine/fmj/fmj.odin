@@ -8,20 +8,20 @@ foreign import fmj "../../library/fmj/build/fmj.lib"
 FMJTicketMutex :: struct
 {
     ticket : i64,
-    serving : i64
+    serving : i64,
 };
  
 f2 :: struct
 {
     x : f32,
-    y: f32
+    y: f32,
 }
  
 f3 :: struct
 {
     x : f32,
     y: f32,
-    z: f32
+    z: f32,
 }
  
 f4 :: struct
@@ -41,9 +41,6 @@ f4x4 :: struct
     c2 : f4,
     c3 : f4,
 };
-
-
-
 
 @(default_calling_convention="c")
 foreign fmj

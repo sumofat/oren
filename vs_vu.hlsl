@@ -21,7 +21,7 @@ struct VertexShaderOutput
     float4 Position : SV_Position;
     float4 Color : COLOR;
     float2 UV : TEXCOORD;
-    float4 m_color : COLOR1;
+//    float4 normal : NORMAL;
 };
 
 VertexShaderOutput main(VertexPosColor IN)
@@ -45,9 +45,9 @@ VertexShaderOutput main(VertexPosColor IN)
 
     float4 world_p = mul(float4(IN.Position,1.0f),m);
 
-    OUT.m_color = float4(m0.xyz,(float)offset);    
     OUT.Position = world_p;
     OUT.Color = float4(1,1,1,1);
     OUT.UV = IN.UV;
+//    OUT.normal = IN.normal;    
     return OUT;
 }

@@ -39,7 +39,7 @@ buf_get :: proc(buffer : ^Buffer($element_type),index : u64) -> (element_type)
     return buffer.buffer[index];
 }
 
-buf_get_nb :: proc(buffer : ^Buffer($element_type),index : u64,$type : typeid) -> (type) #no_bounds_check
+buf_get_nb :: proc(buffer : ^Buffer($element_type),index : u64,$type : typeid) -> (type)// #no_bounds_check
 {
     assert(buffer != nil);
     return buffer.buffer[index];

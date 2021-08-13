@@ -13,7 +13,7 @@ Scene :: struct
 {
     name : string,
     buffer : SceneObjectBuffer,
-    state_flags : SceneState    
+    state_flags : SceneState,    
 };
 
 SceneState :: enum
@@ -24,7 +24,7 @@ SceneState :: enum
     unloading,
     unloaded,
     serializing,
-    serialized
+    serialized,
 };
 
 SceneStatus :: struct

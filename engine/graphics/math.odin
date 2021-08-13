@@ -13,6 +13,8 @@ f2 :: la.Vector2f32;
 f4x4 :: la.Matrix4x4f32;
 Quat :: la.Quaternionf32;
 
+f4x4_identity :: la.MATRIX4F32_IDENTITY;
+
 screen_to_world :: proc(projection_matrix : f4x4,cam_matrix : f4x4,buffer_dim : f2,screen_xy :  f2,z_depth :  f32) -> f3
 {
     using la;
@@ -24,7 +26,7 @@ screen_to_world :: proc(projection_matrix : f4x4,cam_matrix : f4x4,buffer_dim : 
         2.0 * screen_xy.x / buffer_dim.x - 1.0,
         2.0 * screen_xy.y / buffer_dim.y - 1.0,
         z_depth,
-        1.0
+        1.0,
     };
 
     w_div := matrix_mul_vector(inv_pc_mat,p);

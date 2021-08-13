@@ -156,7 +156,7 @@ Input :: struct
 POINT :: struct
 {
     x : u32,
-    y : u32
+    y : u32,
 };
 
 RECT :: struct

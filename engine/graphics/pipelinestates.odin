@@ -21,9 +21,10 @@ create_gbuffer_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D32_FLOAT};
 
     rtv_formats : D3D12_RT_FORMAT_ARRAY;
-    rtv_formats.NumRenderTargets = 2;
+    rtv_formats.NumRenderTargets = 3;
     rtv_formats.RTFormats[0] = .DXGI_FORMAT_R8G8B8A8_UNORM;
     rtv_formats.RTFormats[1] = .DXGI_FORMAT_R8G8B8A8_UNORM;
+    rtv_formats.RTFormats[2] = .DXGI_FORMAT_R8G8B8A8_UNORM;    
     
     ppss.rtv_formats = PipelineStateSubObject(D3D12_RT_FORMAT_ARRAY){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS, value = rtv_formats};
     
