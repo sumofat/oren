@@ -125,3 +125,4 @@ clone_dynamic_array :: proc(x: $T/[dynamic]$E) -> T
     copy(res[:], x[:]);
     return res;
 }
+

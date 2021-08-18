@@ -14,20 +14,15 @@ import con "engine/containers"
 
 //Graphics
 /*
-Basic rendering working
-Next begin to start fleshing out more rendering.
 Start with a simple deffered renderer and figure out how we want the pipeline to work
-1. Look at how passes will be done guaranteed
 
-clear
+clear : done
 depth pre pass
-g buffer passes
-shadow pass
-light accum pass
-buffer composite pass
-present
-
-Lift what we need to make this done in odin as much as possible.
+g buffer passes : started
+shadow pass 
+light accum pass : next
+buffer composite pass : started
+present : done
 
 Once we get to point lights and shadows lets bring in imgui and bindings.
 
@@ -36,6 +31,33 @@ Look at implementing a simple render graph even if it does nothing at first lets
 the info on resources and references etc...
 
 */
+
+/*
+Continue:...
+
+We have the light sphere rendered scaling is off on imported models need to verify what we want there.
+It seems the light model is still renmdered by the gbuffer_pass.  
+Make it get send to the light render list and start working on the accumlation buffer.
+Once we have basic lighting working we will start working on quality of life things.
+A basic roadmap will be something like.
+
+Make sure we can load the sponza model. which will be our reference model.
+
+Than IMGUI integration.
+Saving of scenes to disk.  SO with references to assets and lights / set properties on scene objects.
+
+Than basic picking and moving of objects via mouse.
+
+Than back to graphics starting with shadows.. first point lights directional lights than cascading shadow maps .
+We will use the virutal texture method as in doom using summmons reference code.
+
+Than do basic skeletal animation bones than skinning.
+
+at that point we will want to move onto something new which will be rendering techniques.
+
+
+*/
+
 
 ErrorStr :: cstring;
 
@@ -189,7 +211,9 @@ main :: proc()
 
 	    //engine init
 	    assetctx_init(&asset_ctx);
-	    render := renderer_init();
+	    render := renderer_init(40_000);
+        light_render := renderer_init(1_000);
+        
 	    //scene
 	    scenes := make(map[string]Scene);
 	    defer delete(scenes);
@@ -197,7 +221,7 @@ main :: proc()
 	    scene := scenes["test"];
 	    
 	    test_scene := scene_init("test");
-	    rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNIONF32_IDENTITY ,f3{1,1,1},"test_so");
+	    rn_id := scene_add_so(&asset_ctx,&test_scene.buffer,f3{0,0,0},QUATERNIONF32_IDENTITY ,f3{1,1,1},"root_so");
 
 	    root_so := buf_chk_out(&asset_ctx.scene_objects,rn_id);	
 
@@ -251,7 +275,7 @@ main :: proc()
 	    //End Camera Setups
 
 	    //matrix_quad_buffer := buf_init(200,f4x4);
-	    
+
 	    max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
 	    lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
 
@@ -262,12 +286,12 @@ main :: proc()
         //	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
 	    test_model_result := asset_load_model(&asset_ctx,"data/Lantern.glb",mesh_material);	
 	    test_model_instance := create_model_instance(&asset_ctx,test_model_result);
+
+	    light_sphere_model_result := asset_load_model(&asset_ctx,"data/sphere.glb",mesh_material,SceneObjectType.light);	
+	    light_sphere_instance := create_model_instance(&asset_ctx,light_sphere_model_result);        
 	    
-	    add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
+//	    add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
 	    
-	    test_trans := transform_init();
-	    test_trans.r = quaternion_angle_axis(radians(f32(0.0)),f3{});
-        
 	    test_so := buf_chk_out(&asset_ctx.scene_objects,test_model_result.scene_object_id);
 	    test_so.name = string("track so");
 	    
@@ -275,9 +299,12 @@ main :: proc()
 
 	    new_trans := transform_init();
 	    new_trans.s = f3{1,1,1};
-	    new_trans.p = f3{0,-20,-30};
+	    new_trans.p = f3{0,-15,-30};
 
-	    model_so_id := add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
+	    add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
+	    new_trans.p = f3{0,0,-10};        
+        new_trans.s = f3{30,30,30};
+        add_child_to_scene_object(&asset_ctx,rn_id,light_sphere_instance,new_trans);        
 
 	    matrix_mem_size : u64 = (size_of(f4x4)) * 100;
 	    matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
@@ -294,115 +321,58 @@ main :: proc()
             assert(false);    
 	}
 */
-
+        //Create a test light
+        test_light : Light = {f3{0,0,0},f4{1,1,1,1},10,1};
+        buf_push(&test_scene.lights,test_light);
+       
 	    buf_chk_in(&asset_ctx.scene_objects);
 	    
-	    test_mesh := buf_get(&asset_ctx.asset_tables.meshes,test_model_instance);	
 	    //end game object setup
 
 	    //experimental
 	    init_gbuffer_pass();	
-
-	    init_perspective_projection_pass();
-        init_composite_pass(&asset_ctx);
+        //        init_projective_pass();
+        init_lighting_pass1();	
+        //	    init_perspective_projection_pass();
+        init_composite_pass(&asset_ctx);        
 	    //end experimental
 
         for ps.is_running
         {
 	        //Game Update test_model_so
-	        get_local_p(model_so_id).x += 0.001;
+	        get_local_p(test_model_instance).x += 0.001;
+	        get_local_p(light_sphere_instance).z += 0.001;            
+//	        get_local_p(2).x += 0.001;            
 	        
 	        //End game update
 	        update_scene(&asset_ctx,&test_scene);
-            issue_render_commands(&render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
+            issue_render_commands(&render,&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
+            //            issue_light_render_commands(&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);            
 
+            //Deffered rendering
 	        //GBUFFER Pass
-
-	        setup_gbuffer_pass(&render,matrix_buffer,&matrix_quad_buffer);
+            setup_gbuffer_pass(&render,matrix_buffer,&matrix_quad_buffer);
 	        execute_gbuffer_pass(gbuffer_pass);
-	        
-	        //Basic pass
-//	        setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);
-//	        execute_perspective_projection_pass(pers_proj_pass);
 
+            //lighting pass
+	        setup_lighting_pass1(&light_render,matrix_buffer,&matrix_quad_buffer);
+	        execute_lighting_pass1(light_accum_pass1);
+            
             //composite pass
             setup_composite_pass();
             execute_composite_pass(composite_pass);
-            
-	        /*	    
-	    has_update := false;
 
-	    if buf_len(render.command_buffer) > 0
-	    {
-		add_start_command_list_command();
-		for command in render.command_buffer.buffer
-		{
-                    m_mat := buf_get(matrix_buffer,command.model_matrix_id);
-                    c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
-                    proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
-                    world_mat := mul(c_mat,m_mat);
-                    finalmat := mul(proj_mat,world_mat);
-                    m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer) * size_of(f4x4);
-                    m_mat[0].y = 5.0;
+	        //Basic forward rendering
+	        //Basic pass
+            //	        setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);
+            //	        execute_perspective_projection_pass(pers_proj_pass);
 
-                    base_color := command.geometry.base_color;
-		    m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
-		    
-                    buf_push(&matrix_quad_buffer,finalmat);        
+	        execute_frame();
+	        platform.HandleWindowsMessages(&ps);
 
-		    add_root_signature_command(gfx.default_root_sig);		    
-
-		    rect := f4{0,0,window_dim.x,window_dim.y};	    
-
-		    add_viewport_command(rect);
-
-		    add_scissor_command(rect);
-		    
-		    material := asset_ctx.asset_tables.materials[command.material_name];
-		    add_pipeline_state_command(material.pipeline_state);
-
-		    add_graphics_root32_bit_constant(0,16,&m_mat,0);
-		    add_graphics_root32_bit_constant(2,16,&finalmat,0);
-
-		    tex_index := command.texture_id;	    
-		    add_graphics_root32_bit_constant(4,4,&tex_index,0);
-
-		    gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.value);
-		    add_graphics_root_desc_table(1,default_srv_desc_heap.value,gpu_handle_default_srv_desc_heap);
-
-		    slot : int = 0;
-		    for j := command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;j+=1 
-		    {
-			bv := buf_get(&asset_ctx.asset_tables.vertex_buffers,cast(u64)j);
-			add_set_vertex_buffer_command(cast(u32)slot,bv);
-			slot += 1;
-		    }
-
-		    if command.is_indexed
-                    {
-			ibv := buf_get(&asset_ctx.asset_tables.index_buffers,command.geometry.index_id);
-			add_draw_indexed_command(cast(u32)command.geometry.index_count,cast(u32)command.geometry.offset,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
-                    }
-		    else
-                    {		/**/
-			add_draw_command(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
-                    }
-                    has_update = true;		    
-		}
-		add_end_command_list_command();		
-	    }
-
-            if(has_update)
-            {
-		mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
-		buf_clear(&matrix_quad_buffer);
-            }
-*/	    
-	    execute_frame();
-	    platform.HandleWindowsMessages(&ps);
-
-	    buf_clear(&render.command_buffer);
-	    
+            //TODO(Ray):Have all the command lists a buffer iterate and clear
+	        buf_clear(&render.command_buffer);
+	        buf_clear(&light_render.command_buffer);	    
         }
     }
 }

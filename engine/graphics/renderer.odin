@@ -2,8 +2,10 @@ package graphics
 import platform "../platform"
 import con "../containers"
 
+
 render_commands : con.Buffer(D12RenderCommand);
 render_commands_ptr : ^RenderCommandList;
+render_command_lists : con.Buffer(RenderCommandList);
 
 RenderCommand :: struct
 {
@@ -34,6 +36,24 @@ RenderProjectionPass  :: struct
 }
 
 GbufferPass  :: struct
+{
+    matrix_buffer : ^con.Buffer(f4x4),
+    matrix_quad_buffer : ^con.Buffer(f4x4),
+    root_sig : rawptr,
+    render_targets : con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
+    shader : RenderShader,
+}
+
+LightingAccumPass1  :: struct
+{
+    matrix_buffer : ^con.Buffer(f4x4),
+    matrix_quad_buffer : ^con.Buffer(f4x4),
+    root_sig : rawptr,
+    render_targets : con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
+    shader : RenderShader,
+}
+
+LightingAccumPass2  :: struct
 {
     matrix_buffer : ^con.Buffer(f4x4),
     matrix_quad_buffer : ^con.Buffer(f4x4),
@@ -147,6 +167,7 @@ D12CommandStartCommandList :: struct
 {
     render_target_count : int,
     render_targets : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+    disable_render_target : bool,
 };
 
 D12CommandEndCommmandList :: struct
@@ -177,10 +198,10 @@ D12RenderTargets :: struct
     depth_stencil_handle : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,
 }
 
-renderer_init :: proc() -> RenderCommandList
+renderer_init :: proc(capacity_count : u32) -> RenderCommandList
 {
     result : RenderCommandList;
-    result.command_buffer = con.buf_init(100,RenderCommand);
+    result.command_buffer = con.buf_init(cast(u64)capacity_count,RenderCommand);
     return result;
 }
 
@@ -189,7 +210,7 @@ renderer_set_write_list :: proc(current_list : ^RenderCommandList)
     render_commands_ptr = current_list;
 }
 
-process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
+process_children_recrusively :: proc(render : ^RenderCommandList,light_render : ^RenderCommandList,so : ^SceneObject,c_mat : u64,p_mat : u64,ctx : ^AssetContext)
 {
     using con;
     for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1
@@ -197,8 +218,8 @@ process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObje
         child_so_id := buf_get(&so.children.buffer,cast(u64)i);
         child_so := buf_chk_out(&ctx.scene_objects,child_so_id);
         transform_update(&child_so.transform);
-
-        if child_so.type != 0//non mesh type
+  
+        if child_so.import_type != SceneObjectType.empty
         {
             final_mat := buf_chk_out(&ctx.asset_tables.matrix_buffer,child_so.m_id);
             final_mat^ = child_so.transform.m;
@@ -247,18 +268,27 @@ process_children_recrusively :: proc(render : ^RenderCommandList,so : ^SceneObje
                     com.model_matrix_id = child_so.m_id;
                     com.camera_matrix_id = c_mat;
                     com.perspective_matrix_id = p_mat;
-                    buf_push(&render.command_buffer,com);
+
+                    if child_so.type == SceneObjectType.mesh
+                    {
+                        buf_push(&render.command_buffer,com);                        
+                    }
+                    else if child_so.type == SceneObjectType.light
+                    {
+                        buf_push(&render.command_buffer,com);                                                
+                    }
+
                     buf_chk_in(&ctx.asset_tables.meshes);                    
                 }                
             }
         }
 
-        process_children_recrusively(render,child_so,c_mat,p_mat,ctx);
+        process_children_recrusively(render,light_render,child_so,c_mat,p_mat,ctx);
         buf_chk_in(&ctx.scene_objects);
     }
 }
 
-issue_render_commands :: proc(render : ^RenderCommandList,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
+issue_render_commands :: proc(render : ^RenderCommandList,light_render : ^RenderCommandList,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
 {
     using con;
     //Start at root node
@@ -269,8 +299,41 @@ issue_render_commands :: proc(render : ^RenderCommandList,s : ^Scene,ctx : ^Asse
 
         if buf_len(so.children.buffer) > 0
         {
-            process_children_recrusively(render,so,c_mat,p_mat,ctx);
+            process_children_recrusively(render,light_render,so,c_mat,p_mat,ctx);
         }
         buf_chk_in(&ctx.scene_objects);
     }
 }
+
+//NOTE(Ray):for deffered shading 
+issue_light_render_commands :: proc(render : ^RenderCommandList,s : ^Scene,ctx : ^AssetContext,c_mat : u64,p_mat : u64)
+{
+    using con;
+    //Start at root node
+    for i := 0;i < cast(int)buf_len(s.lights);i +=1 
+    {
+        light := buf_get(&s.lights,cast(u64)i);
+        //TODO!!! we have to create the sphere mesh to be used here!!
+        light_mesh : Mesh; 
+        //get mesh issue render command
+        com := RenderCommand{};        
+        geo := RenderGeometry{};
+        com.is_indexed = true;
+        geo.buffer_id_range = light_mesh.mesh_resource.buffer_range;
+        geo.index_id = cast(u64)light_mesh.mesh_resource.index_id;
+        geo.index_count = light_mesh.index32_count;
+        
+        geo.offset = 0;
+        geo.base_color = light_mesh.base_color;
+        com.geometry = geo;
+
+        com.material_id = cast(u64)light_mesh.material_id;
+		com.material_name = light_mesh.material_name;
+        com.texture_id = light_mesh.metallic_roughness_texture_id;
+//        com.model_matrix_id = child_so.m_id;
+//        com.camera_matrix_id = c_mat;
+//        com.perspective_matrix_id = p_mat;
+        buf_push(&render.command_buffer,com);
+    }
+}
+

@@ -37,3 +37,9 @@ main.obj
 library/windows/.#win32.cpp
 
 orensblime.sublime-workspace
+
+.vs/main/v15/.suo
+
+.vs/main/v15/Browse.VC.db
+
+main.sln

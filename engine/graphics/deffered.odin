@@ -10,11 +10,15 @@ import "core:fmt"
 
 pers_proj_pass : RenderPass(RenderProjectionPass);
 gbuffer_pass : RenderPass(GbufferPass);
+light_accum_pass1 : RenderPass(LightingAccumPass1);
+light_accum_pass2 : RenderPass(LightingAccumPass2);
 composite_pass : RenderPass(CompositePass);
 
 mapped_matrix_data : rawptr;
 matrix_quad_buffer := con.buf_init(200,f4x4);
+has_update : bool = false;
 
+/*
 init_perspective_projection_pass :: proc()
 {
     pers_proj_pass.data.root_sig = default_root_sig;
@@ -42,7 +46,6 @@ setup_perspective_projection_pass :: proc(list : ^RenderCommandList, matrix_buff
 
 execute_perspective_projection_pass :: proc(pass : RenderPass(RenderProjectionPass))
 {
-    has_update := false;
     using con;
     using la;
     using platform;
@@ -111,13 +114,8 @@ execute_perspective_projection_pass :: proc(pass : RenderPass(RenderProjectionPa
 	    }
 	    add_end_command_list_command();		
     }
-
-    if(has_update)
-    {
-	    mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
-	    buf_clear(&matrix_quad_buffer);
-    }
 }
+*/
 
 init_gbuffer_pass :: proc()
 {
@@ -172,10 +170,12 @@ setup_gbuffer_pass :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffe
 
 execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass))
 {
-    has_update := false;
+
     using con;
     using la;
     using platform;
+
+//    buf_push(&render_command_lists,pass.list);
     
     if buf_len(pass.list.command_buffer) > 0
     {
@@ -252,10 +252,10 @@ execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass))
 	    add_end_command_list_command();		
     }
 
-    if(has_update)
+//    if(has_update)
     {
-	    mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
-	    buf_clear(&matrix_quad_buffer);
+//	    mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
+//	    buf_clear(&matrix_quad_buffer);
     }
 }
 
@@ -311,7 +311,6 @@ setup_composite_pass :: proc()
 
 execute_composite_pass :: proc(pass : RenderPass(CompositePass))
 {
-    has_update := false;
     using con;
     using la;
     using platform;
@@ -349,7 +348,109 @@ execute_composite_pass :: proc(pass : RenderPass(CompositePass))
 
 		add_draw_command(0,6,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                                
 	}
+
+    if(has_update)
+    {
+	    mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
+	    buf_clear(&matrix_quad_buffer);
+    }
     
 	add_end_command_list_command();		
 }
- 
+
+init_lighting_pass1 :: proc()
+{
+    using platform;
+    light_accum_pass1.data.root_sig = default_root_sig;
+//no pixel shader
+}
+
+setup_lighting_pass1 :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffer(f4x4),matrix_quad_buffer : ^con.Buffer(f4x4))
+{
+    light_accum_pass1.data.matrix_buffer = matrix_buffer;
+    light_accum_pass1.data.matrix_quad_buffer = matrix_quad_buffer;
+    light_accum_pass1.list = list;
+}
+
+//NOTE(Ray):this pass has no color output no pixel shader on teh OM stage.
+execute_lighting_pass1 :: proc(pass : RenderPass(LightingAccumPass1))
+{
+    using con;
+    using la;
+    using platform;
+    
+    if buf_len(pass.list.command_buffer) > 0
+    {
+	    renderer_set_write_list(pass.list);
+	    list := pass.list;
+	    matrix_buffer := pass.data.matrix_buffer;
+	    matrix_quad_buffer := pass.data.matrix_quad_buffer;
+	    pass_local := pass;
+	    add_start_command_list_basic(true);
+
+        //for light in light buffer
+	    for command in list.command_buffer.buffer
+	    {
+            m_mat := buf_get(matrix_buffer,command.model_matrix_id);
+
+//            model_matrix := transpose(m_mat);
+            
+            c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
+            proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
+            world_mat := mul(c_mat,m_mat);
+
+            finalmat := mul(proj_mat,world_mat);
+            m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
+
+            base_color := command.geometry.base_color;
+	        m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
+
+            buf_push(matrix_quad_buffer,finalmat);        
+
+            m_mat[0].y = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
+
+            buf_push(matrix_quad_buffer,world_mat);
+            
+	        add_root_signature_command(default_root_sig);		    
+
+	        rect := f4{0,0,ps.window.dim.x,ps.window.dim.y};	    
+
+	        add_viewport_command(rect);
+
+	        add_scissor_command(rect);
+	        
+	        material := asset_ctx.asset_tables.materials["light_accum_pass1"];
+
+	        add_pipeline_state_command(material.pipeline_state);
+
+	        add_graphics_root32_bit_constant(0,16,&m_mat,0);
+	        add_graphics_root32_bit_constant(2,16,&finalmat,0);
+
+	        tex_index := command.texture_id;	    
+	        add_graphics_root32_bit_constant(4,4,&tex_index,0);
+
+	        gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
+	        add_graphics_root_desc_table(1,default_srv_desc_heap.heap.value,gpu_handle_default_srv_desc_heap);
+
+	        slot : int = 0;
+	        for j := command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;j+=1 
+	        {
+		        bv := buf_get(&asset_ctx.asset_tables.vertex_buffers,cast(u64)j);
+		        add_set_vertex_buffer_command(cast(u32)slot,bv);
+		        slot += 1;
+	        }
+
+	        if command.is_indexed
+            {
+		        ibv := buf_get(&asset_ctx.asset_tables.index_buffers,command.geometry.index_id);
+		        add_draw_indexed_command(cast(u32)command.geometry.index_count,cast(u32)command.geometry.offset,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
+            }
+	        else
+            {		/**/
+		        add_draw_command(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
+            }
+            has_update = true;		    
+	    }
+	    add_end_command_list_command();		
+    }
+}

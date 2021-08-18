@@ -9,11 +9,20 @@ import fmj "../fmj"
 
 import con "../containers"
 
+Light :: struct
+{
+    p : f3,
+    color : f4,
+    size : f32,
+    intensity : f32,
+};
+
 Scene :: struct 
 {
     name : string,
     buffer : SceneObjectBuffer,
-    state_flags : SceneState,    
+    state_flags : SceneState,
+    lights : con.Buffer(Light),
 };
 
 SceneState :: enum
@@ -40,10 +49,11 @@ SceneObjectBuffer :: struct
 
 SceneObjectType :: enum
 {
-    mesh,
-    light,
-    model,
-    camera,
+    empty = 0,
+    mesh = 1,
+    light = 2,
+    model = 3,
+    camera = 4,
 };
 
 SceneObject :: struct
@@ -52,7 +62,8 @@ SceneObject :: struct
     transform : Transform,
     children : SceneObjectBuffer,
     m_id : u64,//matrix id refers to asset table matrix buffer
-    type : u32,//user defined type
+    import_type : SceneObjectType,//user defined type
+    type : SceneObjectType,
     data : rawptr,//user defined data typically ptr to a game object etcc...
     primitives_range : f2,
 };
@@ -170,7 +181,7 @@ add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p :
     return add_child_to_scene_object_with_transform(ctx,parent_so_id,&new_child,data,name);
 }
 
-add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform) -> u64
+add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_so_id : u64,transform : Transform)
 {
     using con;
     assert(ctx != nil);    
@@ -190,7 +201,6 @@ add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_s
     parent := buf_chk_out(&ctx.scene_objects,parent_so_id);
     handle := buf_push(&parent.children.buffer,child_so_id);
     buf_chk_in(&ctx.scene_objects);
-    return handle;
 }
 
 //NOTE(Ray):For updating all scenes?
@@ -233,10 +243,10 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
         ot := &child_so.transform;
         current_p_sum := position_sum^;
         current_r_product := (rotation_product^);
-	current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);
-	ot.p = current_p_sum;
+	    current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);
+	    ot.p = current_p_sum;
         ot.r = la.mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
-	current_r_product = ot.r;	
+	    current_r_product = ot.r;	
         
         ot.s = ot.local_s;//f3_mul(parent_so.transform.s,ot.local_s);//
 

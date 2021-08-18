@@ -142,7 +142,7 @@ RenderMaterial :: struct
     base_color : f4,
 };
 
-load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64)
+load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64,type : SceneObjectType)
 {
     for i := 0;i < cast(int)node.children_count;i+=1
     {
@@ -172,31 +172,32 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
 
         trans.m = out_mat;                    
 
-        type : u32 = 0;
         mesh_range := f2{};
+        import_type : SceneObjectType = SceneObjectType.empty; 
         if child.mesh != nil
         {
 //            result.model.model_name = string(file_path);
             mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,material);
-            type = 1;
+            import_type = SceneObjectType.mesh;
             upload_meshes(ctx,mesh_range);            
         }
 
-	mptr : rawptr = nil;
+	    mptr : rawptr = nil;
 //add node to parent
         //TODO(Ray):We need this not to be associated with the context perm mem.
         //Have each sceneobject tree hold its own string meme
         mesh_name := string(child.name);
         child_id := add_child_to_scene_object_with_transform(ctx,so_id,&trans,&mptr,mesh_name);
         child_so := con.buf_chk_out(&ctx.scene_objects,child_id);
+        child_so.import_type = import_type;
         child_so.type = type;
         child_so.primitives_range = mesh_range;
         con.buf_chk_in(&ctx.scene_objects);                    	
-        load_meshes_recursively_gltf_node(result,child^,ctx,file_path, material,child_id);
+        load_meshes_recursively_gltf_node(result,child^,ctx,file_path, material,child_id,type);
     }
 }
 
-asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : RenderMaterial) -> ModelLoadResult
+asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : RenderMaterial,type : SceneObjectType = .mesh) -> ModelLoadResult
 {
     using con;
     result : ModelLoadResult;
@@ -208,7 +209,6 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     assert(aresult == cgltf.result.result_success);
     if cast(cgltf.result)aresult == cgltf.result.result_success
     {
-	    
         for i := 0;i < cast(int)cgltf_data.buffers_count;i += 1
         {
 	        uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
@@ -222,6 +222,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
             p_matrix_id := buf_push(&ctx.asset_tables.matrix_buffer,parent_trans.m);
 
             model_root_so_ : SceneObject = scene_object_init("model_root_so");
+            model_root_so_.type = type;
             model_root_so_id := buf_push(&ctx.scene_objects,model_root_so_);
             assert(cgltf_data.scenes_count == 1);
 	        scenes_count := mem.ptr_offset(cgltf_data.scenes,0).nodes_count;	    
@@ -253,13 +254,12 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 trans.r = la.quaternion_from_matrix4(out_mat);
                 trans.m = out_mat;
 
-                type : u32 = 0;
+                import_type : SceneObjectType = SceneObjectType.empty;
                 mesh_range := f2{};
                 if root_node.mesh != nil
                 {
-                    //                    result.model.model_name = string(file_path_mem);                
                     mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material);
-                    type = 1;
+                    import_type = SceneObjectType.mesh;
                     upload_meshes(ctx,mesh_range);
                 }
 
@@ -267,10 +267,12 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 mesh_name := string(root_node.name);                
                 child_id := add_child_to_scene_object_with_transform(ctx,model_root_so_id,&trans,&mptr,mesh_name);
                 child_so := buf_chk_out(&ctx.scene_objects,child_id);
+                child_so.import_type = import_type;
                 child_so.type = type;
                 child_so.primitives_range = mesh_range;
-                buf_chk_in(&ctx.scene_objects);		
-		        load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material,child_id);
+                buf_chk_in(&ctx.scene_objects);
+                
+		        load_meshes_recursively_gltf_node(&result,root_node^,ctx,file_path,material,child_id,type);
             }
 
             buf_chk_in(&ctx.scene_objects);
@@ -296,80 +298,83 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
         mesh := Mesh{};
         prim := mem.ptr_offset(ma.primitives,j);
         mat  := prim.material;
-
-        if mat.normal_texture.texture != nil
+        if mat != nil
         {
-//            tv := mat.normal_texture;
-        }
-
-        if mat.occlusion_texture.texture != nil
-        {
-//            tv := mat.occlusion_texture;
-        }
-	
-        if mat.emissive_texture.texture != nil
-        {
-//            tv := mat.emissive_texture;
-        }
-
-        if mat.has_pbr_metallic_roughness == 1
-        {
-            if mat.pbr_metallic_roughness.base_color_texture.texture != nil
+            if mat.normal_texture.texture != nil
             {
-                tv := mat.pbr_metallic_roughness.base_color_texture;
+                //            tv := mat.normal_texture;
+            }
+
+            if mat.occlusion_texture.texture != nil
+            {
+                //            tv := mat.occlusion_texture;
+            }
+	        
+            if mat.emissive_texture.texture != nil
+            {
+                //            tv := mat.emissive_texture;
+            }
+
+            if mat.has_pbr_metallic_roughness == 1
+            {
+                if mat.pbr_metallic_roughness.base_color_texture.texture != nil
                 {
-                    offset := cast(u64)tv.texture.image.buffer_view.offset;
-                    tex_data := mem.ptr_offset(cast(^u8)tv.texture.image.buffer_view.buffer.data,cast(int)offset);
-
-		    //TODO(Ray):This if statement is not good
-                    if tex_data != nil
+                    tv := mat.pbr_metallic_roughness.base_color_texture;
                     {
-                        data_size := cast(u64)tv.texture.image.buffer_view.size;
-			tex :=  texture_from_mem(tex_data,cast(i32)data_size,4);                
-                        id := texture_add(ctx,&tex,&default_srv_desc_heap);
-                        mesh.metallic_roughness_texture_id = id;                    
-                    }                    
+                        offset := cast(u64)tv.texture.image.buffer_view.offset;
+                        tex_data := mem.ptr_offset(cast(^u8)tv.texture.image.buffer_view.buffer.data,cast(int)offset);
+
+		                //TODO(Ray):This if statement is not good
+                        if tex_data != nil
+                        {
+                            data_size := cast(u64)tv.texture.image.buffer_view.size;
+			                tex :=  texture_from_mem(tex_data,cast(i32)data_size,4);                
+                            id := texture_add(ctx,&tex,&default_srv_desc_heap);
+                            mesh.metallic_roughness_texture_id = id;                    
+                        }                    
+                    }
                 }
+
+                if mat.pbr_metallic_roughness.metallic_roughness_texture.texture != nil
+                {
+                    //                tv := mat.pbr_metallic_roughness.metallic_roughness_texture;
+                }
+
+                bcf := mat.pbr_metallic_roughness.base_color_factor;
+                mesh.base_color = f4{bcf[0],bcf[1],bcf[2],bcf[3]};
+
+                //            cgltf_float* mf = &mat.pbr_metallic_roughness.metallic_factor;
+                //            cgltf_float* rf = &mat.pbr_metallic_roughness.roughness_factor;
             }
 
-            if mat.pbr_metallic_roughness.metallic_roughness_texture.texture != nil
+            if mat.has_pbr_specular_glossiness == 1
             {
-//                tv := mat.pbr_metallic_roughness.metallic_roughness_texture;
+                if mat.pbr_specular_glossiness.diffuse_texture.texture != nil
+                {
+                    //                tv := mat.pbr_specular_glossiness.diffuse_texture;
+                }
+
+                if mat.pbr_specular_glossiness.specular_glossiness_texture.texture != nil
+                {
+                    //                tv := mat.pbr_specular_glossiness.specular_glossiness_texture;
+                }
+
+                dcf := mat.pbr_specular_glossiness.diffuse_factor;
+                diffuse_value := f4{dcf[0],dcf[1],dcf[2],dcf[3]};
+                sf := mat.pbr_specular_glossiness.specular_factor;
+                specular_value := f3{sf[0],sf[1],sf[2]};
+                gf := &mat.pbr_specular_glossiness.glossiness_factor;
             }
 
-            bcf := mat.pbr_metallic_roughness.base_color_factor;
-            mesh.base_color = f4{bcf[0],bcf[1],bcf[2],bcf[3]};
+            //alphaCutoff
+            //alphaMode
+            //emissiveFactor
+            //emissiveTexture
+            //occlusionTexture
+            //normalTexture
 
-//            cgltf_float* mf = &mat.pbr_metallic_roughness.metallic_factor;
-//            cgltf_float* rf = &mat.pbr_metallic_roughness.roughness_factor;
         }
-
-        if mat.has_pbr_specular_glossiness == 1
-        {
-            if mat.pbr_specular_glossiness.diffuse_texture.texture != nil
-            {
-//                tv := mat.pbr_specular_glossiness.diffuse_texture;
-            }
-
-            if mat.pbr_specular_glossiness.specular_glossiness_texture.texture != nil
-            {
-//                tv := mat.pbr_specular_glossiness.specular_glossiness_texture;
-            }
-
-            dcf := mat.pbr_specular_glossiness.diffuse_factor;
-            diffuse_value := f4{dcf[0],dcf[1],dcf[2],dcf[3]};
-            sf := mat.pbr_specular_glossiness.specular_factor;
-            specular_value := f3{sf[0],sf[1],sf[2]};
-            gf := &mat.pbr_specular_glossiness.glossiness_factor;
-        }
-
-        //alphaCutoff
-        //alphaMode
-        //emissiveFactor
-        //emissiveTexture
-        //occlusionTexture
-        //normalTexture
-
+        
         mesh.name = string(ma.name);
         mesh.material_id = 0;
 
@@ -396,7 +401,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 {
                     indices_size :=  cast(u64)prim.indices.count * size_of(u32);
                     indices_buffer := cast(^u32)(mem.ptr_offset(cast(^u8)ibuf.data,cast(int)istart_offset));
-		    outindex_f := cast(^u32)mem.alloc(cast(int)indices_size);
+		            outindex_f := cast(^u32)mem.alloc(cast(int)indices_size);
 
                     mem.copy(outindex_f,indices_buffer,cast(int)indices_size);
                     mesh.index_32_data = outindex_f;
@@ -470,6 +475,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
 	    mesh.material_name = material.name;
 
         last_id  := buf_push(&ctx.asset_tables.meshes,mesh);
+
 	    //TODO(Ray):Does this cast properly? verify
         result.y = cast(f32)last_id;
     }
@@ -742,46 +748,14 @@ get_mesh_id_by_name :: proc(name : string,ctx : ^AssetContext, start : ^SceneObj
     return is_found;
 }
 
-create_model_instance :: proc(ctx : ^AssetContext,model : ModelLoadResult) -> u64
-{
-    using con;
-    src := buf_get(&ctx.scene_objects,model.scene_object_id);
-
-    dest_ := copy_scene_object(ctx,&src);
-
-    dest_id := buf_push(&ctx.scene_objects,dest_);
-
-    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
-    {
-        dest := buf_chk_out(&ctx.scene_objects,dest_id);            
-        src_child_so_id := buf_get(&src.children.buffer,cast(u64)i);
-        src_child_so := buf_get(&ctx.scene_objects,src_child_so_id);
-        dest_child_so_ := copy_scene_object(ctx,&src_child_so);
-
-        buf_chk_in(&ctx.scene_objects);
-        dest_child_so_id : u64 = buf_push(&ctx.scene_objects,dest_child_so_);
-        dest = buf_chk_out(&ctx.scene_objects,dest_id);            
-        buf_push(&dest.children.buffer,dest_child_so_id);
-        buf_chk_in(&ctx.scene_objects);        
-        
-        copy_model_data_recursively_(ctx,dest_child_so_id,src_child_so_id);
-    }
-
-    return 1;//dest_id;
-}
-
 copy_scene_object :: proc(ctx : ^AssetContext,so : ^SceneObject)  -> SceneObject 
 {
     using con;
     assert(so != nil);
     result : SceneObject = so^;
-    result.children.buffer = buf_copy(&so.children.buffer);
+    result.children.buffer = buf_init(1,u64);
     result.transform = so.transform;
     result.m_id = buf_push(&ctx.asset_tables.matrix_buffer,result.transform.m);
-
-    //    result.data = so.data;
-    //    result.type = so.type;
-    //    result.primitives_range = so.primitives_range;
     return result;
 }
 
@@ -791,19 +765,45 @@ copy_model_data_recursively_ :: proc(ctx : ^AssetContext,dest_id : u64,src_id : 
     src := buf_get(&ctx.scene_objects,src_id);
     for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
     {
-        dest := buf_chk_out(&ctx.scene_objects,dest_id);
-           
         child_so_id := buf_get(&src.children.buffer,cast(u64)i);
         child_so := buf_get(&ctx.scene_objects,child_so_id);
-	new_child_dest := copy_scene_object(ctx,&child_so);
+	    new_child_dest := copy_scene_object(ctx,&child_so);
 
         buf_chk_in(&ctx.scene_objects);
         new_dest_id := buf_push(&ctx.scene_objects,new_child_dest);
-        dest = buf_chk_out(&ctx.scene_objects,dest_id);        
+        dest := buf_chk_out(&ctx.scene_objects,dest_id);        
         buf_push(&dest.children.buffer,new_dest_id);
         buf_chk_in(&ctx.scene_objects);
         
         copy_model_data_recursively_(ctx,new_dest_id,child_so_id);
     }
+}
+
+create_model_instance :: proc(ctx : ^AssetContext,model : ModelLoadResult) -> u64
+{
+    using con;
+    src := buf_get(&ctx.scene_objects,model.scene_object_id);
+    dest_ := copy_scene_object(ctx,&src);
+    dest_id := buf_push(&ctx.scene_objects,dest_);
+//    assert(buf_len(dest_.children.buffer) == buf_len(src.children.buffer));
+
+//    destination := buf_chk_out(&ctx.scene_objects,dest_id);                
+//    assert(buf_len(destination.children.buffer) == buf_len(src.children.buffer));    
+    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
+    {
+        src_child_so_id := buf_get(&src.children.buffer,cast(u64)i);
+        src_child_so := buf_get(&ctx.scene_objects,src_child_so_id);
+        dest_child_so_ := copy_scene_object(ctx,&src_child_so);
+
+        buf_chk_in(&ctx.scene_objects);
+        dest_child_so_id : u64 = buf_push(&ctx.scene_objects,dest_child_so_);
+        dest := buf_chk_out(&ctx.scene_objects,dest_id);            
+        buf_push(&dest.children.buffer,dest_child_so_id);
+        buf_chk_in(&ctx.scene_objects);        
+        
+        copy_model_data_recursively_(ctx,dest_child_so_id,src_child_so_id);
+    }
+
+    return dest_id;
 }
 
