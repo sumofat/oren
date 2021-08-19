@@ -341,7 +341,8 @@ create_default_depth_stencil_buffer :: proc(dim : f2)
   	cast(u64)dim.x,
 	cast(u32)dim.y,
 	1,0,
-	.DXGI_FORMAT_D32_FLOAT,
+        //	.DXGI_FORMAT_D32_FLOAT,
+    .DXGI_FORMAT_D24_UNORM_S8_UINT,        
 	sd,
 	.D3D12_TEXTURE_LAYOUT_UNKNOWN,
 	.D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL,
@@ -350,8 +351,8 @@ create_default_depth_stencil_buffer :: proc(dim : f2)
     width : u32 = max(1, cast(u32)dim.x);
     height : u32 = max(1, cast(u32)dim.y);
     optimizedClearValue : D3D12_CLEAR_VALUE;
-    optimizedClearValue.Format = .DXGI_FORMAT_D32_FLOAT;
-    optimizedClearValue.clear_value.DepthStencil = { 1.0, 0 };
+    optimizedClearValue.Format = .DXGI_FORMAT_D24_UNORM_S8_UINT;//DXGI_FORMAT_D32_FLOAT;
+    optimizedClearValue.clear_value.DepthStencil = { 1.0, 1.0 };
     
     CreateCommittedResource(device.device,
 			    &hp,
@@ -367,7 +368,7 @@ create_default_depth_stencil_buffer :: proc(dim : f2)
     
     // Update the depth-stencil view.
     dsv : platform.D3D12_DEPTH_STENCIL_VIEW_DESC;
-    dsv.Format = .DXGI_FORMAT_D32_FLOAT;
+    dsv.Format = .DXGI_FORMAT_D24_UNORM_S8_UINT;//DXGI_FORMAT_D32_FLOAT;
     dsv.ViewDimension = .D3D12_DSV_DIMENSION_TEXTURE2D;
     dsv.depth_stencil.Texture2D.MipSlice = 0;
     dsv.Flags = .D3D12_DSV_FLAG_NONE;
@@ -1327,9 +1328,11 @@ add_clear_command :: proc(color : f4,render_target : platform.D3D12_CPU_DESCRIPT
     con.buf_push(&render_commands,com);                                    
 }
 
-add_clear_depth_stencil_command :: proc(depth : u32,stencil : u32,render_target : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,resource : rawptr)
+add_clear_depth_stencil_command :: proc(clear_depth : bool,depth : f32,clear_stencil : bool,stencil : u8,render_target : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,resource : rawptr)
 {
     com : D12CommandDepthStencilClear;
+    com.clear_depth = clear_depth;
+    com.clear_stencil = clear_stencil;
     com.depth = depth;
     com.stencil = stencil;
     com.resource = resource;
@@ -1536,8 +1539,17 @@ execute_frame :: proc()
                     
                     //    dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
                     //        rtv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,rtv_descriptor_heap,current_backbuffer_index);
+                    clear_flags : D3D12_CLEAR_FLAGS;
+                    if t.clear_depth
+                    {
+                        clear_flags |= .D3D12_CLEAR_FLAG_DEPTH;
+                    }
+                    if t.clear_stencil
+                    {
+                        clear_flags |= .D3D12_CLEAR_FLAG_STENCIL;
+                    }
                     
-                    ClearDepthStencilView(command_list.list,dsv_cpu_handle,.D3D12_CLEAR_FLAG_DEPTH,1.0,0,0,nil);                    
+                    ClearDepthStencilView(command_list.list,dsv_cpu_handle,clear_flags,t.depth,t.stencil,0,nil);                    
                     //    command_list.list.ClearRenderTargetView(rtv, clearColor, 0, nullptr);
                     //        ClearRenderTargetView(command_list.list,render_target,clearColor,0,nil);
                     //    command_list.list.ClearDepthStencilView(dsv_cpu_handle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);

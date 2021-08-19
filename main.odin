@@ -33,13 +33,17 @@ the info on resources and references etc...
 */
 
 /*
-Continue:...
 
-We have the light sphere rendered scaling is off on imported models need to verify what we want there.
-It seems the light model is still renmdered by the gbuffer_pass.  
+
+It seems the light model is still rendered by the gbuffer_pass.  
 Make it get send to the light render list and start working on the accumlation buffer.
 Once we have basic lighting working we will start working on quality of life things.
-A basic roadmap will be something like.
+
+TODO:
+We have the light sphere rendered scaling is off on imported models need to verify 
+what we want there.
+
+A basic roadmap....
 
 Make sure we can load the sponza model. which will be our reference model.
 
@@ -54,7 +58,6 @@ We will use the virutal texture method as in doom using summmons reference code.
 Than do basic skeletal animation bones than skinning.
 
 at that point we will want to move onto something new which will be rendering techniques.
-
 
 */
 
@@ -299,11 +302,11 @@ main :: proc()
 
 	    new_trans := transform_init();
 	    new_trans.s = f3{1,1,1};
-	    new_trans.p = f3{0,-15,-30};
+	    new_trans.p = f3{0,-15,-40};
 
 	    add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
-	    new_trans.p = f3{0,0,-10};        
-        new_trans.s = f3{30,30,30};
+	    new_trans.p = f3{0,0,-14};        
+        new_trans.s = f3{1,1,1} * 4;
         add_child_to_scene_object(&asset_ctx,rn_id,light_sphere_instance,new_trans);        
 
 	    matrix_mem_size : u64 = (size_of(f4x4)) * 100;
@@ -340,11 +343,15 @@ main :: proc()
         for ps.is_running
         {
 	        //Game Update test_model_so
-	        get_local_p(test_model_instance).x += 0.001;
-	        get_local_p(light_sphere_instance).z += 0.001;            
+//	        get_local_p(test_model_instance).x += 0.001;
+//	        get_local_p(light_sphere_instance).z -= 0.001;            
 //	        get_local_p(2).x += 0.001;            
-	        
+
+	        get_local_s(test_model_instance)^ += f3{0.001,0.001,0.001};
+            //            get_t(test_model_instance).s += f3{0.1,0.1,0.1};
+            
 	        //End game update
+
 	        update_scene(&asset_ctx,&test_scene);
             issue_render_commands(&render,&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);
             //            issue_light_render_commands(&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);            

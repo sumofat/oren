@@ -165,7 +165,7 @@ setup_gbuffer_pass :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffe
     add_clear_command(color,rtv_cpu_handle2,4);//rt_resource_view2);    
     
     dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
-    add_clear_depth_stencil_command(1.0,0,&dsv_cpu_handle,depth_buffer);    
+    add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);    
 }
 
 execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass))
@@ -306,7 +306,7 @@ setup_composite_pass :: proc()
  
     dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
 
-    add_clear_depth_stencil_command(1.0,0,&dsv_cpu_handle,depth_buffer);
+    add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);
 }
 
 execute_composite_pass :: proc(pass : RenderPass(CompositePass))
@@ -370,6 +370,9 @@ setup_lighting_pass1 :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buf
     light_accum_pass1.data.matrix_buffer = matrix_buffer;
     light_accum_pass1.data.matrix_quad_buffer = matrix_quad_buffer;
     light_accum_pass1.list = list;
+
+    dsv_cpu_handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE = platform.GetCPUDescriptorHandleForHeapStart(depth_heap.value);
+    add_clear_depth_stencil_command(false,1.0,true,1,&dsv_cpu_handle,depth_buffer);        
 }
 
 //NOTE(Ray):this pass has no color output no pixel shader on teh OM stage.

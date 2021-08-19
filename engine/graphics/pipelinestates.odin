@@ -18,7 +18,7 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     ppss.vertex_shader = PipelineStateSubObject(D3D12_SHADER_BYTECODE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VS,value = GetShaderByteCode(vs_blob)};
     ppss.fragment_shader = PipelineStateSubObject(D3D12_SHADER_BYTECODE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS,value = GetShaderByteCode(fs_blob)};    
 
-    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D32_FLOAT};
+    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D24_UNORM_S8_UINT};//.DXGI_FORMAT_D32_FLOAT};
 
     rtv_formats : D3D12_RT_FORMAT_ARRAY;
     rtv_formats.NumRenderTargets = 1;
@@ -66,7 +66,7 @@ create_gbuffer_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     ppss.vertex_shader = PipelineStateSubObject(D3D12_SHADER_BYTECODE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VS,value = GetShaderByteCode(vs_blob)};
     ppss.fragment_shader = PipelineStateSubObject(D3D12_SHADER_BYTECODE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS,value = GetShaderByteCode(fs_blob)};    
 
-    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D32_FLOAT};
+    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D24_UNORM_S8_UINT};//DXGI_FORMAT_D32_FLOAT};
 
     rtv_formats : D3D12_RT_FORMAT_ARRAY;
     rtv_formats.NumRenderTargets = 3;
@@ -115,7 +115,7 @@ create_lighting_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layou
     //shared subobjects
     ppss.input_layout  = PipelineStateSubObject(D3D12_INPUT_LAYOUT_DESC){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_INPUT_LAYOUT, value = input_layout_desc};
     ppss.topology_type = PipelineStateSubObject(platform.D3D12_PRIMITIVE_TOPOLOGY_TYPE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PRIMITIVE_TOPOLOGY,value = .D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE};
-    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D32_FLOAT};
+    ppss.dsv_format = PipelineStateSubObject(DXGI_FORMAT){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT , value = .DXGI_FORMAT_D24_UNORM_S8_UINT};//DXGI_FORMAT_D32_FLOAT};
 
     ppss.vertex_shader = PipelineStateSubObject(D3D12_SHADER_BYTECODE){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VS,value = GetShaderByteCode(vs_blob)};
 
@@ -128,6 +128,7 @@ create_lighting_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layou
     //raster state
     raster_desc := DEFAULT_D3D12_RASTERIZER_DESC;
     raster_desc.FrontCounterClockwise = true;
+    raster_desc.DepthClipEnable = false;    
     raster_desc.CullMode = .D3D12_CULL_MODE_BACK;
     ppss.rasterizer_state = PipelineStateSubObject(D3D12_RASTERIZER_DESC){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER, value = raster_desc};
 
@@ -137,29 +138,27 @@ create_lighting_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layou
 
     //depth stencil state
     dss1 : D3D12_DEPTH_STENCIL_DESC1 = DEFAULT_D3D12_DEPTH_STENCIL_DESC1;
-    dss1.DepthWriteMask = .D3D12_DEPTH_WRITE_MASK_ZERO;
-    dss1.DepthFunc = .D3D12_COMPARISON_FUNC_GREATER;     
+//    dss1.DepthWriteMask = .D3D12_DEPTH_WRITE_MASK_ZERO;
+    dss1.DepthEnable = true;
+    dss1.DepthFunc = .D3D12_COMPARISON_FUNC_GREATER;
     dss1.StencilEnable = true;
-//    StencilReadMask : u8,//UINT8 / char
-//    StencilWriteMask : u8,//UINT8 / char
-
     depth_stencil_op_desc : D3D12_DEPTH_STENCILOP_DESC = {
         .D3D12_STENCIL_OP_KEEP,
-        .D3D12_STENCIL_OP_DECR_SAT,
         .D3D12_STENCIL_OP_KEEP,
+        .D3D12_STENCIL_OP_DECR_SAT,
         .D3D12_COMPARISON_FUNC_ALWAYS};
     dss1.FrontFace = depth_stencil_op_desc;
-
+//    dss1.BackFace = depth_stencil_op_desc;    
     ppss.depth_stencil_state = PipelineStateSubObject(D3D12_DEPTH_STENCIL_DESC1){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1, value = dss1};
-
+    
     dss1.DepthFunc = .D3D12_COMPARISON_FUNC_GREATER_EQUAL;     
-    dss1.StencilEnable = true;
     depth_stencil_op_desc_stage2 : D3D12_DEPTH_STENCILOP_DESC = {
         .D3D12_STENCIL_OP_KEEP,
         .D3D12_STENCIL_OP_KEEP,
         .D3D12_STENCIL_OP_KEEP,
         .D3D12_COMPARISON_FUNC_EQUAL};
     dss1.FrontFace = depth_stencil_op_desc_stage2;
+    dss1.BackFace  = depth_stencil_op_desc_stage2;   
     ppss2.depth_stencil_state = PipelineStateSubObject(D3D12_DEPTH_STENCIL_DESC1){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1, value = dss1};    
 
     //second stage only subobjects
@@ -168,8 +167,6 @@ create_lighting_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layou
     rtv_formats.NumRenderTargets = 1;
     rtv_formats.RTFormats[0] = .DXGI_FORMAT_R8G8B8A8_UNORM;
     ppss2.rtv_formats = PipelineStateSubObject(D3D12_RT_FORMAT_ARRAY){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS, value = rtv_formats};
-
-
     
     bdx : D3D12_BLEND_DESC;
     bdx.AlphaToCoverageEnable = false;

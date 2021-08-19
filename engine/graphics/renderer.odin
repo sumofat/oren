@@ -184,8 +184,10 @@ D12CommandClear :: struct
 
 D12CommandDepthStencilClear :: struct
 {
-    depth : u32,
-    stencil : u32,
+    clear_depth : bool,
+    depth : f32,
+    clear_stencil : bool,
+    stencil : u8,
     resource : rawptr,
     render_target : ^platform.D3D12_CPU_DESCRIPTOR_HANDLE,    
 };
@@ -275,7 +277,7 @@ process_children_recrusively :: proc(render : ^RenderCommandList,light_render : 
                     }
                     else if child_so.type == SceneObjectType.light
                     {
-                        buf_push(&render.command_buffer,com);                                                
+                        buf_push(&light_render.command_buffer,com);                                                
                     }
 
                     buf_chk_in(&ctx.asset_tables.meshes);                    

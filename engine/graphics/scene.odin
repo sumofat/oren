@@ -192,9 +192,11 @@ add_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,child_s
     t.local_r = transform.r;
 
     //get the model so
-    child_so := buf_chk_out(&ctx.scene_objects,child_so_id);
-    assert(child_so != nil);
-    child_so.transform = t;
+    buf_chk_out(&ctx.scene_objects,child_so_id).transform = t;
+    child_so := buf_get(&ctx.scene_objects,child_so_id);
+
+//    assert(child_so != nil);
+//    child_so.transform = t;
     buf_chk_in(&ctx.scene_objects);
 
     //Add this instance to the children of the parent so 
@@ -243,13 +245,20 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
         ot := &child_so.transform;
         current_p_sum := position_sum^;
         current_r_product := (rotation_product^);
-	    current_p_sum = current_p_sum + rotate(current_r_product,ot.local_p);
-	    ot.p = current_p_sum;
-        ot.r = la.mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
-	    current_r_product = ot.r;	
-        
-        ot.s = ot.local_s;//f3_mul(parent_so.transform.s,ot.local_s);//
 
+//        ot.s = parent_so.transform.s;//ot.local_s;
+
+        ot.s = parent_so.transform.s * ot.local_s;
+        
+        test := (ot.local_p * parent_so.transform.s);
+        current_p_sum = current_p_sum + rotate(current_r_product,test);
+	    ot.p = current_p_sum;
+
+	    
+        ot.r = la.mul(current_r_product,ot.local_r);//(quaternion_mul(current_r_product,ot.local_r));
+	    current_r_product = ot.r;
+        
+        
         update_children(ctx,child_so, &current_p_sum, &current_r_product);
         buf_chk_in(&parent_so.children.buffer);
         buf_chk_in(&ctx.scene_objects);
@@ -260,12 +269,19 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
 //to scene objects while modifying
 get_t :: proc(id : u64) -> ^Transform
 {
-    return &get_so(id).transform;    
+    so := get_so(id);
+
+    return &so.transform;    
 }
 
 get_local_p :: proc(id : u64) -> ^f3
 {
     return &get_so(id).transform.local_p;    
+}
+
+get_local_s :: proc(id : u64) -> ^f3
+{
+    return &get_so(id).transform.local_s;    
 }
 
 get_so :: proc(id : u64) -> ^SceneObject
