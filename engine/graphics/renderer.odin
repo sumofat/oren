@@ -59,6 +59,7 @@ LightingAccumPass2  :: struct
     matrix_quad_buffer : ^con.Buffer(f4x4),
     root_sig : rawptr,
     render_targets : con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
+    render_target_start_id : u64,    
     shader : RenderShader,
 }
 

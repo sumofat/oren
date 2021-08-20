@@ -35,8 +35,7 @@ the info on resources and references etc...
 /*
 
 
-It seems the light model is still rendered by the gbuffer_pass.  
-Make it get send to the light render list and start working on the accumlation buffer.
+start working on the accumlation buffer.
 Once we have basic lighting working we will start working on quality of life things.
 
 TODO:
@@ -302,11 +301,11 @@ main :: proc()
 
 	    new_trans := transform_init();
 	    new_trans.s = f3{1,1,1};
-	    new_trans.p = f3{0,-15,-40};
+	    new_trans.p = f3{0,-15,-10};
 
 	    add_child_to_scene_object(&asset_ctx,rn_id,test_model_instance,new_trans);
 	    new_trans.p = f3{0,0,-14};        
-        new_trans.s = f3{1,1,1} * 4;
+        new_trans.s = f3{1,1,1} * 8;
         add_child_to_scene_object(&asset_ctx,rn_id,light_sphere_instance,new_trans);        
 
 	    matrix_mem_size : u64 = (size_of(f4x4)) * 100;
@@ -335,7 +334,8 @@ main :: proc()
 	    //experimental
 	    init_gbuffer_pass();	
         //        init_projective_pass();
-        init_lighting_pass1();	
+        init_lighting_pass1();
+        init_lighting_pass2();	        
         //	    init_perspective_projection_pass();
         init_composite_pass(&asset_ctx);        
 	    //end experimental
@@ -364,6 +364,11 @@ main :: proc()
             //lighting pass
 	        setup_lighting_pass1(&light_render,matrix_buffer,&matrix_quad_buffer);
 	        execute_lighting_pass1(light_accum_pass1);
+
+            //lighting pass
+	        setup_lighting_pass2(&light_render,matrix_buffer,&matrix_quad_buffer);
+	        execute_lighting_pass2(light_accum_pass2);            
+            
             
             //composite pass
             setup_composite_pass();

@@ -124,7 +124,9 @@ init_gbuffer_pass :: proc()
     gbuffer_pass.data.render_targets = con.buf_init(1,D3D12_CPU_DESCRIPTOR_HANDLE);
 
     desc : D3D12_DESCRIPTOR_HEAP_DESC;
-    desc.NumDescriptors = 3;
+    //NOTE(RAY)): at current we have
+    //1.diffuese normal position lightaccum render targets.
+    desc.NumDescriptors = 4;
     desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     
     render_texture_heap = create_descriptor_heap(device.device, desc); 
@@ -155,14 +157,16 @@ setup_gbuffer_pass :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffe
     using con;
     rtv_cpu_handle1 : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,0);
     rtv_cpu_handle2 : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,1);    
-
+    rtv_cpu_handle3 : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,2);
+    
     color := f4{0,1,0,1};
     //NOTE(Ray):These magic numbers will not be correct in th e casea of triple buffering
     //as the resourceviews before it will be more than expected (double buffered swap buffers)
 //    rt_resource_view1 := buf_ptr(&resourceviews,2);
 //    rt_resource_view2 := buf_ptr(&resourceviews,3);    
     add_clear_command(color,rtv_cpu_handle1,3);//rt_resource_view1);
-    add_clear_command(color,rtv_cpu_handle2,4);//rt_resource_view2);    
+    add_clear_command(color,rtv_cpu_handle2,4);//rt_resource_view2);
+    add_clear_command(color,rtv_cpu_handle3,5);//rt_resource_view2);        
     
     dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
     add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);    
@@ -170,12 +174,9 @@ setup_gbuffer_pass :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffe
 
 execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass))
 {
-
     using con;
     using la;
     using platform;
-
-//    buf_push(&render_command_lists,pass.list);
     
     if buf_len(pass.list.command_buffer) > 0
     {
@@ -362,6 +363,7 @@ init_lighting_pass1 :: proc()
 {
     using platform;
     light_accum_pass1.data.root_sig = default_root_sig;
+    
 //no pixel shader
 }
 
@@ -434,6 +436,128 @@ execute_lighting_pass1 :: proc(pass : RenderPass(LightingAccumPass1))
 
 	        gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
 	        add_graphics_root_desc_table(1,default_srv_desc_heap.heap.value,gpu_handle_default_srv_desc_heap);
+
+	        slot : int = 0;
+	        for j := command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;j+=1 
+	        {
+		        bv := buf_get(&asset_ctx.asset_tables.vertex_buffers,cast(u64)j);
+		        add_set_vertex_buffer_command(cast(u32)slot,bv);
+		        slot += 1;
+	        }
+
+	        if command.is_indexed
+            {
+		        ibv := buf_get(&asset_ctx.asset_tables.index_buffers,command.geometry.index_id);
+		        add_draw_indexed_command(cast(u32)command.geometry.index_count,cast(u32)command.geometry.offset,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,ibv);
+            }
+	        else
+            {		/**/
+		        add_draw_command(cast(u32)command.geometry.offset,cast(u32)command.geometry.count,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                        
+            }
+            has_update = true;		    
+	    }
+	    add_end_command_list_command();		
+    }
+}
+
+
+init_lighting_pass2 :: proc()
+{
+    using platform;
+    light_accum_pass2.data.root_sig = default_root_sig;
+
+    //setup the light accumulation buffer
+    light_accum_render_texture_heap_index,light_accum_srv_heap_index := create_render_texture(&asset_ctx,ps.window.dim,render_texture_heap,.DXGI_FORMAT_R8G8B8A8_UNORM); 
+    light_accum_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,cast(u32)light_accum_render_texture_heap_index);
+    con.buf_push(&light_accum_pass2.data.render_targets,light_accum_cpu_handle);
+}
+
+setup_lighting_pass2 :: proc(list : ^RenderCommandList, matrix_buffer : ^con.Buffer(f4x4),matrix_quad_buffer : ^con.Buffer(f4x4))
+{
+    light_accum_pass2.data.matrix_buffer = matrix_buffer;
+    light_accum_pass2.data.matrix_quad_buffer = matrix_quad_buffer;
+    light_accum_pass2.list = list;
+
+    using platform;
+    using con;
+    light_accum_rtv_cpu_handle1 : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,3);
+
+    color := f4{0,0,0,1};
+
+    add_clear_command(color,light_accum_rtv_cpu_handle1,6);//rt_resource_view1);
+    
+//    dsv_cpu_handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE = platform.GetCPUDescriptorHandleForHeapStart(depth_heap.value);
+//    add_clear_depth_stencil_command(false,1.0,true,1,&dsv_cpu_handle,depth_buffer);        
+}
+
+//NOTE(Ray):this pass has no color output no pixel shader on teh OM stage.
+execute_lighting_pass2 :: proc(pass : RenderPass(LightingAccumPass2))
+{
+    using con;
+    using la;
+    using platform;
+    
+    if buf_len(pass.list.command_buffer) > 0
+    {
+	    renderer_set_write_list(pass.list);
+	    list := pass.list;
+	    matrix_buffer := pass.data.matrix_buffer;
+	    matrix_quad_buffer := pass.data.matrix_quad_buffer;
+	    pass_local := pass;
+        
+        rt_mem := mem.raw_dynamic_array_data(pass.data.render_targets.buffer);
+//	    rt_mem := mem.raw_slice_data(pass.data.render_targets.buffer[1:]);
+	    add_start_command_list_with_render_targets(1,rt_mem);        
+//	    add_start_command_list_basic(true);
+
+        //for light in light buffer
+	    for command in list.command_buffer.buffer
+	    {
+            m_mat := buf_get(matrix_buffer,command.model_matrix_id);
+
+//            model_matrix := transpose(m_mat);
+            
+            c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
+            proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
+            world_mat := mul(c_mat,m_mat);
+
+            finalmat := mul(proj_mat,world_mat);
+            m_mat[0].x = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
+
+            base_color := command.geometry.base_color;
+	        m_mat[1] = [4]f32{base_color.x,base_color.y,base_color.z,base_color.w};
+
+            buf_push(matrix_quad_buffer,finalmat);        
+
+            m_mat[0].y = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
+
+            buf_push(matrix_quad_buffer,world_mat);
+            
+	        add_root_signature_command(default_root_sig);		    
+
+	        rect := f4{0,0,ps.window.dim.x,ps.window.dim.y};	    
+
+	        add_viewport_command(rect);
+
+	        add_scissor_command(rect);
+	        
+	        material := asset_ctx.asset_tables.materials["light_accum_pass2"];
+
+	        add_pipeline_state_command(material.pipeline_state);
+
+	        add_graphics_root32_bit_constant(0,16,&m_mat,0);
+	        add_graphics_root32_bit_constant(2,16,&finalmat,0);
+
+            //	        tex_index := command.texture_id;
+	        tex_index := pass.data.render_target_start_id;            
+	        add_graphics_root32_bit_constant(4,4,&tex_index,0);
+
+            //set textures as our render targets
+	        gpu_handle_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
+	        add_graphics_root_desc_table(1,default_srv_desc_heap.heap.value,gpu_handle_heap);
+            
+//	        gpu_handle_default_srv_desc_heap := GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
+//	        add_graphics_root_desc_table(1,default_srv_desc_heap.heap.value,gpu_handle_default_srv_desc_heap);
 
 	        slot : int = 0;
 	        for j := command.geometry.buffer_id_range.x;j <= command.geometry.buffer_id_range.y;j+=1 

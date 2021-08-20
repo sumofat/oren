@@ -595,6 +595,7 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     fs_gbuffer_file_name : cstring = "ps_gbuffer.hlsl";
     fs_comp_file_name : cstring = "ps_comp.hlsl";        
     fs_color_file_name : cstring = "fs_color.hlsl";
+    fs_light_accum_file_name : cstring = "ps_light_accum.hlsl";    
     
     rs := CreateRenderShader(vs_file_name,fs_file_name);
     mesh_rs := CreateRenderShader(vs_mesh_file_name,fs_file_name);
@@ -602,6 +603,8 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     rs_color := CreateRenderShader(vs_file_name,fs_color_file_name);
     mesh_pn_color := CreateRenderShader(vs_pn_file_name,fs_color_file_name);
     rs_gbuffer := CreateRenderShader(vs_gbuffer_name,fs_gbuffer_file_name);
+
+    rs_light_accum := CreateRenderShader(vs_gbuffer_name,fs_light_accum_file_name);    
     rs_comp := CreateRenderShader(vs_comp_file_name,fs_comp_file_name);    
 
     //basic
@@ -618,7 +621,7 @@ init :: proc(ps : ^platform.PlatformState) -> CreateDeviceResult
     gbuff_pipeline_state := create_gbuffer_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,rs_gbuffer.vs_blob,rs_gbuffer.fs_blob);
     add_material(&ps,gbuff_pipeline_state,"gbuffer");
 
-    light_accum_stage1_pipeline_state,light_accum_stage2_pipeline_state := create_lighting_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,rs_gbuffer.vs_blob,rs_gbuffer.fs_blob);
+    light_accum_stage1_pipeline_state,light_accum_stage2_pipeline_state := create_lighting_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,rs_gbuffer.vs_blob,rs_light_accum.fs_blob);
     
     add_material(&ps,light_accum_stage1_pipeline_state,"light_accum_pass1");
     add_material(&ps,light_accum_stage2_pipeline_state,"light_accum_pass2");
@@ -763,7 +766,6 @@ create_render_texture :: proc(ctx : ^AssetContext,dim : f2,heap : platform.ID3D1
     hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.value);
     offset : u64 = cast(u64)hmdh_size * cast(u64)num_of_render_textures;
     hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
-
     
     srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
     srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
