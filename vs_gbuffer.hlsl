@@ -1,6 +1,7 @@
 #pragma pack_matrix( row_major )
 
 ByteAddressBuffer matrix_buffer : register(t3);
+//ByteAddressBuffer light_buffer : register(t4);
 
 struct ModelViewProjection
 {

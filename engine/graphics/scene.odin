@@ -9,14 +9,6 @@ import fmj "../fmj"
 
 import con "../containers"
 
-Light :: struct
-{
-    p : f3,
-    color : f4,
-    size : f32,
-    intensity : f32,
-};
-
 Scene :: struct 
 {
     name : string,
@@ -94,6 +86,7 @@ scene_init :: proc(name : string) -> Scene
     a.name = name;
     a.buffer.buffer = con.buf_init(100,u64);
     a.state_flags = SceneState.default;
+    a.lights = con.buf_init(100,Light);
     return a;
 }
 

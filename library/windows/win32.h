@@ -572,6 +572,7 @@ extern "C"
     UINT GetDescriptorHandleIncrementSize(ID3D12Device2* device, D3D12_DESCRIPTOR_HEAP_TYPE DescriptorHeapType);
 
     void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
+    void CreateConstantBufferView(ID3D12Device2* device,D3D12_CONSTANT_BUFFER_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
     
     void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data);
 

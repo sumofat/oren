@@ -276,8 +276,6 @@ main :: proc()
 	    identity_matrix_id := buf_push(matrix_buffer,rc_ui.matrix);
 	    //End Camera Setups
 
-	    //matrix_quad_buffer := buf_init(200,f4x4);
-
 	    max_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,top_right_screen_xy,0);
 	    lower_screen_p := screen_to_world(rc.projection_matrix,rc.matrix,ps.window.dim,bottom_left_xy,0);
 
@@ -291,7 +289,8 @@ main :: proc()
 
 	    light_sphere_model_result := asset_load_model(&asset_ctx,"data/sphere.glb",mesh_material,SceneObjectType.light);	
 	    light_sphere_instance := create_model_instance(&asset_ctx,light_sphere_model_result);        
-	    
+
+
 //	    add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
 	    
 	    test_so := buf_chk_out(&asset_ctx.scene_objects,test_model_result.scene_object_id);
@@ -308,13 +307,24 @@ main :: proc()
         new_trans.s = f3{1,1,1} * 8;
         add_child_to_scene_object(&asset_ctx,rn_id,light_sphere_instance,new_trans);        
 
+        test_light_transform := get_t(light_sphere_instance);
+	    add_light(&test_scene,test_light_transform.p);
+
+        //TODO(Ray):Making mapped memory to the gpu needs to be simplified and idiot proffed
+        //light memory for mapping
+	    light_list_mem_size : u64 = (size_of(Light)) * 100;
+	    light_list_gpu_arena := AllocateGPUArena(device.device,light_list_mem_size);
+	    set_arena_constant_buffer(device.device,&light_list_gpu_arena,default_srv_desc_heap.count,default_srv_desc_heap.heap);
+	    default_srv_desc_heap.count += 1;
+	    //Map(light_list_gpu_arena.resource,0,nil,&light_list_data);
+
+        //matrix memory for mapping        
 	    matrix_mem_size : u64 = (size_of(f4x4)) * 100;
 	    matrix_gpu_arena := AllocateGPUArena(device.device,matrix_mem_size);
 	    
 	    set_arena_constant_buffer(device.device,&matrix_gpu_arena,default_srv_desc_heap.count,default_srv_desc_heap.heap);
 	    default_srv_desc_heap.count += 1;
-	    
-        //	mapped_matrix_data : rawptr;
+
 	    Map(matrix_gpu_arena.resource,0,nil,&mapped_matrix_data);
 	    
 	    /*
@@ -322,13 +332,13 @@ main :: proc()
 	{
             assert(false);    
 	}
-*/
+    */
+
         //Create a test light
         test_light : Light = {f3{0,0,0},f4{1,1,1,1},10,1};
         buf_push(&test_scene.lights,test_light);
        
 	    buf_chk_in(&asset_ctx.scene_objects);
-	    
 	    //end game object setup
 
 	    //experimental
@@ -368,7 +378,6 @@ main :: proc()
             //lighting pass
 	        setup_lighting_pass2(&light_render,matrix_buffer,&matrix_quad_buffer);
 	        execute_lighting_pass2(light_accum_pass2);            
-            
             
             //composite pass
             setup_composite_pass();

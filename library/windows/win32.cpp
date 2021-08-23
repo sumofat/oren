@@ -2067,6 +2067,11 @@ void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D
     device->CreateShaderResourceView(resource,desc,handle);
 }
 
+void CreateConstantBufferView(ID3D12Device2* device,D3D12_CONSTANT_BUFFER_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle)
+{
+    device->CreateConstantBufferView(desc,handle);
+}
+
 void CompileShader_(char* file_name,void** blob,char* shader_version_and_type)
 {
     FMJFileReadResult file_result = fmj_file_platform_read_entire_file(file_name);

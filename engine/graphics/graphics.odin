@@ -77,6 +77,7 @@ foreign gfx
     SetArenaToIndexVertexBufferView :: proc "c"(g_arena : ^platform.GPUArena,size : u64 ,format : platform.DXGI_FORMAT) ---;
     GetDescriptorHandleIncrementSize :: proc "c"(device : rawptr,DescriptorHeapType :  platform.D3D12_DESCRIPTOR_HEAP_TYPE) -> c.uint  ---;
     CreateShaderResourceView :: proc "c"(device : rawptr,resource : rawptr,desc : ^platform.D3D12_SHADER_RESOURCE_VIEW_DESC,handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
+    CreateConstantbufferView :: proc "c"(device : rawptr,desc : ^platform.D3D12_CONSTANT_BUFFER_VIEW_DESC,handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
     Map :: proc "c"(resource : rawptr,sub_resource : u32,range : ^platform.D3D12_RANGE,data : ^rawptr) ---;
 
     CreateCommittedResource :: proc "c"(device : rawptr,
@@ -719,7 +720,7 @@ get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST
     //in some cases causing the infinite allocation of command allocators.
     //result = GetFirstFreeWithPredicate(D12CommandAllocatorEntry,allocator_tables.fl_ca,GetCAPredicateDIRECT);
     table := get_table(list_type);
-            
+    
     if buf_len(table^) <= 0
     {
         result = nil;

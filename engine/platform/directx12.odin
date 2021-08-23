@@ -669,6 +669,12 @@ D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING :: proc(Src0,Src1,Src2,Src3 : UINT) -> U
     return result;
 }
 
+D3D12_CONSTANT_BUFFER_VIEW_DESC :: struct
+{
+    BufferLocation : D3D12_GPU_VIRTUAL_ADDRESS,
+    SizeInBytes : UINT,
+};
+
 D3D12_SHADER_RESOURCE_VIEW_DESC :: struct
 {
     Format : DXGI_FORMAT,
