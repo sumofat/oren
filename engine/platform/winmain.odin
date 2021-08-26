@@ -7,6 +7,7 @@ import windows "core:sys/windows"
 import window32 "core:sys/win32"
 import fmj "../fmj"
 import la "core:math/linalg"
+import math "../math"
 
 MAX_KEYS : int : 256;
 MAX_CONTROLLER_SUPPORT : int : 2;
@@ -200,10 +201,10 @@ foreign platform
     AddSetVertexBufferCommand :: proc "c"(slot : u32 ,buffer_view : D3D12_VERTEX_BUFFER_VIEW) ---;
     AddDrawIndexedCommand :: proc "c"(index_count : u32 ,index_offset : u32 ,topology : D3D12_PRIMITIVE_TOPOLOGY, index_buffer_view : D3D12_INDEX_BUFFER_VIEW) ---;
     AddDrawCommand :: proc(offset : u32,count : u32, topology : D3D12_PRIMITIVE_TOPOLOGY) ---;
-    AddViewportCommand :: proc "c"(vp : fmj.f4) ---;
+    AddViewportCommand :: proc "c"(vp : math.f4) ---;
     AddRootSignatureCommand :: proc "c"(root_sig_ptr : rawptr/*ID3D12RootSignature*/) ---;
     AddPipelineStateCommand :: proc "c" (ps_ptr : rawptr/*ID3D12PipelineState*/) ---;
-    AddScissorRectCommand :: proc "c"(rect : fmj.f4) ---;
+    AddScissorRectCommand :: proc "c"(rect : math.f4) ---;
     AddStartCommandListCommand :: proc "c"() ---;
     AddEndCommandListCommand :: proc "c"() ---;
     AddGraphicsRootDescTable :: proc "c" (index : u64,heaps_ptr : rawptr/*ID3D12DescriptorHeap**/,gpu_handle : D3D12_GPU_DESCRIPTOR_HANDLE) ---;

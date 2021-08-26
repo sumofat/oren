@@ -24,4 +24,4 @@ f4x4_create_from_trs(t : f3,r : quaternion,s : f3) -> f4x4
     scale_matrix := f4x4_create_with_scale(s.x,s.y,s.z);
     return f4x4_mul(rotation,scale_matrix);
 }
-/*
+*/

@@ -1,5 +1,7 @@
-package fmj
 
+
+package fmj
+ /*
 import "core:fmt"
 import "core:c"
 
@@ -10,7 +12,6 @@ FMJTicketMutex :: struct
     ticket : i64,
     serving : i64,
 };
- 
 f2 :: struct
 {
     x : f32,
@@ -50,5 +51,5 @@ foreign fmj
     fmj_thread_begin_ticket_mutex :: proc "c"(mutex : ^FMJTicketMutex) ---;
     fmj_thread_end_ticket_mutex :: proc "c"(mutex : ^FMJTicketMutex) ---;    
 }
-
+*/
 

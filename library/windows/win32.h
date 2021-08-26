@@ -612,6 +612,7 @@ extern "C"
                            u32                        NumRects,
                                D3D12_RECT            *pRects);
     void OMSetRenderTargets(ID3D12GraphicsCommandList* list,u32 NumRenderTargetDescriptors,D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,bool RTsSingleHandleToDescriptorRange,D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor); 
+    void OMSetStencilRef(ID3D12GraphicsCommandList* list,UINT ref);
     void RSSetViewports(ID3D12GraphicsCommandList* list,u32 NumViewports,D3D12_VIEWPORT *pViewports);
     void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects);
     void IASetPrimitiveTopology(ID3D12GraphicsCommandList*list,D3D12_PRIMITIVE_TOPOLOGY PrimitiveTopology);

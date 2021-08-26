@@ -10,14 +10,14 @@ struct ShaderVars
 };
 
 ConstantBuffer<ShaderVars> shader_vars : register(b0);
- 
+
 struct PixelShaderInput
 {
     float4 position : SV_Position;    
     float4 Color : COLOR;
     float2 UV : TEXCOORD0;
-    float3 normal : TEXCOORD1;
-    float4 frag_p : TEXCOORD2;    
+    float3 normal : NORMAL;
+    float4 frag_p : TEXCOORD1;    
 };
 
 struct PixelShaderOutput

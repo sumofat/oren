@@ -4,10 +4,12 @@ import math "core:math"
 import la "core:math/linalg"
 
 import platform "../platform"
+import enginemath "../math"
 
-init_pers_proj_matrix :: proc(buffer_dim : f2,fov_y : f32,far_near : f2) -> f4x4
+init_pers_proj_matrix :: proc(buffer_dim : enginemath.f2,fov_y : f32,far_near : enginemath.f2) -> enginemath.f4x4
 {
     using math;
+    using enginemath;
     near_clip_plane := far_near.x;
     far_clip_plane := far_near.y;
     tangent := tan(la.radians(fov_y / 2));
@@ -27,7 +29,7 @@ init_pers_proj_matrix :: proc(buffer_dim : f2,fov_y : f32,far_near : f2) -> f4x4
     return result;
 }
 
-init_ortho_proj_matrix :: proc(size : f2,near_clip_plane : f32,far_clip_plane : f32) -> f4x4 
+init_ortho_proj_matrix :: proc(size : enginemath.f2,near_clip_plane : f32,far_clip_plane : f32) -> enginemath.f4x4 
 {
     r := size.x;
     l := -r;
@@ -37,7 +39,7 @@ init_ortho_proj_matrix :: proc(size : f2,near_clip_plane : f32,far_clip_plane : 
     five := 2.0 / (t - b);
     ten := -2.0 / (far_clip_plane - near_clip_plane);
 
-    result := f4x4_create_row(zero, five, ten,1);
+    result := enginemath.f4x4_create_row(zero, five, ten,1);
 
     result[3].x = (-((r + l)  / (r - l)));
     result[3].y = (-((t + b)  / (t - b)));
@@ -45,10 +47,10 @@ init_ortho_proj_matrix :: proc(size : f2,near_clip_plane : f32,far_clip_plane : 
     return result;
 }
 
-init_screen_space_matrix :: proc(buffer_dim : f2) -> f4x4 
+init_screen_space_matrix :: proc(buffer_dim : enginemath.f2) -> enginemath.f4x4 
 {
     ab := 2.0 / buffer_dim;
-    result := f4x4_create_row(ab.x, ab.y, 1,1);
+    result := enginemath.f4x4_create_row(ab.x, ab.y, 1,1);
 
     result[3].x = -1;
     result[3].y = -1;

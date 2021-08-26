@@ -25,6 +25,11 @@ HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags)
     return swap_chain->Present(SyncInterval,Flags);    
 }
 
+void OMSetStencilRef(ID3D12GraphicsCommandList* list,UINT ref)
+{
+    list->OMSetStencilRef(ref);
+}
+
 void SetGraphicsRootDescriptorTable(ID3D12GraphicsCommandList* list, u32 RootParameterIndex,D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor)
 {
     ASSERT(list);

@@ -1,11 +1,8 @@
+package enginemath
 
-package graphics
-/*
 import "core:fmt"
 import "core:c"
 import la "core:math/linalg"
-
-import platform "../platform"
 
 f4 :: la.Vector4f32;
 f3 :: la.Vector3f32;
@@ -58,4 +55,3 @@ rotate :: proc(q : Quat ,dir : f3) -> f3
     ca : f3 = la.vector_cross3(qxyz, t);
     return (dir+a)+ca;
 }
-*/

@@ -8,6 +8,7 @@ import platform "../platform"
 import fmj "../fmj"
 
 import con "../containers"
+import enginemath "../math"
 
 Scene :: struct 
 {
@@ -57,7 +58,7 @@ SceneObject :: struct
     import_type : SceneObjectType,//user defined type
     type : SceneObjectType,
     data : rawptr,//user defined data typically ptr to a game object etcc...
-    primitives_range : f2,
+    primitives_range : enginemath.f2,
 };
 
 SceneObjectHandle :: Handle;
@@ -66,6 +67,7 @@ assetctx_init :: proc(ctx : ^AssetContext)
 {
     using platform;
     using con;
+    using enginemath;
     ctx.scene_objects = buf_init(100,SceneObject);
     asset_tables := &ctx.asset_tables;
 //    asset_tables.materials = ;//buf_init(100,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
@@ -101,7 +103,7 @@ scene_object_init :: proc(name : string) -> SceneObject
     return a;
 }
 
-scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : f3,q : Quat,s : f3,name : string) -> u64
+scene_add_so :: proc(ctx : ^AssetContext,sob : ^SceneObjectBuffer,p : enginemath.f3,q : enginemath.Quat,s : enginemath.f3,name : string) -> u64
 {
     using fmj;
     using con;        
@@ -163,7 +165,7 @@ add_child_to_scene_object_with_transform :: proc(ctx : ^AssetContext,parent_so_i
 }
 
 //NOTE(Ray):When adding a chid ot p is local position and p is offset from parents ot p.
-add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p : f3,r : Quat,s : f3,data : ^rawptr,name : string) -> u64
+add_new_child_to_scene_object :: proc(ctx : ^AssetContext,parent_so_id : u64,p : enginemath.f3,r : enginemath.Quat,s : enginemath.f3,data : ^rawptr,name : string) -> u64
 {
     assert(ctx != nil);
     new_child := transform_init();
@@ -203,16 +205,16 @@ update_scene :: proc(ctx : ^AssetContext,scene : ^Scene)
 {
     assert(ctx != nil);    
     product := la.QUATERNIONF32_IDENTITY;
-    sum := f3{};
+    sum := enginemath.f3{};
     update_scene_objects(ctx,&scene.buffer,&sum,&product);
 }
 
-update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, position_sum : ^f3, rotation_product : ^Quat)
+update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, position_sum : ^enginemath.f3, rotation_product : ^enginemath.Quat)
 {
     using con;
+    using enginemath;
     assert(ctx != nil);    
-    for i := 0;i < cast(int)buf_len(buffer.buffer);i+=1
-    {
+    for i := 0;i < cast(int)buf_len(buffer.buffer);i+=1{
         child_so_index := buf_chk_out(&buffer.buffer,cast(u64)i);        
         so := buf_chk_out(&ctx.scene_objects,child_so_index^);
         buf_chk_in(&buffer.buffer);
@@ -226,13 +228,13 @@ update_scene_objects :: proc(ctx : ^AssetContext,buffer : ^SceneObjectBuffer, po
     }
 }
 
-update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_sum : ^f3,rotation_product : ^Quat)
+update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_sum : ^enginemath.f3,rotation_product : ^enginemath.Quat)
 {
     using con;
+    using enginemath;
     assert(ctx != nil);    
     child_so : ^SceneObject;
-    for i := 0;i < cast(int)buf_len(parent_so.children.buffer);i+=1
-    {
+    for i := 0;i < cast(int)buf_len(parent_so.children.buffer);i+=1{
         child_so_index := buf_chk_out(&parent_so.children.buffer,cast(u64)i);
         child_so = buf_chk_out(&ctx.scene_objects,child_so_index^);        
         ot := &child_so.transform;
@@ -267,12 +269,12 @@ get_t :: proc(id : u64) -> ^Transform
     return &so.transform;    
 }
 
-get_local_p :: proc(id : u64) -> ^f3
+get_local_p :: proc(id : u64) -> ^enginemath.f3
 {
     return &get_so(id).transform.local_p;    
 }
 
-get_local_s :: proc(id : u64) -> ^f3
+get_local_s :: proc(id : u64) -> ^enginemath.f3
 {
     return &get_so(id).transform.local_s;    
 }

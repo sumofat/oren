@@ -14,6 +14,7 @@ import windows "core:sys/windows"
 import window32 "core:sys/win32"
 
 import con "../containers"
+import enginemath "../math"
 
 asset_ctx : AssetContext;
 
@@ -25,7 +26,7 @@ AssetTables :: struct
     textures : con.Buffer(Texture),
     vertex_buffers : con.Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
     index_buffers : con.Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
-    matrix_buffer : con.Buffer(f4x4),
+    matrix_buffer : con.Buffer(enginemath.f4x4),
     meshes : con.Buffer(Mesh),
 };
 
@@ -41,11 +42,11 @@ AssetContext :: struct
 Texture :: struct
 {
     texels : rawptr,
-    dim : f2,
+    dim : enginemath.f2,
     size : u32,
     bytes_per_pixel : u32,
     width_over_height : f32,// TODO(Ray Garner): probably remove
-    align_percentage : f2,// TODO(Ray Garner): probably remove this
+    align_percentage : enginemath.f2,// TODO(Ray Garner): probably remove this
     channel_count : u32,//grey = 1: grey,alpha = 2,rgb = 3,rgba = 4
     //    Texture texture : Texture,
     state : rawptr,// NOTE(Ray Garner): temp addition
@@ -56,8 +57,8 @@ Sprite :: struct
 {
     id : u64,
     tex_id : u32,
-    uvs : [4]f2,
-    color : f4,
+    uvs : [4]enginemath.f2,
+    color : enginemath.f4,
     is_visible : bool,
     material_name : string,
 };
@@ -113,7 +114,7 @@ Mesh :: struct
     material_name : string,    
     metallic_roughness_texture_id : u64,
 
-    base_color : f4,
+    base_color : enginemath.f4,
 };
 
 Model :: struct
@@ -136,16 +137,16 @@ RenderMaterial :: struct
     id : u64,
     name : string,
     pipeline_state : rawptr,//finalized depth stencil state etc... 
-    scissor_rect : f4,
-    viewport_rect : f4,
+    scissor_rect : enginemath.f4,
+    viewport_rect : enginemath.f4,
     metallic_roughness_texture_id : u64,
-    base_color : f4,
+    base_color : enginemath.f4,
 };
 
 load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64,type : SceneObjectType)
 {
-    for i := 0;i < cast(int)node.children_count;i+=1
-    {
+    using enginemath;
+    for i := 0;i < cast(int)node.children_count;i+=1{
         child_ptr := mem.ptr_offset(node.children,i);//cgltf.node
         child : ^cgltf.node = child_ptr^;	
         trans := transform_init();
@@ -200,6 +201,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
 asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : RenderMaterial,type : SceneObjectType = .mesh) -> ModelLoadResult
 {
     using con;
+    using enginemath;
     result : ModelLoadResult;
     is_success := false;
 
@@ -209,8 +211,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     assert(aresult == cgltf.result.result_success);
     if cast(cgltf.result)aresult == cgltf.result.result_success
     {
-        for i := 0;i < cast(int)cgltf_data.buffers_count;i += 1
-        {
+        for i := 0;i < cast(int)cgltf_data.buffers_count;i += 1{
 	        uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
             rs := cgltf.load_buffers(&options, cgltf_data, uri);
             assert(rs == cgltf.result.result_success);
@@ -229,8 +230,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
 
 		    root_scene := mem.ptr_offset(cgltf_data.scenes,0);
             
-            for i := 0;i < cast(int)scenes_count;i+=1
-            {
+            for i := 0;i < cast(int)scenes_count;i+=1{
                 root_node : ^cgltf.node = mem.ptr_offset(root_scene.nodes,i)^;
 		        
                 trans := transform_init();
@@ -285,16 +285,15 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     return result;        
 }
 
-create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial) -> f2
+create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial) -> enginemath.f2
 {
     using con;
     assert(ma != nil);
     mesh_id := buf_len(ctx.asset_tables.meshes);
     
-    result := f2{cast(f32)mesh_id,cast(f32)mesh_id};
+    result := enginemath.f2{cast(f32)mesh_id,cast(f32)mesh_id};
 
-    for j := 0;cast(uint)j < ma.primitives_count; j += 1
-    {
+    for j := 0;cast(uint)j < ma.primitives_count; j += 1{
         mesh := Mesh{};
         prim := mem.ptr_offset(ma.primitives,j);
         mat  := prim.material;
@@ -341,7 +340,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 }
 
                 bcf := mat.pbr_metallic_roughness.base_color_factor;
-                mesh.base_color = f4{bcf[0],bcf[1],bcf[2],bcf[3]};
+                mesh.base_color = enginemath.f4{bcf[0],bcf[1],bcf[2],bcf[3]};
 
                 //            cgltf_float* mf = &mat.pbr_metallic_roughness.metallic_factor;
                 //            cgltf_float* rf = &mat.pbr_metallic_roughness.roughness_factor;
@@ -360,9 +359,9 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 }
 
                 dcf := mat.pbr_specular_glossiness.diffuse_factor;
-                diffuse_value := f4{dcf[0],dcf[1],dcf[2],dcf[3]};
+                diffuse_value := enginemath.f4{dcf[0],dcf[1],dcf[2],dcf[3]};
                 sf := mat.pbr_specular_glossiness.specular_factor;
-                specular_value := f3{sf[0],sf[1],sf[2]};
+                specular_value := enginemath.f3{sf[0],sf[1],sf[2]};
                 gf := &mat.pbr_specular_glossiness.glossiness_factor;
             }
 
@@ -410,8 +409,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 }
             }
             
-            for k := 0;k < cast(int)prim.attributes_count; k += 1
-            {
+            for k := 0;k < cast(int)prim.attributes_count; k += 1{
                 ac := mem.ptr_offset(prim.attributes,k);
 
                 acdata := ac.data;
@@ -540,14 +538,14 @@ image_from_mem :: proc(ptr : ^u8,size : i32,texture : ^Texture ,desired_channels
 
     texture.texels = stbi.load_from_memory(ptr,size,&dimx,&dimy,cast(^i32)&texture.channel_count,desired_channels);
 
-    texture.dim = f2{cast(f32)dimx,cast(f32)dimy};
+    texture.dim = enginemath.f2{cast(f32)dimx,cast(f32)dimy};
     texture.width_over_height = cast(f32)(dimx / dimy);
 
     // NOTE(Ray Garner):stbi_info always returns 8bits/1byte per channels if we want to load 16bit or float need to use a 
     //a different api. for now we go with this. 
     //Will probaby need a different path for HDR textures etc..
     texture.bytes_per_pixel = cast(u32)desired_channels;
-    texture.align_percentage = f2{0.5,0.5};
+    texture.align_percentage = enginemath.f2{0.5,0.5};
     texture.channel_count = cast(u32)desired_channels;
 //    texture.texture = {};
     texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
@@ -636,15 +634,14 @@ set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,si
     return id;
 }
 
-upload_meshes :: proc(ctx : ^AssetContext,range : f2)
+upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
 {
     using con;
-    for i := range.x;i <= range.y;i+=1
-    {
+    for i := range.x;i <= range.y;i+=1{
         is_valid := 0;
         mesh_r : GPUMeshResource;
         mesh := buf_chk_out(&ctx.asset_tables.meshes,cast(u64)i);
-        id_range := f2{};
+        id_range := enginemath.f2{};
         if mesh.vertex_count > 0
         {
             id_range.x = cast(f32)set_buffer(ctx,&mesh_r.vertex_buff,size_of(f32) * 3,mesh.vertex_data_size,mesh.vertex_data);            
@@ -722,8 +719,7 @@ get_mesh_id_by_name :: proc(name : string,ctx : ^AssetContext, start : ^SceneObj
 {
     using con;
     s := cast(int)start.primitives_range.y;
-    for i := 0;i <= s;i+=1
-    {
+    for i := 0;i <= s;i+=1{
         mesh := buf_get(&ctx.asset_tables.meshes,cast(u64)i);
         if strings.compare(mesh.name,name) == 0
         {
@@ -734,8 +730,7 @@ get_mesh_id_by_name :: proc(name : string,ctx : ^AssetContext, start : ^SceneObj
 
     is_found := false;
     c_l := len(start.children.buffer.buffer);
-    for c := 0;c < c_l;c+=1
-    {
+    for c := 0;c < c_l;c+=1{
         c_id := buf_get(&start.children.buffer,cast(u64)c);
         child_so := buf_get(&ctx.scene_objects,c_id);
         is_found := get_mesh_id_by_name(name,ctx,&child_so,result);
@@ -763,8 +758,7 @@ copy_model_data_recursively_ :: proc(ctx : ^AssetContext,dest_id : u64,src_id : 
 {
     using con;
     src := buf_get(&ctx.scene_objects,src_id);
-    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
-    {
+    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1{
         child_so_id := buf_get(&src.children.buffer,cast(u64)i);
         child_so := buf_get(&ctx.scene_objects,child_so_id);
 	    new_child_dest := copy_scene_object(ctx,&child_so);
@@ -789,8 +783,7 @@ create_model_instance :: proc(ctx : ^AssetContext,model : ModelLoadResult) -> u6
 
 //    destination := buf_chk_out(&ctx.scene_objects,dest_id);                
 //    assert(buf_len(destination.children.buffer) == buf_len(src.children.buffer));    
-    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1
-    {
+    for i := 0;i < cast(int)buf_len(src.children.buffer);i+=1{
         src_child_so_id := buf_get(&src.children.buffer,cast(u64)i);
         src_child_so := buf_get(&ctx.scene_objects,src_child_so_id);
         dest_child_so_ := copy_scene_object(ctx,&src_child_so);

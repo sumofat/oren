@@ -1,15 +1,15 @@
 #pragma pack_matrix( row_major )
 
 ByteAddressBuffer matrix_buffer : register(t3);
-//ByteAddressBuffer light_buffer : register(t4);
 
 struct ModelViewProjection
 {
     matrix MVP;
 };
 
+
 ConstantBuffer<ModelViewProjection> ModelViewProjectionCB : register(b0);
-ConstantBuffer<ModelViewProjection> WorldProjectionCB : register(b1);
+ConstantBuffer<ModelViewProjection> test : register(b1);
 
 struct VertexPosColor
 {
@@ -23,8 +23,8 @@ struct VertexShaderOutput
     float4 position : SV_Position;    
     float4 Color : COLOR;
     float2 UV : TEXCOORD0;
-    float3 normal : TEXCOORD1;
-    float4 frag_p : TEXCOORD2;    
+    float3 normal : NORMAL;
+    float4 frag_p : TEXCOORD1;    
 };
 
 VertexShaderOutput main(VertexPosColor IN)
@@ -52,6 +52,10 @@ VertexShaderOutput main(VertexPosColor IN)
                  mm1.x,mm1.y,mm1.z,mm1.w,
 	         mm2.x,mm2.y,mm2.z,mm2.w,
 	         mm3.x,mm3.y,mm3.z,mm3.w};
+float3x3 mm3x3 = { mm0.x,mm0.y,mm0.z,
+                 mm1.x,mm1.y,mm1.z,
+                 mm2.x,mm2.y,mm2.z};
+
 
     float4 p = mul(float4(IN.Position,1.0f),m);
     float4 world_p = mul(float4(IN.Position,1.0f),mm);
@@ -61,7 +65,9 @@ VertexShaderOutput main(VertexPosColor IN)
     OUT.Color = float4(1,1,1,1);
     OUT.UV = IN.UV;
     float3 n = IN.normal;
-    OUT.normal = normalize(mul(float4(n,0),mm).xyz);
+
+OUT.normal = mul(n,mm3x3);
+    //OUT.normal = normalize(n);//normalize(mul(float4(n,0),mm3).xyz);
 
     return OUT;
 }

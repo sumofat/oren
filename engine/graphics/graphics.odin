@@ -15,6 +15,7 @@ import window32 "core:sys/win32"
 import con "../containers";
 
 foreign import gfx "../../library/windows/build/win32.lib"
+import enginemath "../math"
 
 D3D12_APPEND_ALIGNED_ELEMENT : u32 : 0xffffffff;
 
@@ -124,7 +125,8 @@ foreign gfx
     GetBuffer :: proc "c"(swapChain : /*IDXGISwapChain4**/rawptr , Buffer : windows.UINT,ppSurface : ^rawptr) -> windows.HRESULT ---;
     CreateRenderTargetView :: proc "c"(device : rawptr,pResource : rawptr,pDesc : ^platform.D3D12_RENDER_TARGET_VIEW_DESC,DestDescriptor : platform.D3D12_CPU_DESCRIPTOR_HANDLE) ---;
     CreateDevice :: proc "c"(adapter : rawptr/*IDXGIAdapter4* */)-> rawptr ---;
-    GetAdapter :: proc "c"(useWarp : bool)-> rawptr ---/*IDXGIAdapter4**/;    
+    GetAdapter :: proc "c"(useWarp : bool)-> rawptr ---/*IDXGIAdapter4**/;   
+    OMSetStencilRef :: proc "c"(list : rawptr,ref : u32) ---;
 }
 
 CommandAllocToListResult :: struct
@@ -138,7 +140,7 @@ CreateDeviceResult :: struct
 {
     is_init : bool,
     compatible_level : c.int,
-    dim : fmj.f2,
+    dim : enginemath.f2,
     device : RenderDevice,
 };
 
@@ -166,14 +168,14 @@ RenderCameraProjectionType :: enum
 RenderCamera :: struct
 {
     ot : Transform,//perspective and ortho only
-    matrix : f4x4,
-    projection_matrix : f4x4,
-    spot_light_shadow_projection_matrix : f4x4,
-    point_light_shadow_projection_matrix  : f4x4,
+    matrix : enginemath.f4x4,
+    projection_matrix : enginemath.f4x4,
+    spot_light_shadow_projection_matrix : enginemath.f4x4,
+    point_light_shadow_projection_matrix  : enginemath.f4x4,
     projection_type : RenderCameraProjectionType,
     size : f32,//ortho only
     fov : f32,//perspective only
-    near_far_planes : f2,
+    near_far_planes : enginemath.f2,
     matrix_id : u64,
     projection_matrix_id : u64,
 };
@@ -186,19 +188,19 @@ GPUMeshResource :: struct
     tangent_buff : platform.GPUArena ,
     element_buff : platform.GPUArena ,
     hash_key : u64 ,
-    buffer_range : f2 ,
+    buffer_range : enginemath.f2 ,
     index_id : u32,
 };
 
 RenderGeometry :: struct
 {
-    buffer_id_range : f2,
+    buffer_id_range : enginemath.f2,
     count : u64,
     offset: u64,
     index_id: u64,
     index_count : u64,
     is_indexed : bool,
-    base_color : f4,
+    base_color : enginemath.f4,
 };
 
 RenderShader :: struct
@@ -318,7 +320,7 @@ add_material :: proc(ps : ^platform.PlatformState,state : rawptr,name : string)
     asset_material_store(&asset_ctx,name,new_material);
 }
 
-create_default_depth_stencil_buffer :: proc(dim : f2)
+create_default_depth_stencil_buffer :: proc(dim : enginemath.f2)
 {
     using platform;
     
@@ -449,7 +451,7 @@ create_default_root_sig :: proc() -> rawptr
     root_params[1].ShaderVisibility = .D3D12_SHADER_VISIBILITY_ALL;
    
     root_params[2].ParameterType = .D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    root_params[2].ShaderVisibility = .D3D12_SHADER_VISIBILITY_VERTEX;
+    root_params[2].ShaderVisibility = .D3D12_SHADER_VISIBILITY_ALL;
     root_params[2].root_parameter1_union.Constants = rc_2;
     
     root_params[3].ParameterType = .D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
@@ -501,8 +503,7 @@ update_render_target_views :: proc(device : rawptr ,swapChain : rawptr ,descript
     using platform;
     rtv_desc_size := GetDescriptorHandleIncrementSize(device,.D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     rtv_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(descriptorHeap);
-    for i := 0; i < num_of_back_buffers; i+=1
-    {
+    for i := 0; i < num_of_back_buffers; i+=1{
         back_buffer : rawptr;
         r : windows.HRESULT = GetBuffer(swapChain,cast(u32)i, &back_buffer);
 	    assert(r == 0);
@@ -748,7 +749,7 @@ get_free_command_allocator_entry :: proc(list_type : platform.D3D12_COMMAND_LIST
     return result;
 }
 
-create_render_texture :: proc(ctx : ^AssetContext,dim : f2,heap : platform.ID3D12DescriptorHeap,format : platform.DXGI_FORMAT = .DXGI_FORMAT_R8G8B8A8_UNORM) -> (int,int)
+create_render_texture :: proc(ctx : ^AssetContext,dim : enginemath.f2,heap : platform.ID3D12DescriptorHeap,format : platform.DXGI_FORMAT = .DXGI_FORMAT_R8G8B8A8_UNORM) -> (int,int)
 {
     using platform;
 
@@ -827,6 +828,8 @@ create_render_texture :: proc(ctx : ^AssetContext,dim : f2,heap : platform.ID3D1
 texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Resource,heap : rawptr/*ID3D12DescriptorHeap* */,is_render_target : bool = false)
 {
     using platform;
+    using enginemath;
+    using math;
     free_ca : ^platform.D12CommandAllocatorEntry = get_free_command_allocator_entry(platform.D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_COPY);    
     resource_ca = free_ca.allocator;
         
@@ -927,11 +930,10 @@ texture_2d :: proc(lt : ^Texture,heap_index : u32,tex_resource : ^platform.D12Re
 	    ExecuteCommandLists(copy_command_queue,mem.raw_slice_data(command_lists[:]),cast(u32)len(command_lists));
         upload_operations.fence_value = Signal(copy_command_queue, upload_operations.fence, &upload_operations.fence_value);
 
-        WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event,math.F32_MAX);            
+        WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event,F32_MAX);            
 
         //If we have gotten here we remove the temmp transient resource. and remove them from the cache
-        for i := 0;i < cast(int)con.buf_len(upload_operations.table_cache.anythings);i += 1
-        {
+        for i := 0;i < cast(int)con.buf_len(upload_operations.table_cache.anythings);i += 1{
             finished_uop : ^UploadOp = con.buf_ptr(&upload_operations.table_cache.anythings,cast(u64)i);
             // NOTE(Ray Garner): Upload should always be a copy operation and so we cant/dont need to 
             //call discard resource.
@@ -1031,17 +1033,14 @@ upload_buffer_data :: proc(g_arena : ^platform.GPUArena,data : rawptr,size : u64
         command_lists : []rawptr = {
             resource_cl,
         };
-	
+	    
         //copy_command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
-	ExecuteCommandLists(copy_command_queue,mem.raw_slice_data(command_lists[:]),cast(u32)len(command_lists));
-
+	    ExecuteCommandLists(copy_command_queue,mem.raw_slice_data(command_lists[:]),cast(u32)len(command_lists));
         upload_operations.fence_value = Signal(copy_command_queue, upload_operations.fence, &upload_operations.fence_value);
-            
         WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event,math.F32_MAX);
 
         //If we have gotten here we remove the temmp transient resource. and remove them from the cache
-        for i := 0;i < cast(int)con.buf_len(upload_operations.table_cache.anythings);i += 1
-        {
+        for i := 0;i < cast(int)con.buf_len(upload_operations.table_cache.anythings);i += 1{
             finished_uop : ^UploadOp = con.buf_ptr(&upload_operations.table_cache.anythings,cast(u64)i);
             // NOTE(Ray Garner): Upload should always be a copy operation and so we cant/dont need to 
             //call discard resource.
@@ -1115,8 +1114,7 @@ check_reuse_command_allocators :: proc()
     buf_clear(&allocator_tables.free_allocator_table_direct);
     buf_clear(&allocator_tables.free_allocator_table_compute);
     buf_clear(&allocator_tables.free_allocator_table_copy);                
-    for i := 0;i < cast(int)buf_len(allocator_tables.fl_ca.anythings);i+=1
-    {
+    for i := 0;i < cast(int)buf_len(allocator_tables.fl_ca.anythings);i+=1{
         entry : ^platform.D12CommandAllocatorEntry = buf_ptr(&allocator_tables.fl_ca.anythings,cast(u64)i);
         if entry != nil
         {
@@ -1157,8 +1155,7 @@ get_first_associated_list :: proc(allocator : ^platform.D12CommandAllocatorEntry
     result : CommandAllocToListResult;
     found : bool = false;
     //Run through all the list that are associated with an allocator check for first available list
-    for i := 0; i < cast(int)buf_len(allocator_tables.allocator_to_list_table); i+=1
-    {
+    for i := 0; i < cast(int)buf_len(allocator_tables.allocator_to_list_table); i+=1{
         entry : ^D12CommandAlloctorToCommandListKeyEntry = buf_ptr(&allocator_tables.allocator_to_list_table,cast(u64)i);
         if allocator.index == entry.command_list_index
         {
@@ -1212,8 +1209,7 @@ end_command_list_encoding_and_execute :: proc(ca : ^platform.D12CommandAllocator
     //Render encoder end encoding
     index : u64 = cl.index;
         
-    for i := 0; i < cast(int)buf_len(ca.used_list_indexes); i+= 1
-    {
+    for i := 0; i < cast(int)buf_len(ca.used_list_indexes); i+= 1{
         index_ : u64 = buf_get(&ca.used_list_indexes,cast(u64)i);//*((u64*)ca.used_list_indexes.fixed.base + i);
         cle : ^D12CommandListEntry = buf_ptr(&allocator_tables.command_lists,index_);
 	    cle.is_encoding = false;	
@@ -1260,7 +1256,7 @@ add_draw_command :: proc(offset : u32,count : u32,topology : platform.D3D12_PRIM
     con.buf_push(&render_commands,com);
 }
     
-add_viewport_command :: proc(vp : f4)
+add_viewport_command :: proc(vp : enginemath.f4)
 {
     com : D12CommandViewport;    
     com.viewport = vp;
@@ -1281,7 +1277,7 @@ add_pipeline_state_command :: proc(ps : /*ID3D12PipelineState**/rawptr)
     con.buf_push(&render_commands,com);                    
 }
     
-add_scissor_command :: proc(rect : f4)
+add_scissor_command :: proc(rect : enginemath.f4)
 {
     com : D12CommandScissorRect;
     com.rect = platform.D3D12_RECT{cast(i32)rect.x,cast(i32)rect.y,cast(i32)rect.z,cast(i32)rect.w};
@@ -1322,7 +1318,7 @@ add_graphics_root_desc_table :: proc(index : u64,heaps : /*^ID3D12DescriptorHeap
     con.buf_push(&render_commands,com);                                
 };
 
-add_clear_command :: proc(color : f4,render_target : platform.D3D12_CPU_DESCRIPTOR_HANDLE,resourceviewid : u64)
+add_clear_command :: proc(color : enginemath.f4,render_target : platform.D3D12_CPU_DESCRIPTOR_HANDLE,resourceviewid : u64)
 {
     com : D12CommandClear;
     com.color = color;
@@ -1340,6 +1336,13 @@ add_clear_depth_stencil_command :: proc(clear_depth : bool,depth : f32,clear_ste
     com.stencil = stencil;
     com.resource = resource;
     con.buf_push(&render_commands,com);                                    
+}
+
+add_stencil_ref_command :: proc(ref : u32)
+{
+    com : D12CommandSetStencilReference;
+    com.ref = ref;
+    con.buf_push(&render_commands,com);
 }
 
 arena_raw :: struct
@@ -1464,10 +1467,10 @@ execute_frame :: proc()
 
     //    for list in render_command_lists
     {
-        for com in render_commands.buffer
-        {
+        for com in render_commands.buffer{
 	        switch t in com
 	        {
+                
                 case D12CommandClear:
                 {
                     //D12Present the current framebuffer
@@ -1616,7 +1619,11 @@ execute_frame :: proc()
                     buf_clear(&current_ae.used_list_indexes);
                     continue;                    
                 }
-                
+                case D12CommandSetStencilReference:{
+                    command := com.(D12CommandSetStencilReference);    
+                    OMSetStencilRef(current_cl.list,command.ref);
+                    continue;
+                }
 	            case D12CommandBasicDraw :
                 {
                     command := com.(D12CommandBasicDraw);	    

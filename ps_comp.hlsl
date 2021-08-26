@@ -20,8 +20,9 @@ ConstantBuffer<ShaderVars> shader_vars : register(b0);
 float4 main( PixelShaderInput IN ) : SV_Target
 {
     float4 color = ts[shader_vars.tex_index].Sample(s1, IN.UV);
-    float4 normal = ts[shader_vars.tex_index + 1].Sample(s1, IN.UV);    
-    float4 position = ts[shader_vars.tex_index + 2].Sample(s1, IN.UV);
-  
-    return color;// + test_light_color;//position;//normal;//color;//float4(color.xyz,1.0) * IN.Color;
+    //float4 normal = ts[shader_vars.tex_index + 1].Sample(s1, IN.UV);    
+    //float4 position = ts[shader_vars.tex_index + 2].Sample(s1, IN.UV);
+    float4 light = ts[shader_vars.tex_index + 3].Sample(s1, IN.UV);
+    return float4(color.xyz * light.xyz,1);
+    //return float4(light.xyz,1);
 }
