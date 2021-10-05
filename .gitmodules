@@ -13,3 +13,6 @@
 [submodule "engine/external/odin_stb"]
 	path = engine/external/odin_stb
 	url = https://github.com/vassvik/odin-stb.git
+[submodule "engine/external/odin-imgui"]
+	path = engine/external/odin-imgui
+	url = https://github.com/ThisDrunkDane/odin-imgui.git

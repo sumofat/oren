@@ -265,8 +265,7 @@ update_children :: proc( ctx : ^AssetContext,parent_so : ^SceneObject,position_s
 get_t :: proc(id : u64) -> ^Transform
 {
     so := get_so(id);
-
-    return &so.transform;    
+    return &so.transform;
 }
 
 get_local_p :: proc(id : u64) -> ^enginemath.f3

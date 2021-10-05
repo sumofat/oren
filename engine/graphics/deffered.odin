@@ -8,6 +8,7 @@ import windows "core:sys/windows"
 import window32 "core:sys/win32"
 import "core:fmt"
 import enginemath "../math"
+import imgui "../external/odin-imgui"
 
 pers_proj_pass : RenderPass(RenderProjectionPass,GeometryRenderCommandList);
 gbuffer_pass : RenderPass(GbufferPass,GeometryRenderCommandList);
@@ -586,4 +587,40 @@ execute_lighting_pass2 :: proc(pass : RenderPass(LightingAccumPass2,LightRenderC
 	    }
 	    add_end_command_list_command();		
     }
+}
+
+
+setup_imgui_pass :: proc(){
+
+}
+
+draw_imgui :: proc(command_list : any,imgui_heap : any){
+    barrier : platform.D3D12_RESOURCE_BARRIER = {};
+    barrier.Type                   = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+    barrier.Flags                  = .D3D12_RESOURCE_BARRIER_FLAG_NONE;
+
+
+    current_backbuffer_index := platform.GetCurrentBackBufferIndex(swap_chain);    
+    
+    back_buffer_resource : rawptr;
+    r : windows.HRESULT = GetBuffer(swap_chain,cast(u32)current_backbuffer_index, &back_buffer_resource);
+    barrier.barrier_union.Transition.pResource   = back_buffer_resource;
+    barrier.barrier_union.Transition.Subresource = platform.D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_PRESENT;
+    barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+    cl := command_list.(rawptr);
+
+    ResourceBarrier(cl,1, &barrier);
+    desc_heaps : []rawptr = {imgui_heap.(rawptr)};
+    SetDescriptorHeaps(cl,1, mem.raw_slice_data(desc_heaps[:]));
+    ImGui_ImplDX12_RenderDrawData(imgui.get_draw_data(),cl);
+    barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
+    barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_PRESENT;
+    ResourceBarrier(cl,1, &barrier);
+}
+
+execute_imgui_pass :: proc(imgui_heap : rawptr){
+    add_start_command_list_command();
+    add_callback_command(draw_imgui,imgui_heap);
+    add_end_command_list_command();
 }

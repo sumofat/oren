@@ -138,6 +138,7 @@ D12RenderCommand :: union {
 	D12CommandClear,
 	D12CommandDepthStencilClear,
     D12CommandSetStencilReference,
+    D12CommandCallback,
 }
 
 D12CommandPipelineState :: struct {
@@ -176,6 +177,12 @@ D12CommandClear :: struct {
 	resource_id:   u64,
 	render_target: platform.D3D12_CPU_DESCRIPTOR_HANDLE,
 }
+
+D12CommandCallback :: struct{
+	data : any,
+	callback : proc(data : any,data2 : any),
+}
+
 
 D12CommandDepthStencilClear :: struct {
 	clear_depth:   bool,

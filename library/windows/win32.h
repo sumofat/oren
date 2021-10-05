@@ -543,6 +543,9 @@ extern "C"
     void AddGraphicsRoot32BitConstant(u32 index,u32 num_values,void* gpuptr,u32 offset);    
     GPUMemoryResult QueryGPUFastMemory();
     void CompileShader_(char* file_name,void** blob,char* shader_version_and_type);
+    void CompileShaderText_(char* shader_text,int text_size,void** blob,char* shader_version_and_type);
+    ID3D12PipelineState* CreateGraphicsPipelineState(ID3D12Device2* device,D3D12_GRAPHICS_PIPELINE_STATE_DESC *pDesc);
+
     D3D12_SHADER_BYTECODE GetShaderByteCode(ID3DBlob* blob);
 
     ID3D12PipelineState*  CreatePipelineState(ID3D12Device2* device,D3D12_PIPELINE_STATE_STREAM_DESC pssd);
@@ -574,7 +577,8 @@ extern "C"
     void CreateShaderResourceView(ID3D12Device2* device,ID3D12Resource* resource,D3D12_SHADER_RESOURCE_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
     void CreateConstantBufferView(ID3D12Device2* device,D3D12_CONSTANT_BUFFER_VIEW_DESC* desc,D3D12_CPU_DESCRIPTOR_HANDLE handle);
     
-    void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data);
+    HRESULT Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data);
+    void Unmap(ID3D12Resource* resource,UINT Subresource,D3D12_RANGE *pWrittenRange);
 
     ID3D12CommandQueue* CreateCommandQueue(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type);
     IDXGISwapChain4* CreateSwapChain(HWND hWnd,ID3D12CommandQueue* commandQueue,u32 width, u32 height, u32 bufferCount);
@@ -593,6 +597,8 @@ extern "C"
     
     //    void ExecuteCommandLists(ID3D12CommandList* lists,u32 list_count);
     u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64* fenceValue);    
+    HRESULT SetEventOnCompletion(ID3D12Fence* fence,UINT64 Value,HANDLE hEvent);
+    HRESULT SignalCommandQueue(ID3D12CommandQueue* commandQueue,ID3D12Fence *pFence,UINT64 Value);
     void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration);
 
     bool CheckFeatureSupport(ID3D12Device2* device,D3D12_FEATURE Feature,void *pFeatureSupportData,UINT FeatureSupportDataSize);
@@ -612,6 +618,7 @@ extern "C"
                            u32                        NumRects,
                                D3D12_RECT            *pRects);
     void OMSetRenderTargets(ID3D12GraphicsCommandList* list,u32 NumRenderTargetDescriptors,D3D12_CPU_DESCRIPTOR_HANDLE *pRenderTargetDescriptors,bool RTsSingleHandleToDescriptorRange,D3D12_CPU_DESCRIPTOR_HANDLE *pDepthStencilDescriptor); 
+    void OMSetBlendFactor(ID3D12GraphicsCommandList* list,float BlendFactor[4]); 
     void OMSetStencilRef(ID3D12GraphicsCommandList* list,UINT ref);
     void RSSetViewports(ID3D12GraphicsCommandList* list,u32 NumViewports,D3D12_VIEWPORT *pViewports);
     void RSSetScissorRects(ID3D12GraphicsCommandList* list,u32 NumRects,D3D12_RECT *pRects);
@@ -630,6 +637,9 @@ extern "C"
     void CreateRenderTargetView(ID3D12Device2* device,ID3D12Resource *pResource,D3D12_RENDER_TARGET_VIEW_DESC *pDesc,D3D12_CPU_DESCRIPTOR_HANDLE DestDescriptor);
     ID3D12Device2* CreateDevice(IDXGIAdapter4* adapter);
     IDXGIAdapter4* GetAdapter(bool useWarp);
+    D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress(ID3D12Resource* resource);
+    void CopyTextureRegion(ID3D12GraphicsCommandList* list,D3D12_TEXTURE_COPY_LOCATION *pDst,UINT DstX,UINT DstY,UINT DstZ,D3D12_TEXTURE_COPY_LOCATION *pSrc,D3D12_BOX *pSrcBox);
+    void ResourceBarrier(ID3D12GraphicsCommandList* list, UINT NumBarriers,D3D12_RESOURCE_BARRIER *pBarriers);
 }
 //end declare
 

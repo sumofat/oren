@@ -13,30 +13,54 @@ import gfx "engine/graphics"
 import con "engine/containers"
 import enginemath "engine/math"
 
+import imgui  "engine/external/odin-imgui";
+
 //Graphics
 /*
 	Start with a simple deffered renderer and figure out how we want the pipeline to work
+	Now we are doing imgui integration than some basic editor functionality try using odin RTTI
 	
 	clear : done
 	depth pre pass
 	g buffer passes : started
 	shadow pass 
-	light accum pass : next
-	buffer composite pass : started
-	present : done
-	
-	Once we get to point lights and shadows lets bring in imgui and bindings.
+	light accum pass : seems done
+	buffer composite pass : ok for now
+
+
+
+	imgui integration : todo
 	
 	Reference project PedalTotheMedal for how we might do render passes.
+
+	graphics:
+	sponza model loading : todo
+	sun light : todo
+	spot light : todo
+	point light shadows : todo
+	cascading shadow maps : todo
+	spotlight shadows : todo
+	present : done
+	Once we get to point lights basic point lights.
+	Next basic sun and spotlights.
+	Than we do point light shadows than sun (cascading shadow maps) and than spotlight shadows.
+
+	animation:
+	3d bones : todo
+	skinned meshes : todo
+
+	physics:
+	basic particle system : todo
+	physx integration : todo
+	
+	
 	Look at implementing a simple render graph even if it does nothing at first lets collect
 	the info on resources and references etc...
 */
 
 /*
-	
-	start working on the accumlation buffer.
-	Now making simple api for creating structured and constant buffers for gpu.
-	Once we have basic lighting working we will start working on quality of life things.
+	Once we have basic lighting (meaning lights and shadows) 
+	working we will start working on quality of life things.
 	
 	TODO:
 	We have the light sphere rendered scaling is off on imported models need to verify 
@@ -198,6 +222,40 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 			assert(false);
 		}
 
+		//editor //imgui
+		//res := Imgui_State{};
+		version := imgui.get_version();
+    	imgui.create_context();
+    	imgui.style_colors_dark();
+
+		io := imgui.get_io();
+		
+    	///imglfw.setup_state(window, true);
+
+    	//imgl.setup_state(&res.opengl_state);
+
+		//imgui_state := res;//imgui.init_imgui_state(window);
+    	//io := imgui.get_io();
+		g_pd3dSrvDescHeap : ID3D12DescriptorHeap;
+        	
+		imgui_desc : platform.D3D12_DESCRIPTOR_HEAP_DESC;
+    	imgui_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+    	imgui_desc.NumDescriptors = 1;
+    	imgui_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    	g_pd3dSrvDescHeap = create_descriptor_heap(device.device,imgui_desc);
+        //if g_pd3dSrvDescHeap != nil{
+            //return false;
+        //    assert(false);    
+		//}
+
+		assert(g_pd3dSrvDescHeap.value != nil);
+
+		ImGui_ImplWin32_Init(ps.window.handle);
+		ImGui_ImplDX12_Init(device.device, gfx.num_of_back_buffers,
+			.DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap.value,
+			GetCPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value),
+			GetGPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value));
+
 		using gfx;
 		using enginemath;
 		//	using platform;
@@ -341,21 +399,54 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 		//        init_projective_pass();
 		init_lighting_pass1();
 		init_lighting_pass2();
-		//	    init_perspective_projection_pass();
-		init_composite_pass(&asset_ctx);
-		//end experimental
+		//		    init_perspective_projection_pass();
+			init_composite_pass(&asset_ctx);
+			//end experimental
+	
+		speed : f32 = 0.01;	
+		yspeed : f32 = 0.1;
+		dir : f32 = 1;					
+		ydir : f32 = 1;
+		
+		show_demo_window := true;
 
-		for ps.is_running {
-			                                                                      //Game Update test_model_so                                           //Game Update test_model_so
-			                                                                      //	        get_local_p(test_model_instance).x += 0.001;               //	        get_local_p(test_model_instance).x += 0.001;
-			                                                                      //	        get_local_p(light_sphere_instance).z -= 0.001;             //	        get_local_p(light_sphere_instance).z -= 0.001;            
-			                                                                      //	        get_local_p(2).x += 0.001;                                 //	        get_local_p(2).x += 0.001;            
+		for ps.is_running {		
+			//editor
+			//imglfw.update_display_size();
+    		//imglfw.update_mouse();
+    		//imglfw.update_dt();
+    		ImGui_ImplDX12_NewFrame();
+        	ImGui_ImplWin32_NewFrame();
+			imgui.new_frame();
+			if show_demo_window do imgui.show_demo_window(&show_demo_window);
 
-			//get_local_s(test_model_instance)^ += f3{0.001, 0.001, 0.001};
-			//            get_t(test_model_instance).s += f3{0.1,0.1,0.1};
 
-			//End game update
 
+			//get_local_	p(test_model_instance).x += 0.001;
+			t := get_t(test_model_instance);
+			if t.p.x > 4{
+				dir = -1;
+			}	
+			else if t.p.x < -4{
+				dir = 1;
+			}	
+
+			if t.p.z < -10{
+				ydir = 1;
+			}
+			else if t.p.z > -6{
+				ydir = -1;
+			}
+			t.local_p.x += speed * dir;
+			t.local_p.z += yspeed * ydir;
+				//get_local_s(test_model_instance)^ += f3{0.001, 0.001, 0.001};
+				//            get_t(test_model_instance).s += f3{0.1,0.1,0.1};
+	
+				//End game update
+			
+			//editor
+			imgui.render();
+			
 			update_scene(&asset_ctx, &test_scene);
 			issue_render_commands(&render, &light_render, &test_scene, &asset_ctx, rc_matrix_id, projection_matrix_id);
 			//            issue_light_render_commands(&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);            
@@ -377,6 +468,8 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 			setup_composite_pass();
 			execute_composite_pass(composite_pass);
 
+            setup_imgui_pass();
+            execute_imgui_pass(g_pd3dSrvDescHeap.value);
 			//Basic forward rendering
 			//Basic pass
 			//	        setup_perspective_projection_pass(&render,matrix_buffer,&matrix_quad_buffer);

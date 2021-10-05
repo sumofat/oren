@@ -13,31 +13,26 @@ WindowData :: struct {
     height : u32,
 };
 
-Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wparam, lParam : window32.Lparam) -> window32.Lresult
-{
-    switch (uMsg)
-    {
-	case window32.WM_DESTROY:
-        {
-	    window32.post_quit_message(0);
-	    return 0;
+Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wparam, lParam : window32.Lparam) -> window32.Lresult{
+    switch (uMsg){
+    	case window32.WM_DESTROY:{
+    	    window32.post_quit_message(0);
+    	    return 0;
         }
-	case window32.WM_PAINT:
-	{
-	    ps : window32.Paint_Struct = {};
-	    hdc : window32.Hdc = window32.begin_paint(hwnd, &ps);
+    	case window32.WM_PAINT:{
+    	    ps : window32.Paint_Struct = {};
+    	    hdc : window32.Hdc = window32.begin_paint(hwnd, &ps);
 
-	    //window32.fill_rect(hdc, &ps.rcPaint, window32.COLOR_BACKGROUND);
+    	    //window32.fill_rect(hdc, &ps.rcPaint, window32.COLOR_BACKGROUND);
 
-	    window32.end_paint(hwnd, &ps);
-	    return 0;
-	}
+    	    window32.end_paint(hwnd, &ps);
+    	    return 0;
+    	}
     }
     return window32.def_window_proc_a(hwnd, uMsg, wParam, lParam);
 }
 
-spawn_window :: proc(ps : ^PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData)
-{
+spawn_window :: proc(ps : ^PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData){
     // Register the window class.
     CLASS_NAME : cstring = "Main Vulkan Window";
 
@@ -80,12 +75,10 @@ spawn_window :: proc(ps : ^PlatformState,windowName : cstring, width : u32 = 640
     return nil, window;
 }
 
-handle_msgs :: proc(window : ^WindowData) -> bool
-{
+handle_msgs :: proc(window : ^WindowData) -> bool{
     msg : window32.Msg = {};
     cont : bool = true;
-    for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE)
-    { 
+    for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE){ 
         if msg.message == window32.WM_QUIT do cont = false;
         window32.translate_message(&msg);
         window32.dispatch_message_a(&msg);

@@ -154,20 +154,6 @@ Input :: struct
     game_pads : [MAX_CONTROLLER_SUPPORT]GamePad,
 };
 
-POINT :: struct
-{
-    x : u32,
-    y : u32,
-};
-
-RECT :: struct
-{
-    left : u32,
-    top : u32,
-    right : u32,
-    bottom : u32,
-};
-
 Window :: struct
 {
     w_class : window32.Wnd_Class_A,
@@ -179,9 +165,25 @@ Window :: struct
     is_full_screen_mode : bool,
 };
 
+TRACKMOUSEEVENT :: struct{
+  cbSize : windows.DWORD,
+  dwFlags : windows.DWORD,
+  hwndTrack : window32.Hwnd,
+  dwHoverTime : windows.DWORD,
+};
+
+TME_LEAVE :: 0x00000002;
+WM_MOUSELEAVE :: 0x02A3;
+WHEEL_DELTA :: 120;
+GET_WHEEL_DELTA_WPARAM :: window32.HIWORD_W;
+HTCLIENT :: 1; //in a client area
+DBT_DEVNODES_CHANGED :: 0x0007;//device has been added to or removed from the system.
+WM_DEVICECHANGE :: 0x0219;
+
 foreign import winkernal "system:kernel32.lib";
 foreign import platform "../../library/windows/build/win32.lib"
 
+S_OK :: 0x00000000;
 
 @(default_calling_convention="c")
 foreign platform
@@ -211,12 +213,16 @@ foreign platform
     AddGraphicsRoot32BitConstant :: proc "c"(index : u32,num_values : u32,gpuptr : rawptr,offset : u32) ---;
     QueryGPUFastMemory :: proc "c" ()-> GPUMemoryResult ---;
     CompileShader_ :: proc "c" (file_name : cstring,blob : ^rawptr/*void** */,shader_version_and_type : cstring) ---;
+    //CompileShaderText_ :: proc "c" (file : cstring,blob : ^rawptr/*void** */,shader_version_and_type : cstring) ---;
+    CompileShaderText_ :: proc "c"(shader_text : cstring,text_size : c.int,blob : ^rawptr,shader_version_and_type : cstring) ---;
+
     GetShaderByteCode :: proc"c"(blob : rawptr) -> D3D12_SHADER_BYTECODE ---;
     CreatePipelineState :: proc "c"(device : rawptr,pssd : D3D12_PIPELINE_STATE_STREAM_DESC)->  rawptr ---;//ID3D12PipelineState*  ;
     CreateDefaultPipelineStateStreamDesc :: proc "c"(input_layout : ^D3D12_INPUT_ELEMENT_DESC ,input_layout_count : c.int,vs_blob : rawptr,fs_blob : rawptr,depth_enable : bool) -> PipelineStateStream ---;
 //    CreateDescriptorHeap :: proc "c"(device : rawptr,desc : D3D12_DESCRIPTOR_HEAP_DESC,num_of_descriptors : u32) -> rawptr /*ID3D12DescriptorHeap* */ ---;
     CreateDescriptorHeap :: proc "c"(device : rawptr,num_desc : u32,type : D3D12_DESCRIPTOR_HEAP_TYPE,flags : D3D12_DESCRIPTOR_HEAP_FLAGS)-> rawptr --- /*ID3D12DescriptorHeap**/ ;    
     GetDesc :: proc "c"(desc_heap : rawptr) ->  D3D12_DESCRIPTOR_HEAP_DESC ---;
+    GetGPUVirtualAddress :: proc "c"(resource : rawptr /*ID3D12Resource* */) -> D3D12_GPU_VIRTUAL_ADDRESS ---;
     GetGPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr) ->D3D12_GPU_DESCRIPTOR_HANDLE ---;    
     GetCPUDescriptorHandleForHeapStart :: proc "c"(desc_heap : rawptr)-> D3D12_CPU_DESCRIPTOR_HANDLE ---;
     CreateCommandAllocator ::  proc "c"(device : rawptr,type : D3D12_COMMAND_LIST_TYPE) -> rawptr ---/*ID3D12CommandAllocator**/;
@@ -224,6 +230,11 @@ foreign platform
     CreateFence :: proc "c"(device : rawptr) -> rawptr/*ID3D12Fence**/---;
     CreateEventHandle :: proc "c"() ->windows.HANDLE ---;
     IsFenceComplete :: proc "c"(fence : rawptr /*ID3D12Fence* */,fence_value : u64) -> bool ---;
+    GetForegroundWindow :: proc "c"() ->  window32.Hwnd ---;
+    IsChild :: proc "c"(hWndParent : window32.Hwnd,hWnd : window32.Hwnd) -> bool ---;
+    TrackMouseEvent :: proc "c"(lpEventTrack : ^TRACKMOUSEEVENT) -> bool ---;
+    CopyTextureRegion :: proc(list : rawptr,pDst : ^D3D12_TEXTURE_COPY_LOCATION,DstX : c.uint,DstY : c.uint,DstZ : c.uint,pSrc : ^D3D12_TEXTURE_COPY_LOCATION,pSrcBox : ^D3D12_BOX) ---;
+    WaitForSingleObject :: proc(hHandle : windows.HANDLE,dwMilliseconds : windows.DWORD) -> windows.DWORD ---;
 }
 
 

@@ -52,21 +52,23 @@ VertexShaderOutput main(VertexPosColor IN)
                  mm1.x,mm1.y,mm1.z,mm1.w,
 	         mm2.x,mm2.y,mm2.z,mm2.w,
 	         mm3.x,mm3.y,mm3.z,mm3.w};
-float3x3 mm3x3 = { mm0.x,mm0.y,mm0.z,
+    
+    float3x3 mm3x3 = { mm0.x,mm0.y,mm0.z,
                  mm1.x,mm1.y,mm1.z,
                  mm2.x,mm2.y,mm2.z};
-
 
     float4 p = mul(float4(IN.Position,1.0f),m);
     float4 world_p = mul(float4(IN.Position,1.0f),mm);
     
     OUT.position = p;
     OUT.frag_p = world_p;    
-    OUT.Color = float4(1,1,1,1);
+    float4 fake_light_p = float4(0,0,0,1);
+    
+    OUT.Color = (mul(fake_light_p,mm));//float4(1,1,1,1);
     OUT.UV = IN.UV;
     float3 n = IN.normal;
 
-OUT.normal = mul(n,mm3x3);
+    OUT.normal = mul(n,mm3x3);
     //OUT.normal = normalize(n);//normalize(mul(float4(n,0),mm3).xyz);
 
     return OUT;

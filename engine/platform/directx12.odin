@@ -18,6 +18,8 @@ D3D12_GPU_VIRTUAL_ADDRESS :: UINT64;
 
 D3D12_FLOAT32_MAX : f32 : 3.402823466e+38;
 
+D3D12_TEXTURE_DATA_PITCH_ALIGNMENT :: ( 256 );
+
 D3D12_RECT :: window32.Rect;
 
 CompatibilityProfile :: struct{
@@ -32,6 +34,14 @@ D3D12_VIEWPORT :: struct{
     MinDepth : FLOAT,
     MaxDepth : FLOAT,
 };
+D3D12_BOX :: struct{
+    left : c.uint,
+    top : c.uint,
+    front : c.uint,
+    right : c.uint,
+    bottom : c.uint,
+    back : c.uint,
+}
 
 D3D12_ROOT_DESCRIPTOR_TABLE1 :: struct{
     NumDescriptorRanges : windows.UINT,
@@ -92,15 +102,42 @@ D3D12_ROOT_DESCRIPTOR1 :: struct{
     Flags : D3D12_ROOT_DESCRIPTOR_FLAGS,
 };
 
-ROOT_PARAMETER1_UNION :: struct #raw_union
-{
+D3D12_TEXTURE_COPY_TYPE :: enum u32{
+        D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX   = 0,
+        D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT    = 1,
+}
+
+D3D12_SUBRESOURCE_FOOTPRINT :: struct{
+    Format : DXGI_FORMAT,
+    Width  : c.uint,
+    Height : c.uint,
+    Depth  : c.uint,
+    RowPitch : c.uint,
+};
+
+D3D12_PLACED_SUBRESOURCE_FOOTPRINT :: struct{
+    Offset : u64,
+    Footprint : D3D12_SUBRESOURCE_FOOTPRINT,
+};
+
+D3D12_TEXTURE_COPY_LOCATION :: struct{
+    pResource : rawptr,
+    Type : D3D12_TEXTURE_COPY_TYPE,
+    copy_union : D3D12_TEXTURE_COPY_UNION,
+}
+
+D3D12_TEXTURE_COPY_UNION :: struct #raw_union{
+    PlacedFootprint : D3D12_PLACED_SUBRESOURCE_FOOTPRINT,
+    SubresourceIndex : c.uint,
+}
+
+ROOT_PARAMETER1_UNION :: struct #raw_union{
     DescriptorTable : D3D12_ROOT_DESCRIPTOR_TABLE1,
     Constants : D3D12_ROOT_CONSTANTS,
     Descriptor : D3D12_ROOT_DESCRIPTOR1,
 }
 
-D3D12_ROOT_PARAMETER_TYPE ::  enum u32
-{
+D3D12_ROOT_PARAMETER_TYPE ::  enum u32{
     D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE	= 0,
     D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS	= ( D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE + 1 ) ,
     D3D12_ROOT_PARAMETER_TYPE_CBV	= ( D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS + 1 ) ,
@@ -108,8 +145,23 @@ D3D12_ROOT_PARAMETER_TYPE ::  enum u32
     D3D12_ROOT_PARAMETER_TYPE_UAV	= ( D3D12_ROOT_PARAMETER_TYPE_SRV + 1 ) ,
 }
 
-D3D12_SHADER_VISIBILITY :: enum u32
-{
+D3D12_STATIC_SAMPLER_DESC :: struct{
+    Filter : D3D12_FILTER,
+    AddressU : D3D12_TEXTURE_ADDRESS_MODE,
+    AddressV : D3D12_TEXTURE_ADDRESS_MODE,
+    AddressW : D3D12_TEXTURE_ADDRESS_MODE,
+    MipLODBias : f32,
+    MaxAnisotropy : c.uint,
+    ComparisonFunc : D3D12_COMPARISON_FUNC,
+    BorderColor : D3D12_STATIC_BORDER_COLOR,
+    MinLOD : f32,
+    MaxLOD : f32,
+    ShaderRegister : c.uint,
+    RegisterSpace : c.uint,
+    ShaderVisibility : D3D12_SHADER_VISIBILITY,
+}
+
+D3D12_SHADER_VISIBILITY :: enum u32{
     D3D12_SHADER_VISIBILITY_ALL	= 0,
     D3D12_SHADER_VISIBILITY_VERTEX	= 1,
     D3D12_SHADER_VISIBILITY_HULL	= 2,
@@ -120,15 +172,13 @@ D3D12_SHADER_VISIBILITY :: enum u32
     D3D12_SHADER_VISIBILITY_MESH = 7,
 }
 
-D3D12_ROOT_PARAMETER1 :: struct
-{
+D3D12_ROOT_PARAMETER1 :: struct{
     ParameterType : D3D12_ROOT_PARAMETER_TYPE,
     root_parameter1_union : ROOT_PARAMETER1_UNION,
     ShaderVisibility : D3D12_SHADER_VISIBILITY,
 }
 
-D3D12_DESCRIPTOR_RANGE1 :: struct
-{
+D3D12_DESCRIPTOR_RANGE1 :: struct{
     RangeType  : D3D12_DESCRIPTOR_RANGE_TYPE,
     NumDescriptors : windows.UINT,
     BaseShaderRegister : windows.UINT,
@@ -137,8 +187,7 @@ D3D12_DESCRIPTOR_RANGE1 :: struct
     OffsetInDescriptorsFromTableStart : windows.UINT,
 }
 
-D3D12_INPUT_ELEMENT_DESC :: struct
-{
+D3D12_INPUT_ELEMENT_DESC :: struct{
     SemanticName : cstring,//char* typedefed to LPCSTR
     SemanticIndex : c.uint,
     Format : DXGI_FORMAT,
@@ -217,22 +266,91 @@ D3D12_TEXTURE_ADDRESS_MODE :: enum u32
     D3D12_TEXTURE_ADDRESS_MODE_BORDER	= 4,
     D3D12_TEXTURE_ADDRESS_MODE_MIRROR_ONCE	= 5,
 }
+/*
+D3D12_ROOT_SIGNATURE_DESC :: struct{
+    NumParameters : c.uint,
+   // _Field_size_full_(NumParameters)  const D3D12_ROOT_PARAMETER *pParameters;
+   pParameters : ^D3D12_ROOT_PARAMETER,
+    NumStaticSamplers : c.uint,
+    //_Field_size_full_(NumStaticSamplers)  const D3D12_STATIC_SAMPLER_DESC *pStaticSamplers;
+    pStaticSamplers : D3D12_STATIC_SAMPLER_DESC,
+    Flags : D3D12_ROOT_SIGNATURE_FLAGS,
+}
+*/
 
-D3D12_STATIC_SAMPLER_DESC :: struct
-{
-    Filter : D3D12_FILTER ,
-    AddressU : D3D12_TEXTURE_ADDRESS_MODE ,
-    AddressV : D3D12_TEXTURE_ADDRESS_MODE,
-    AddressW : D3D12_TEXTURE_ADDRESS_MODE ,
-    MipLODBias : f32 ,
-    MaxAnisotropy : windows.UINT,
-    ComparisonFunc : D3D12_COMPARISON_FUNC ,
-    BorderColor : D3D12_STATIC_BORDER_COLOR ,
-    MinLOD : f32 ,
-    MaxLOD : f32 ,
-    ShaderRegister : windows.UINT ,
-    RegisterSpace : windows.UINT ,
-    ShaderVisibility : D3D12_SHADER_VISIBILITY ,
+D3D12_PIPELINE_STATE_FLAGS :: enum u32{
+        D3D12_PIPELINE_STATE_FLAG_NONE  = 0,
+        D3D12_PIPELINE_STATE_FLAG_TOOL_DEBUG    = 0x1,
+}
+
+D3D12_SO_DECLARATION_ENTRY :: struct{
+    Stream : c.uint,
+    //LPCSTR SemanticName : cstring,
+    SemanticName : cstring,
+    SemanticIndex : c.uint,
+    StartComponent : u8,
+    ComponentCount : u8,
+    OutputSlot : u8,
+}
+
+D3D12_STREAM_OUTPUT_DESC :: struct{
+    //_Field_size_full_(NumEntries)  const D3D12_SO_DECLARATION_ENTRY *pSODeclaration;
+    pSODeclaration : ^D3D12_SO_DECLARATION_ENTRY,
+    NumEntries : c.uint,
+    //_Field_size_full_(NumStrides)  const UINT *pBufferStrides;
+    pBufferStrides : ^c.uint,
+    NumStrides : c.uint,
+    RasterizedStream : c.uint,
+}
+
+D3D12_INDEX_BUFFER_STRIP_CUT_VALUE :: enum u32{
+        D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED = 0,
+        D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFF   = 1,
+        D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_0xFFFFFFFF   = 2,
+}
+
+D3D12_GRAPHICS_PIPELINE_STATE_DESC :: struct{
+    pRootSignature : rawptr, //ID3D12RootSignature *;
+    VS : D3D12_SHADER_BYTECODE,
+    PS : D3D12_SHADER_BYTECODE,
+    DS : D3D12_SHADER_BYTECODE,
+    HS : D3D12_SHADER_BYTECODE,
+    GS : D3D12_SHADER_BYTECODE,
+    StreamOutput : D3D12_STREAM_OUTPUT_DESC,
+    BlendState : D3D12_BLEND_DESC,
+    SampleMask : c.uint,
+    RasterizerState : D3D12_RASTERIZER_DESC,
+    DepthStencilState : D3D12_DEPTH_STENCIL_DESC,
+    InputLayout : D3D12_INPUT_LAYOUT_DESC,
+    IBStripCutValue : D3D12_INDEX_BUFFER_STRIP_CUT_VALUE,
+    PrimitiveTopologyType : D3D12_PRIMITIVE_TOPOLOGY_TYPE,
+    NumRenderTargets : c.uint,
+    RTVFormats : [8]DXGI_FORMAT,
+    DSVFormat : DXGI_FORMAT,
+    SampleDesc : DXGI_SAMPLE_DESC,
+    NodeMask : c.uint,
+    CachedPSO : D3D12_CACHED_PIPELINE_STATE,
+    Flags : D3D12_PIPELINE_STATE_FLAGS,
+}
+
+D3D12_DEFAULT_DEPTH_BIAS :: 0 
+D3D12_DEFAULT_DEPTH_BIAS_CLAMP :: 0.0
+D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS :: 0.0
+
+D3D12_CACHED_PIPELINE_STATE :: struct{
+    //_Field_size_bytes_full_(CachedBlobSizeInBytes)  const void *pCachedBlob;
+    pCachedBlob : rawptr,
+    CachedBlobSizeInBytes : u64,
+}
+
+D3D12_ROOT_SIGNATURE_DESC1 :: struct{
+    NumParameters : c.uint,
+    //_Field_size_full_(NumParameters)  const D3D12_ROOT_PARAMETER1 *pParameters;
+    pParameters : ^D3D12_ROOT_PARAMETER1,
+    NumStaticSamplers : c.uint,
+    //_Field_size_full_(NumStaticSamplers)  const D3D12_STATIC_SAMPLER_DESC *pStaticSamplers;
+    pStaticSamplers : ^D3D12_STATIC_SAMPLER_DESC,
+    Flags : D3D12_ROOT_SIGNATURE_FLAGS,
 }
 
 //typedef D3D_PRIMITIVE_TOPOLOGY D3D12_PRIMITIVE_TOPOLOGY;
@@ -368,8 +486,7 @@ DXGI_SWAP_CHAIN_FLAG ::  enum u32
 
 DXGI_PRESENT_ALLOW_TEARING : u32 : 0x00000200;
 
-DXGI_FORMAT :: enum u32
-{
+DXGI_FORMAT :: enum u32{
     DXGI_FORMAT_UNKNOWN	                    = 0,
     DXGI_FORMAT_R32G32B32A32_TYPELESS       = 1,
     DXGI_FORMAT_R32G32B32A32_FLOAT          = 2,
@@ -494,6 +611,60 @@ DXGI_FORMAT :: enum u32
 
     DXGI_FORMAT_FORCE_UINT                  = 0xffffffff,
 };
+ 
+D3D12_RESOURCE_BARRIER_TYPE :: enum u32 {
+        D3D12_RESOURCE_BARRIER_TYPE_TRANSITION  = 0,
+        D3D12_RESOURCE_BARRIER_TYPE_ALIASING    = ( D3D12_RESOURCE_BARRIER_TYPE_TRANSITION + 1 ) ,
+        D3D12_RESOURCE_BARRIER_TYPE_UAV = ( D3D12_RESOURCE_BARRIER_TYPE_ALIASING + 1 ) ,
+}
+
+D3D12_RESOURCE_BARRIER_FLAGS :: enum u32{
+        D3D12_RESOURCE_BARRIER_FLAG_NONE    = 0,
+        D3D12_RESOURCE_BARRIER_FLAG_BEGIN_ONLY  = 0x1,
+        D3D12_RESOURCE_BARRIER_FLAG_END_ONLY    = 0x2,
+}
+
+D3D12_RESOURCE_TRANSITION_BARRIER :: struct {
+    pResource : rawptr,
+    Subresource : c.uint,
+    StateBefore : D3D12_RESOURCE_STATES,
+    StateAfter : D3D12_RESOURCE_STATES,
+}
+
+D3D12_COMMAND_QUEUE_FLAGS :: enum u32{
+    D3D12_COMMAND_QUEUE_FLAG_NONE   = 0,
+    D3D12_COMMAND_QUEUE_FLAG_DISABLE_GPU_TIMEOUT    = 0x1,
+}
+
+D3D12_COMMAND_QUEUE_DESC :: struct{
+    Type : D3D12_COMMAND_LIST_TYPE,
+    Priority : int,
+    Flags : D3D12_COMMAND_QUEUE_FLAGS,
+    NodeMask : c.uint,
+}
+
+D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES : u32 : 0xffffffff;
+
+D3D12_RESOURCE_ALIASING_BARRIER :: struct{
+    pResourceBefore : rawptr, //ID3D12Resource ;
+    pResourceAfter : rawptr ,//ID3D12Resource *,
+}
+
+D3D12_RESOURCE_UAV_BARRIER :: struct{
+    pResource : rawptr, //;
+}
+
+D3D12_RESOURCE_BARRIER_UNION :: struct #raw_union{
+    Transition : D3D12_RESOURCE_TRANSITION_BARRIER,
+    Aliasing : D3D12_RESOURCE_ALIASING_BARRIER,
+    UAV : D3D12_RESOURCE_UAV_BARRIER,
+}
+
+D3D12_RESOURCE_BARRIER :: struct{
+    Type : D3D12_RESOURCE_BARRIER_TYPE,
+    Flags : D3D12_RESOURCE_BARRIER_FLAGS,
+    barrier_union : D3D12_RESOURCE_BARRIER_UNION,
+}
 
 //Commands
 CommandType :: enum u32

@@ -9,10 +9,17 @@ f2 GetWin32WindowDim(PlatformState* ps)
 	return f2_create(client_rect.right - client_rect.left, client_rect.bottom - client_rect.top);
 }
 
-void Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data)
+HRESULT Map(ID3D12Resource* resource,u32 sub_resource,D3D12_RANGE* range,void** data)
 {
-    resource->Map(sub_resource,range,data);
+    ASSERT(resource);
+    return resource->Map(sub_resource,range,data);
 }
+
+void Unmap(ID3D12Resource* resource,UINT sub_resource,D3D12_RANGE *p_written_range)
+{
+    ASSERT(resource);
+    resource->Unmap(sub_resource,p_written_range);
+}    
 
 void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,u32 NumDescriptorHeaps,ID3D12DescriptorHeap* const* ppDescriptorHeaps)
 {
@@ -23,6 +30,11 @@ void SetDescriptorHeaps(ID3D12GraphicsCommandList* list,u32 NumDescriptorHeaps,I
 HRESULT Present(IDXGISwapChain4* swap_chain,u32 SyncInterval,u32 Flags)
 {
     return swap_chain->Present(SyncInterval,Flags);    
+}
+
+void OMSetBlendFactor(ID3D12GraphicsCommandList* list,float blend_factor[4])
+{
+    list->OMSetBlendFactor(blend_factor);
 }
 
 void OMSetStencilRef(ID3D12GraphicsCommandList* list,UINT ref)
@@ -123,6 +135,11 @@ HRESULT CloseCommandList(ID3D12GraphicsCommandList* list)
     return list->Close();
 }
 
+void ResourceBarrier(ID3D12GraphicsCommandList* list, UINT NumBarriers,D3D12_RESOURCE_BARRIER *pBarriers)
+{
+    list->ResourceBarrier(NumBarriers, pBarriers);
+}
+
 void ExecuteCommandLists(ID3D12CommandQueue* queue, ID3D12CommandList*  const* lists,u32 list_count)
 {
     queue->ExecuteCommandLists(list_count, lists);    
@@ -138,6 +155,12 @@ void CreateDepthStencilView(ID3D12Device2* device,ID3D12Resource *pResource,D3D1
     device->CreateDepthStencilView(pResource,
                                pDesc,
                                DestDescriptor);
+}
+
+void CopyTextureRegion(ID3D12GraphicsCommandList* list,D3D12_TEXTURE_COPY_LOCATION *pDst,UINT DstX,UINT DstY,UINT DstZ,D3D12_TEXTURE_COPY_LOCATION *pSrc,D3D12_BOX *pSrcBox)
+{
+    ASSERT(list);
+    list->CopyTextureRegion(pDst,DstX,DstY,DstZ,pSrc,pSrcBox);
 }
 
 HRESULT D3D12UpdateSubresources(
@@ -261,6 +284,11 @@ D12CommandAllocatorEntry* AddFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE t
 }
 */
 
+HRESULT SignalCommandQueue(ID3D12CommandQueue* commandQueue,ID3D12Fence *pFence,UINT64 Value)
+{
+    return commandQueue->Signal(pFence, Value);
+}
+
 u64 Signal(ID3D12CommandQueue* commandQueue, ID3D12Fence* fence,u64* fenceValue)
 {
     ASSERT(commandQueue);
@@ -276,6 +304,11 @@ bool IsFenceComplete(ID3D12Fence* fence,u64 fence_value)
     return fence->GetCompletedValue() >= fence_value;
 }
     
+HRESULT SetEventOnCompletion(ID3D12Fence* fence, UINT64 Value,HANDLE hEvent)
+{
+    return fence->SetEventOnCompletion(Value,hEvent);
+}
+
 void WaitForFenceValue(ID3D12Fence* fence, u64 fenceValue, HANDLE fenceEvent,double duration = FLT_MAX)
 {
     if (IsFenceComplete(fence,fenceValue))
@@ -1744,6 +1777,22 @@ ID3D12Resource* GetCurrentBackBuffer()
 }
 */
 
+ID3D12PipelineState* CreateGraphicsPipelineState(ID3D12Device2* device,D3D12_GRAPHICS_PIPELINE_STATE_DESC *pDesc)
+{
+    ASSERT(device);
+    ID3D12PipelineState* result;
+    if(SUCCEEDED(device->CreateGraphicsPipelineState(pDesc,IID_PPV_ARGS(&result))))
+    {
+        return result;    
+    }
+    else
+    {
+        ASSERT(false);
+    }
+    return nullptr;
+}
+
+
 ID3D12PipelineState*  CreatePipelineState(ID3D12Device2* device,D3D12_PIPELINE_STATE_STREAM_DESC pssd)
 {
     ID3D12PipelineState* result;
@@ -2056,6 +2105,12 @@ D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorH
     return result;
 }
 
+D3D12_GPU_VIRTUAL_ADDRESS GetGPUVirtualAddress(ID3D12Resource* resource)
+{
+    ASSERT(resource);
+    return resource->GetGPUVirtualAddress();
+}
+
 D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
 {
     return desc_heap->GetGPUDescriptorHandleForHeapStart();
@@ -2077,8 +2132,7 @@ void CreateConstantBufferView(ID3D12Device2* device,D3D12_CONSTANT_BUFFER_VIEW_D
     device->CreateConstantBufferView(desc,handle);
 }
 
-void CompileShader_(char* file_name,void** blob,char* shader_version_and_type)
-{
+void CompileShader_(char* file_name,void** blob,char* shader_version_and_type){
     FMJFileReadResult file_result = fmj_file_platform_read_entire_file(file_name);
     ASSERT(file_result.content_size > 0);
 
@@ -2107,6 +2161,35 @@ void CompileShader_(char* file_name,void** blob,char* shader_version_and_type)
     
     ASSERT(SUCCEEDED(r));
 }
+
+void CompileShaderText_(char* shader_text,int text_size,void** blob,char* shader_version_and_type){
+    ID3DBlob* blob_errors;
+
+    HRESULT r = D3DCompile2(
+        shader_text,
+        text_size,
+        0,
+        0,
+        0,
+        "main",
+        shader_version_and_type,
+        SHADER_DEBUG_FLAGS,
+        0,
+        0,
+        0,
+        0,
+        (ID3DBlob**)blob,
+            &blob_errors);
+    
+    if ( blob_errors )
+    {
+        OutputDebugStringA( (const char*)blob_errors->GetBufferPointer());
+    }
+    
+    ASSERT(SUCCEEDED(r));
+}
+
+
 
 D3D12_SHADER_BYTECODE GetShaderByteCode(ID3DBlob* blob)
 {
