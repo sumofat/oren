@@ -594,7 +594,7 @@ setup_imgui_pass :: proc(){
 
 }
 
-draw_imgui :: proc(command_list : any,imgui_heap : any){
+draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
     barrier : platform.D3D12_RESOURCE_BARRIER = {};
     barrier.Type                   = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags                  = .D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -608,15 +608,14 @@ draw_imgui :: proc(command_list : any,imgui_heap : any){
     barrier.barrier_union.Transition.Subresource = platform.D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
     barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_PRESENT;
     barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_RENDER_TARGET;
-    cl := command_list.(rawptr);
-
-    ResourceBarrier(cl,1, &barrier);
-    desc_heaps : []rawptr = {imgui_heap.(rawptr)};
-    SetDescriptorHeaps(cl,1, mem.raw_slice_data(desc_heaps[:]));
-    ImGui_ImplDX12_RenderDrawData(imgui.get_draw_data(),cl);
+    
+    ResourceBarrier(command_list,1, &barrier);
+    desc_heaps : []rawptr = {imgui_heap};
+    SetDescriptorHeaps(command_list,1, mem.raw_slice_data(desc_heaps[:]));
+    ImGui_ImplDX12_RenderDrawData(imgui.get_draw_data(),command_list);
     barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_PRESENT;
-    ResourceBarrier(cl,1, &barrier);
+    ResourceBarrier(command_list,1, &barrier);
 }
 
 execute_imgui_pass :: proc(imgui_heap : rawptr){

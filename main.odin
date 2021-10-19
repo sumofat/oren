@@ -14,7 +14,7 @@ import con "engine/containers"
 import enginemath "engine/math"
 
 import imgui  "engine/external/odin-imgui";
-
+import runtime "core:runtime"
 //Graphics
 /*
 	Start with a simple deffered renderer and figure out how we want the pipeline to work
@@ -83,97 +83,94 @@ import imgui  "engine/external/odin-imgui";
 	at that point we will want to move onto something new which will be rendering techniques.
 	
 */
+Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wparam, lParam : window32.Lparam) -> window32.Lresult{
+	context = runtime.default_context();
+	platform.ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam);//{
 
+    switch (uMsg){
+    	case window32.WM_DESTROY:{
+    	    window32.post_quit_message(0);
+    	    return 0;
+        }
+    	case window32.WM_PAINT:{
+    	    ps : window32.Paint_Struct = {};
+    	    hdc : window32.Hdc = window32.begin_paint(hwnd, &ps);
+
+    	    //window32.fill_rect(hdc, &ps.rcPaint, window32.COLOR_BACKGROUND);
+
+    	    window32.end_paint(hwnd, &ps);
+    	    return 0;
+    	}
+    }
+    return window32.def_window_proc_a(hwnd, uMsg, wParam, lParam);
+}
+
+WindowData :: struct {
+    hInstance : window32.Hinstance,
+    hwnd : window32.Hwnd,
+    width : u32,
+    height : u32,
+};
 
 ErrorStr :: cstring;
 
-WindowData :: struct {
-	hInstance: window32.Hinstance,
-	hwnd:      window32.Hwnd,
-	width:     u32,
-	height:    u32,
+
+spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData){
+    // Register the window class.
+    using la;
+
+    CLASS_NAME : cstring = "Main Vulkan Window";
+
+    wc : window32.Wnd_Class_Ex_A = {}; 
+
+    hInstance := cast(window32.Hinstance)(window32.get_module_handle_a(nil));
+    ps.is_running = true;
+    ps.window.dim = Vector2f32{f32(width), f32(height)};
+    ps.window.p = Vector2f32{};
+    
+    wc.size = size_of(window32.Wnd_Class_Ex_A);
+    wc.wnd_proc = Wnd_Proc;
+    wc.instance = hInstance;
+    wc.class_name = CLASS_NAME;
+
+    if window32.register_class_ex_a(&wc) == 0 do return "Failed to register class!", nil;
+
+    hwnd := window32.create_window_ex_a(
+        0,
+        CLASS_NAME,
+        windowName,
+        window32.WS_OVERLAPPEDWINDOW | window32.WS_VISIBLE,
+        window32.CW_USEDEFAULT, window32.CW_USEDEFAULT, i32(ps.window.dim.x), i32(ps.window.dim.y),
+        nil,
+        nil,
+        hInstance,
+        nil,
+    );
+
+    ps.window.handle = hwnd;
+    
+    if hwnd == nil do return "failed to create window!", nil;
+
+    window := new(WindowData);
+    window.hInstance = hInstance;
+    window.hwnd = hwnd;
+    window.width = width;
+    window.height = height;
+
+    return nil, window;
 }
 
-Wnd_Proc :: proc "std" (hwnd: window32.Hwnd, uMsg: u32, wParam: window32.Wparam, lParam: window32.Lparam) -> window32.Lresult {
-	switch (uMsg)
-	       {
-	case window32.WM_DESTROY:
-		{
-			window32.post_quit_message(0);
-			return 0;
-		}
-	case window32.WM_PAINT:
-		{
-			ps:  window32.Paint_Struct = {};
-			hdc: window32.Hdc          = window32.begin_paint(hwnd, &ps);
-
-			//window32.fill_rect(hdc, &ps.rcPaint, window32.COLOR_BACKGROUND);
-
-			window32.end_paint(hwnd, &ps);
-			return 0;
-		}
-	}
-	return window32.def_window_proc_a(hwnd, uMsg, wParam, lParam);
+handle_msgs :: proc(window : ^WindowData) -> bool{
+    msg : window32.Msg = {};
+    cont : bool = true;
+    for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE){ 
+        if msg.message == window32.WM_QUIT do cont = false;
+        window32.translate_message(&msg);
+        window32.dispatch_message_a(&msg);
+    }
+    return cont;
 }
-
-spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u32 = 640, height: u32 = 480) -> (ErrorStr, ^WindowData) {
-	// Registerl the window class.
-	CLASS_NAME: cstring = "Main Vulkan Window";
-
-	wc: window32.Wnd_Class_Ex_A = {};
-
-	hInstance := cast(window32.Hinstance)(window32.get_module_handle_a(nil));
-	ps.is_running = true;
-	ps.window.dim = enginemath.f2{cast(f32)width, cast(f32)height};
-	ps.window.p = enginemath.f2{};
-
-	wc.size = size_of(window32.Wnd_Class_Ex_A);
-	wc.wnd_proc = Wnd_Proc;
-	wc.instance = hInstance;
-	wc.class_name = CLASS_NAME;
-
-	if window32.register_class_ex_a(&wc) == 0 do return "Failed to register class!", nil;
-
-	   hwnd := window32.create_window_ex_a(
-	                                       0,
-	                                       CLASS_NAME,
-	                                       windowName,
-	                                       window32.WS_OVERLAPPEDWINDOW | window32.WS_VISIBLE,
-	                                       window32.CW_USEDEFAULT, window32.CW_USEDEFAULT, cast(i32)width, cast(i32)height,
-	                                       nil,
-	                                       nil,
-	                                       hInstance,
-	                                       nil);
-
-
-	   ps.window.handle = hwnd;
-
-	   if hwnd == nil do return "failed to create window!", nil;
-
-	      window := new(WindowData);
-	      window.hInstance = hInstance;
-	      window.hwnd = hwnd;
-	      window.width = width;
-	      window.height = height;
-
-	      return nil, window;
-      }
-
-      handle_msgs :: proc(window: ^WindowData) -> bool {
-	      msg:  window32.Msg = {};
-	cont: bool         = true;
-
-	for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE) {
-
-		if msg.message == window32.WM_QUIT do cont = false;
-
-		   window32.translate_message(&msg);
-		   window32.dispatch_message_a(&msg);
-	   }
-	   return cont;
-   }
-
-   main :: proc() {
+main :: proc() {
 	   using la;
 	   using gfx;
 	   using con;
@@ -196,7 +193,7 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 	   fmt.println(ps.is_running);
 	   fmt.println(ps.window.handle);
 	   //    if !platformtest(&platform.ps,window_dim,window_p)
-	   spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y);
+	   result,window_data := spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y);
 
 	   if !platform.PlatformInit(&ps, window_dim, window_p, 5) {
 		   fmt.println("Failed to initialize platform window!");
@@ -410,7 +407,9 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 		
 		show_demo_window := true;
 
-		for ps.is_running {		
+		for ps.is_running {	
+			PullMouseState(&ps);	
+			io.mouse_down[0] = ps.input.mouse.lmb.down;
 			//editor
 			//imglfw.update_display_size();
     		//imglfw.update_mouse();
@@ -476,8 +475,15 @@ spawn_window :: proc(ps: ^platform.PlatformState, windowName: cstring, width: u3
 			//	        execute_perspective_projection_pass(pers_proj_pass);
 
 			execute_frame();
-			platform.HandleWindowsMessages(&ps);
+			
+			//platform.HandleWindowsMessages(&ps);
+			 //if
+			 
+			 //}else{
+			ps.is_running = handle_msgs(window_data);
+			 //}
 
+        		
 			//TODO(Ray):Have all the command lists a buffer iterate and clear
 			buf_clear(&render.list.command_buffer);
 			buf_clear(&light_render.list.command_buffer);

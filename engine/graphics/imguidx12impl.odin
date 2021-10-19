@@ -38,6 +38,8 @@ import platform "../platform"
 import "core:c"
 import "core:mem"
 import win32 "core:sys/win32"
+import "core:runtime"
+import "core:intrinsics"
 // DirectX
 //#include <d3d12.h>
 //#include <dxgi1_4.h>
@@ -98,21 +100,29 @@ ImGui_ImplDX12_SetupRenderState :: proc(draw_data: ^imgui.Draw_Data, ctx_list: r
 	// Setup orthographic projection matrix into our constant buffer
 	// Our visible imgui space lies from draw_data.DisplayPos (top left) to draw_data.DisplayPos+data_data.DisplaySize (bottom right).
 	vertex_constant_buffer: VERTEX_CONSTANT_BUFFER;
+	
+	L:   f32       = draw_data.display_pos.x;
+	R:   f32       = draw_data.display_pos.x + draw_data.display_size.x;
+	T:   f32       = draw_data.display_pos.y;
+	B:   f32       = draw_data.display_pos.y + draw_data.display_size.y;
+	
+	/*
+	mvp: [4][4]f32 = {
+		{2.0 / (R - L), 0.0, 0.0, 0.0},
+		{0.0, 2.0 / (T - B), 0.0, 0.0},
+		{0.0, 0.0, 0.5, 0.0},
+		{(R + L) / (L - R), (T + B) / (B - T), 0.5, 1.0},
+	};
+*/
 
-	{
-		L:   f32       = draw_data.display_pos.x;
-		R:   f32       = draw_data.display_pos.x + draw_data.display_size.x;
-		T:   f32       = draw_data.display_pos.y;
-		B:   f32       = draw_data.display_pos.y + draw_data.display_size.y;
-		mvp: [4][4]f32 = {
-			{2.0 / (R - L), 0.0, 0.0, 0.0},
-			{0.0, 2.0 / (T - B), 0.0, 0.0},
-			{0.0, 0.0, 0.5, 0.0},
-			{(R + L) / (L - R), (T + B) / (B - T), 0.5, 1.0},
-		};
+	mvp: [4][4]f32 = {
+		{2.0 / (R - L), 0.0, 0.0, -1},
+		{0.0, 2.0 / (T - B), 0.0, 1},
+		{0.0, 0.0, 0.5, 0.0},
+		{0, 0,0, 1.0},
+	};
 
-		mem.copy(&vertex_constant_buffer.mvp, mem.raw_slice_data(mvp[:]), size_of(mvp));
-	}
+	mem.copy(&vertex_constant_buffer.mvp, mem.raw_slice_data(mvp[:]), size_of(mvp));
 
 	// Setup viewport
 	vp: platform.D3D12_VIEWPORT;
@@ -131,14 +141,14 @@ ImGui_ImplDX12_SetupRenderState :: proc(draw_data: ^imgui.Draw_Data, ctx_list: r
 	stride := size_of(imgui.Draw_Vert);
 	offset: int = 0;
 	vbv:    platform.D3D12_VERTEX_BUFFER_VIEW;
-	mem.set(&vbv, 0, size_of(D3D12_VERTEX_BUFFER_VIEW));
+	//mem.set(&vbv, 0, size_of(D3D12_VERTEX_BUFFER_VIEW));
 	vbv.BufferLocation = GetGPUVirtualAddress(fr.vertex_buffer) + cast(u64)offset;
 	vbv.SizeInBytes = cast(u32)fr.vertex_buffer_size * cast(u32)stride;
 	vbv.StrideInBytes = cast(u32)stride;
 	IASetVertexBuffers(ctx_list, 0, 1, &vbv);
 	//ctx.IASetVertexBuffers(0, 1, &vbv);
 	ibv: platform.D3D12_INDEX_BUFFER_VIEW;
-	mem.set(&ibv, 0, size_of(D3D12_INDEX_BUFFER_VIEW));
+	//mem.set(&ibv, 0, size_of(D3D12_INDEX_BUFFER_VIEW));
 	ibv.BufferLocation = GetGPUVirtualAddress(fr.index_buffer);
 	ibv.SizeInBytes = cast(u32)(fr.index_buffer_size * size_of(imgui.Draw_Idx));
 	ibv.Format = size_of(imgui.Draw_Idx) == 2  ? .DXGI_FORMAT_R16_UINT : .DXGI_FORMAT_R32_UINT;
@@ -160,8 +170,8 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 		return;
 	}
 
-	                                                                                        // FIXME: I'm assuming that this only gets called once per frame!                       // FIXME: I'm assuming that this only gets called once per frame!
-	                                                                                        // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator. // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator.
+	// FIXME: I'm assuming that this only gets called once per frame!                       // FIXME: I'm assuming that this only gets called once per frame!
+	// If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator. // If not, we can't just re-allocate the IB or VB, we'll have to do a proper allocator.
 	g_frameIndex = g_frameIndex + 1;
 	fr := &g_pFrameResources[g_frameIndex % g_numFramesInFlight];
 
@@ -170,12 +180,12 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 		//SafeRelease(fr.VertexBuffer);
 		fr.vertex_buffer_size = cast(int)(draw_data.total_vtx_count + 5000);
 		props: platform.D3D12_HEAP_PROPERTIES;
-		mem.set(&props, 0, size_of(platform.D3D12_HEAP_PROPERTIES));
+		//mem.set(&props, 0, size_of(platform.D3D12_HEAP_PROPERTIES));
 		props.Type = .D3D12_HEAP_TYPE_UPLOAD;
 		props.CPUPageProperty = .D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		props.MemoryPoolPreference = .D3D12_MEMORY_POOL_UNKNOWN;
 		desc: platform.D3D12_RESOURCE_DESC;
-		mem.set(&desc, 0, size_of(platform.D3D12_RESOURCE_DESC));
+		//mem.set(&desc, 0, size_of(platform.D3D12_RESOURCE_DESC));
 		desc.Dimension = .D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Width = cast(u64)(fr.vertex_buffer_size * size_of(imgui.Draw_Vert));
 		desc.Height = 1;
@@ -193,12 +203,12 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 		//        SafeRelease(fr.IndexBuffer); //        SafeRelease(fr.IndexBuffer);
 		fr.index_buffer_size = cast(int)(draw_data.total_idx_count + 10000);
 		props: platform.D3D12_HEAP_PROPERTIES;
-		mem.set(&props, 0, size_of(platform.D3D12_HEAP_PROPERTIES));
+		//mem.set(&props, 0, size_of(platform.D3D12_HEAP_PROPERTIES));
 		props.Type = .D3D12_HEAP_TYPE_UPLOAD;
 		props.CPUPageProperty = .D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
 		props.MemoryPoolPreference = .D3D12_MEMORY_POOL_UNKNOWN;
 		desc: platform.D3D12_RESOURCE_DESC;
-		mem.set(&desc, 0, size_of(platform.D3D12_RESOURCE_DESC));
+		//mem.set(&desc, 0, size_of(platform.D3D12_RESOURCE_DESC));
 		desc.Dimension = .D3D12_RESOURCE_DIMENSION_BUFFER;
 		desc.Width = cast(u64)(fr.index_buffer_size * size_of(imgui.Draw_Idx));
 		desc.Height = 1;
@@ -218,7 +228,7 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 	vtx_resource: rawptr;
 	idx_resource: rawptr;
 	range:        platform.D3D12_RANGE;
-	mem.set(&range, 0, size_of(D3D12_RANGE));
+	//mem.set(&range, 0, size_of(D3D12_RANGE));
 	if Map(fr.vertex_buffer, 0, &range, &vtx_resource) != S_OK {
 		return;
 	}
@@ -234,14 +244,14 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 	lists             := mem.slice_ptr(draw_data.cmd_lists, int(draw_data.cmd_lists_count));
 	i                 := 0;
 	for list in lists {
-		// for n := 0; n < cast(int)draw_data.cmd_lists_count; n+=1{
-		//cmd_list :=f list;//^imgui.Draw_List = draw_data.cmd_lists[n];
 		mem.copy(vtx_dst, list.vtx_buffer.data, int(list.vtx_buffer.size) * size_of(imgui.Draw_Vert));
 		mem.copy(idx_dst, list.idx_buffer.data, int(list.idx_buffer.size) * size_of(imgui.Draw_Idx));
-		vtx_dst = mem.ptr_offset(vtx_resource_base, i);
-		idx_dst = mem.ptr_offset(idx_resource_base, i);
-		//vtx_dst += list.vertex_buffer.size;
-		//idx_dst += list.index_buffer.size;
+		//vtx_dst = (^imgui.Draw_Vert)(uintptr(vtx_dst) + uintptr(list.vtx_buffer.size) * size_of(imgui.Draw_Vert));
+		//idx_dst = (^imgui.Draw_Idx)(uintptr(idx_dst) + uintptr(list.idx_buffer.size) * size_of(imgui.Draw_Idx));
+		
+		vtx_dst = mem.ptr_offset(vtx_dst,cast(int)list.vtx_buffer.size);
+		idx_dst = mem.ptr_offset(idx_dst,cast(int)list.idx_buffer.size);
+		//idx_dst = cast(^imgui.Draw_Idx)(uintptr(idx_resource_base) + uintptr(list.idx_buffer.size) * size_of(imgui.Draw_Idx));//mem.ptr_offset(vtx_resource_base, i);
 		i += 1;
 	}
 	Unmap(fr.vertex_buffer, 0, &range);
@@ -283,8 +293,8 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 				r: platform.D3D12_RECT = {(c.long)(cmd.clip_rect.x - clip_off.x), (c.long)(cmd.clip_rect.y - clip_off.y), (c.long)(cmd.clip_rect.z - clip_off.x), (c.long)(cmd.clip_rect.w - clip_off.y)};
 				if r.right > r.left && r.bottom > r.top {
 					//SetGraphicsRootDescriptorTable(ctx_list,1, (cast(^platform.D3D12_GPU_DESCRIPTOR_HANDLE)&cmd.texture_id)^); //SetGraphicsRootDescriptorTable(ctx_list,1, (cast(^platform.D3D12_GPU_DESCRIPTOR_HANDLE)&cmd.texture_id)^);
-					SetGraphicsRootDescriptorTable(list, 1, transmute(platform.D3D12_GPU_DESCRIPTOR_HANDLE)cmd.texture_id);
-					RSSetScissorRects(list, 1, &r);
+					SetGraphicsRootDescriptorTable(ctx_list, 1, transmute(platform.D3D12_GPU_DESCRIPTOR_HANDLE)cmd.texture_id);
+					RSSetScissorRects(ctx_list, 1, &r);
 					DrawIndexedInstanced(ctx_list, cmd.elem_count, 1, cast(u32)(cmd.idx_offset + cast(u32)global_idx_offset), cast(i32)(cmd.vtx_offset + cast(u32)global_vtx_offset), 0);
 				}
 			}
@@ -588,7 +598,10 @@ ImGui_ImplDX12_CreateDeviceObjects :: proc() -> bool {
 
 	// Create the vertex shader
 	{
-		vertexShader: cstring = `cbuffer vertexBuffer : register(b0) 
+		vertexShader: cstring = `
+			#pragma pack_matrix( row_major )
+
+			cbuffer vertexBuffer : register(b0) 
             {
               float4x4 ProjectionMatrix; 
             };
@@ -637,7 +650,8 @@ ImGui_ImplDX12_CreateDeviceObjects :: proc() -> bool {
 
 	// Create the pixel shader
 	{
-		pixelShader: cstring = `struct PS_INPUT
+		pixelShader: cstring = `
+			struct PS_INPUT
             {
               float4 pos : SV_POSITION;
               float4 col : COLOR0;
@@ -752,10 +766,7 @@ ImGui_ImplDX12_Init :: proc(device: rawptr, num_frames_in_flight: int, rtv_forma
 	g_RTVFormat = rtv_format;
 	g_hFontSrvCpuDescHandle = font_srv_cpu_desc_handle;
 	g_hFontSrvGpuDescHandle = font_srv_gpu_desc_handle;
-	//g_pFrameResources = new FrameResources[num_frames_in_flight];
-
-	g_pFrameResources: [dynamic]FrameResources; //[num_frames_in_flight];
-
+	
 	g_numFramesInFlight = cast(u32)num_frames_in_flight;
 	g_frameIndex = max(c.uint); //UINT_MAX;
 	                            // IM_UNUSED(cbv_srv_heap); // Unused in master branch (will be used by multi-viewports)

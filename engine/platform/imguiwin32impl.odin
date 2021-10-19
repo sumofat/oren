@@ -98,17 +98,17 @@ ImGui_ImplWin32_Data :: struct{
 // FIXME: multi-context support is not well tested and probably dysfunctional in this backend.
 // FIXME: some shared resources (mouse cursor shape, gamepad) are mishandled when using multi-context.
 ImGui_ImplWin32_GetBackendData :: proc()-> ^ImGui_ImplWin32_Data{
-    fmt.println("Get Backend Data called");
+    //fmt.println("Get Backend Data called");
     result : ^ImGui_ImplWin32_Data;
     cur_context := imgui.get_current_context;
-    fmt.println(cur_context);
-    fmt.println(cur_context == nil);
+    //fmt.println(cur_context);
+   //fmt.println(cur_context == nil);
     if cur_context != nil{
 
         result = cast(^ImGui_ImplWin32_Data)imgui.get_io().backend_platform_user_data;
-        fmt.println("TEST OUTPUT");
+        //fmt.println("TEST OUTPUT");
     }else{
-        fmt.println("cur_context is nil?");
+        //fmt.println("cur_context is nil?");
         result = nil;
     }
 
@@ -147,6 +147,7 @@ ImGui_ImplWin32_Init :: proc(hwnd : win32.Hwnd) -> bool{
     bd.hWnd = hwnd;
     bd.WantUpdateHasGamepad = true;
     bd.TicksPerSecond = perf_frequency;
+    g_TicksPerSecond = perf_frequency;
     bd.Time = perf_counter;
     bd.LastMouseCursor = Mouse_Cursor.Count;// ImGuiMouseCursor_COUNT;
 
@@ -337,6 +338,11 @@ ImGui_ImplWin32_UpdateGamepads :: proc(){
 */
 }
 
+g_time : win.LARGE_INTEGER= 0;
+g_TicksPerSecond : win.LARGE_INTEGER = 0;
+g_LastMouseCursor : imgui.Mouse_Cursor = imgui.Mouse_Cursor.Count;// ImGuiMouseCursor_Count_;
+
+
 ImGui_ImplWin32_NewFrame :: proc(){
     fmt.println("Start New Frame");
     // /ImGuiIO& io = ImGui::GetIO();
@@ -351,9 +357,9 @@ ImGui_ImplWin32_NewFrame :: proc(){
 
     // Setup time step
     current_time : win.LARGE_INTEGER = 0;
-    win.QueryPerformanceCounter(cast(^win.LARGE_INTEGER)&current_time);
-    io.delta_time = cast(f32)((current_time - bd.Time) / bd.TicksPerSecond);
-    bd.Time = current_time;
+    win.QueryPerformanceCounter(&current_time);
+    io.delta_time = cast(f32)(current_time - g_time) / cast(f32)g_TicksPerSecond;
+    g_time = current_time;
 
     // Update OS mouse position
     ImGui_ImplWin32_UpdateMousePos();
@@ -361,8 +367,8 @@ ImGui_ImplWin32_NewFrame :: proc(){
     // Update OS mouse cursor with the cursor requested by imgui
     //ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
     mouse_cursor := io.mouse_draw_cursor ?  imgui.Mouse_Cursor.None : imgui.get_mouse_cursor();
-    if bd.LastMouseCursor != mouse_cursor{
-        bd.LastMouseCursor = mouse_cursor;
+    if g_LastMouseCursor != mouse_cursor{
+        g_LastMouseCursor = mouse_cursor;
         ImGui_ImplWin32_UpdateMouseCursor();
     }
 
@@ -417,38 +423,40 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             bd.MouseTracked = false;
             break;
         }
-        //case win32.WM_LBUTTONDOWN: case win32.WM_LBUTTONDBLCLK:{}
-        //case win32.WM_RBUTTONDOWN: case win32.WM_RBUTTONDBLCLK:{}
-        //case win32.WM_MBUTTONDOWN: case win32.WM_MBUTTONDBLCLK:{}
+        case win32.WM_LBUTTONDOWN: case win32.WM_LBUTTONDBLCLK:{}
+        case win32.WM_RBUTTONDOWN: case win32.WM_RBUTTONDBLCLK:{}
+        case win32.WM_MBUTTONDOWN: case win32.WM_MBUTTONDBLCLK:{
         //case win32.WM_XBUTTONDOWN: case win32.WM_XBUTTONDBLCLK:{
-        /*
+        
             button : int = 0;
             if (msg == win32.WM_LBUTTONDOWN || msg == win32.WM_LBUTTONDBLCLK) { button = 0; }
             if (msg == win32.WM_RBUTTONDOWN || msg == win32.WM_RBUTTONDBLCLK) { button = 1; }
             if (msg == win32.WM_MBUTTONDOWN || msg == win32.WM_MBUTTONDBLCLK) { button = 2; }
-            if (msg == win32.WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+            //if (msg == win32.WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             //if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
             //    ::SetCapture(hwnd);
             io.mouse_down[button] = true;
             return 0;
         }
-        */
-//        case win32.WM_LBUTTONUP:{}
-//        case win32.WM_RBUTTONUP:{}
-//        case win32.WM_MBUTTONUP:{}
-//        case win32.WM_XBUTTONUP:{
-/*
+        
+        case win32.WM_LBUTTONUP:{}
+        case win32.WM_RBUTTONUP:{}
+        case win32.WM_MBUTTONUP:{
+        //case win32.WM_XBUTTONUP:{
+
             button : int = 0;
             if (msg == win32.WM_LBUTTONUP) { button = 0; }
             if (msg == win32.WM_RBUTTONUP) { button = 1; }
             if (msg == win32.WM_MBUTTONUP) { button = 2; }
-            if (msg == win32.WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
-            io.MouseDown[button] = false;
+            //if (msg == win32.WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
+            //io.MouseDown[button] = false;
+
+            io.mouse_down[button] = false;
             //if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
             //    ::ReleaseCapture();
             return 0;
         }
-        */
+        
 
         case win32.WM_MOUSEWHEEL:{
             io.mouse_wheel += cast(f32)GET_WHEEL_DELTA_WPARAM(wParam) / cast(f32)WHEEL_DELTA;
@@ -480,7 +488,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
         case win32.WM_SETFOCUS:{}
         case win32.WM_KILLFOCUS:{
             //io.AddFocusEvent(msg == WM_SETFOCUS);
-            fmt.println("TODO Fix WM_KILLFOCUS to work with this version of imgui. or upgrade imgui on kill focus.")
+            //fmt.println("TODO Fix WM_KILLFOCUS to work with this version of imgui. or upgrade imgui on kill focus.")
             return 0;
         }
         case win32.WM_CHAR:{

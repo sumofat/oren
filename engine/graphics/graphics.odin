@@ -1287,7 +1287,7 @@ add_stencil_ref_command :: proc(ref: u32) {
     con.buf_push(&render_commands, com);
 }
 
-add_callback_command :: proc(callback : proc(data : any,data2 : any),param_data : $type){
+add_callback_command :: proc(callback : proc(data : rawptr,data2 : rawptr),param_data : $type){
 	com : D12CommandCallback;
 	com.callback = callback;
 	com.data = param_data;

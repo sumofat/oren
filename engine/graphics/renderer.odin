@@ -179,8 +179,8 @@ D12CommandClear :: struct {
 }
 
 D12CommandCallback :: struct{
-	data : any,
-	callback : proc(data : any,data2 : any),
+	data : rawptr,
+	callback : proc(data : rawptr,data2 : rawptr),
 }
 
 
