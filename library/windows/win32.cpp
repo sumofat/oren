@@ -777,7 +777,7 @@ void PullMouseState(PlatformState* ps)
          ScreenToClient(ps->window.handle, &MouseP);
          //TODO(Ray):Account for non full screen mode header 
          f2 window_dim = GetWin32WindowDim(ps);
-		 f2 current_mouse_p = f2_create(MouseP.x, (window_dim.y) - MouseP.y);
+		 f2 current_mouse_p = f2_create(MouseP.x,MouseP.y);
          f2 delta_mouse_p = f2_sub(input->mouse.prev_p,current_mouse_p);
 		if(ps->input.mouse.wrap_mode)
 		{
