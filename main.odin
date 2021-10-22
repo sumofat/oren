@@ -15,6 +15,7 @@ import enginemath "engine/math"
 
 import imgui  "engine/external/odin-imgui";
 import runtime "core:runtime"
+import editor "engine/editor"
 //Graphics
 /*
 	Start with a simple deffered renderer and figure out how we want the pipeline to work
@@ -27,11 +28,9 @@ import runtime "core:runtime"
 	light accum pass : seems done
 	buffer composite pass : ok for now
 
-
-
-	imgui integration : todo
-	
-	Reference project PedalTotheMedal for how we might do render passes.
+	imgui integration : BASICS DONE
+	FIXme: Some issue with the lower you go to the bottom of the window mouse is slightly offset from imgui
+	inputs.
 
 	graphics:
 	sponza model loading : todo
@@ -52,7 +51,6 @@ import runtime "core:runtime"
 	physics:
 	basic particle system : todo
 	physx integration : todo
-	
 	
 	Look at implementing a simple render graph even if it does nothing at first lets collect
 	the info on resources and references etc...
@@ -407,8 +405,13 @@ main :: proc() {
 		
 		show_demo_window := true;
 
+		using editor;
+		editor_scene_tree : EditorSceneTree;
+		editor_scene_tree_init(&editor_scene_tree);
+
 		for ps.is_running {	
-			PullMouseState(&ps);	
+			PullMouseState(&ps);
+			io.mouse_pos = imgui.Vec2{f32(ps.input.mouse.p.x),f32(ps.input.mouse.p.y)};	
 			io.mouse_down[0] = ps.input.mouse.lmb.down;
 			//editor
 			//imglfw.update_display_size();
@@ -419,6 +422,7 @@ main :: proc() {
 			imgui.new_frame();
 			if show_demo_window do imgui.show_demo_window(&show_demo_window);
 
+			fmj_editor_scene_tree_show(&editor_scene_tree,&test_scene,&asset_ctx);
 
 
 			//get_local_	p(test_model_instance).x += 0.001;

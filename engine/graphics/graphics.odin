@@ -1118,10 +1118,10 @@ get_first_associated_list :: proc(allocator: ^platform.D12CommandAllocatorEntry)
 	//Run through all the list that are associated with an allocator check for first available list
 	for i := 0; i < cast(int)buf_len(allocator_tables.allocator_to_list_table); i += 1 {
 		entry: ^D12CommandAlloctorToCommandListKeyEntry = buf_ptr(&allocator_tables.allocator_to_list_table, cast(u64)i);
-		if allocator.index == entry.command_list_index {
+		if allocator.index == entry.command_allocator_index {
 			e: ^D12CommandListEntry = buf_ptr(&allocator_tables.command_lists, entry.command_list_index);
 			assert(e != nil);
-			if e.is_encoding != false {
+			if e.is_encoding == false {
 				result.list = e^;
 				//Since at this point this allocator should have all command list associated with it finished processing we can just grab the first command list.
 				//and use it.

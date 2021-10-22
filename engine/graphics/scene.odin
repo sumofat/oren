@@ -67,7 +67,7 @@ assetctx_init :: proc(ctx : ^AssetContext)
 {
     using platform;
     using con;
-    using enginemath;
+    using enginemath; 
     ctx.scene_objects = buf_init(100,SceneObject);
     asset_tables := &ctx.asset_tables;
 //    asset_tables.materials = ;//buf_init(100,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);

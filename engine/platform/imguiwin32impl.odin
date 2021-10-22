@@ -257,7 +257,7 @@ ImGui_ImplWin32_UpdateMousePos :: proc(){
    // IM_ASSERT(bd->hWnd != 0);
 
     mouse_pos_prev := io.mouse_pos;//.MousePos;
-    io.mouse_pos = imgui.Vec2{-max(f32), -max(f32)};
+    //io.mouse_pos = imgui.Vec2{-max(f32), -max(f32)};
 
     // Obtain focused and hovered window. We forward mouse input when focused or when hovered (and no other window is capturing)
     focused_window : win32.Hwnd = platform.GetForegroundWindow();
@@ -283,7 +283,7 @@ ImGui_ImplWin32_UpdateMousePos :: proc(){
     // Set Dear ImGui mouse position from OS position
     pos : win32.Point;
     if (win32.get_cursor_pos(&pos) && win32.screen_to_client(mouse_window, &pos)){
-      io.mouse_pos = imgui.Vec2{cast(f32)pos.x, cast(f32)pos.y};
+     // io.mouse_pos = imgui.Vec2{cast(f32)pos.x, cast(f32)pos.y};
     }
 }
 
@@ -411,7 +411,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             bd.MouseHwnd = hwnd;
             if !bd.MouseTracked{
                 tme : TRACKMOUSEEVENT = { size_of(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0 };
-                platform.TrackMouseEvent(&tme);
+                //platform.TrackMouseEvent(&tme);
                 bd.MouseTracked = true;
             }
             break;
@@ -435,7 +435,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             //if (msg == win32.WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             //if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
             //    ::SetCapture(hwnd);
-            io.mouse_down[button] = true;
+            //io.mouse_down[button] = true;
             return 0;
         }
         
