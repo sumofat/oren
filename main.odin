@@ -29,8 +29,11 @@ import editor "engine/editor"
 	buffer composite pass : ok for now
 
 	imgui integration : BASICS DONE
-	FIXme: Some issue with the lower you go to the bottom of the window mouse is slightly offset from imgui
+	TODO: 
+	1.Some issue with the lower you go to the bottom of the window mouse is slightly offset from imgui
 	inputs.
+	2. input_floats and others not using pointers where arrays are rEQUIRED
+	3. Do a basic 2d editor
 
 	graphics:
 	sponza model loading : todo

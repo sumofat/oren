@@ -5,6 +5,7 @@ import imgui  "../external/odin-imgui"
 import reflect "core:reflect"
 import enginemath "../math"
 import ref "../reflecthelper"
+import mem "core:mem"
 //node_id : u64
 //import la "core:math/linalg"
 
@@ -17,7 +18,52 @@ editor_scene_tree_init :: proc(tree : ^EditorSceneTree){
 
 }
 
-editor_scene_tree_display_recursively :: proc(so : ^gfx.SceneObject,ctx : ^gfx.AssetContext,id : u64){
+print_so :: proc(so : ^gfx.SceneObject,asset_ctx : ^gfx.AssetContext){
+	using ref
+	using container
+	using reflect
+	using mem
+	using gfx
+
+	if ok,struct_info  := get_struct_info(so^);ok{
+		for type, i in struct_info.types{
+			imgui.text(struct_info.names[i])
+			ptr_to_offset := rawptr(uintptr(so) + struct_info.offsets[i])
+
+			if struct_info.names[i] == "children"{
+				
+					s_ti := type_info_base(type).variant.(Type_Info_Struct)
+					buffer_type := s_ti.types[0]
+					buffer_type_ti := type_info_base(buffer_type).variant.(Type_Info_Struct)
+					da_ti := buffer_type_ti.types[0]
+					d_ti := type_info_base(da_ti).variant.(Type_Info_Dynamic_Array)
+
+					e_size := d_ti.elem_size
+					e_ti := d_ti.elem
+					arra := (^mem.Raw_Dynamic_Array)(ptr_to_offset)
+					at_byte_index : u64
+
+					for i := 0; i < arra.len;i+=1{
+						value := cast(^u64)rawptr(uintptr(arra.data) + uintptr(at_byte_index))
+						
+
+							//imgui.input_int("",value)
+							//print_type(e_ti, rawptr(uintptr(arra.data) + uintptr(at_byte_index)))
+							child_so := buf_get(&asset_ctx.scene_objects,(value^))
+							if imgui.tree_node(value,"child",child_so.name){
+								at_byte_index = at_byte_index + cast(u64)e_size
+								print_so(&child_so,&asset_ctx)
+								imgui.tree_pop();
+							}
+					}
+			}else{
+				print_type(type,ptr_to_offset)
+			}
+		}
+	}
+}
+
+editor_scene_tree_display :: proc(so : ^gfx.SceneObject,ctx : ^gfx.AssetContext,id : u64){
 	using container
 	using reflect
 	using enginemath
@@ -36,48 +82,16 @@ editor_scene_tree_display_recursively :: proc(so : ^gfx.SceneObject,ctx : ^gfx.A
 		}
 		
 		if is_tree_node{
-			ref_result := get_elements(so);
-			//id := typeid_of(type_of(so^))
-			//types := reflect.struct_field_types(id)
-			//names := reflect.struct_field_names(id)
-			for type, i in ref_result.types{
-				if named_type,ok := type.variant.(Type_Info_Named); ok{
-					//struct_type,ok := type.variant.(Type_Info_Struct)
-					imgui.text(ref_result.names[i])
-					//if struct_type,oks := named_type.base.(Type_Info_Struct); oks{
-					if reflect.is_struct(named_type.base){
-						if type.id == typeid_of(Transform){
-								imgui.text("Transform")
-							//sid := typeid_of(type_of(so.children))
-							info_struct := named_type.base.variant.(Type_Info_Struct)//struct_type.names
-							subnames := info_struct.names;
-							subtypes := info_struct.types;
-							for type, s in subtypes{
-								if type.id == typeid_of(f3) && subnames[s] == "p"{
-									valueofp := struct_field_value_by_name(so.transform, "p")
-									//if type_of(type) == f3{
-										//imgui.text(subnames[s])
-										//imgui.input_float3("Vec3",so.transform.p.xyz)
-									
-									//testvalue := valueofp.(la.Vector3f32)
-									imgui.input_float3("f3",cast([3]f32)valueofp.(f3))
-									//}
-								//}
-								}
-								
-								//imgui.text(named_type.names[s])
-							}
-						}
-					}
-				}
-			}
-
-			//imgui.input_float3("position",so.transform.p.xyz);
+			
+			//print_struct_from_ptr_value(so)
+			print_so(so,ctx)
+/*
 			for i := 0;i < cast(int)buf_len(so.children.buffer);i+=1{
 				child_so_id := buf_get(&so.children.buffer,u64(i))
 				child := buf_get(&ctx.scene_objects,child_so_id)
 				editor_scene_tree_display_recursively(&child,ctx,child_so_id);
 			}
+*/
 			imgui.tree_pop();
 		}
 	}
@@ -93,13 +107,14 @@ fmj_editor_scene_tree_show :: proc(tree : ^EditorSceneTree,s : ^gfx.Scene,ctx : 
 	}
 
 	if imgui.tree_node("SceneObjects"){
-		imgui.text("STart OF TREE")
-		for i := 0;i < cast(int)buf_len(s.buffer.buffer);i+=1{
-			so_id := buf_get(&s.buffer.buffer,u64(i))
-			so := buf_chk_out(&ctx.scene_objects,so_id);
-			editor_scene_tree_display_recursively(so,ctx,so_id);
-			buf_chk_in(&ctx.scene_objects);
-		}
+		//Get the first root node
+			if buf_len(s.buffer.buffer) > 0{
+				so_id := buf_get(&s.buffer.buffer,u64(0))
+				so := buf_chk_out(&ctx.scene_objects,so_id);
+				editor_scene_tree_display(so,ctx,so_id);
+				buf_chk_in(&ctx.scene_objects);	
+			}
+		
 		imgui.tree_pop();
 	}
 	imgui.end();
