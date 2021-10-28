@@ -32,9 +32,12 @@ import editor "engine/editor"
 	TODO: 
 	1.Some issue with the lower you go to the bottom of the window mouse is slightly offset from imgui
 	inputs.
-	2. input_floats and others not using pointers where arrays are rEQUIRED
+		a. fixed when full screen but still probably issues when not in fullscreen investigate later
+	2. input_floats and others not using pointers where arrays are rEQUIRED 
+		a. change to multipointers
+	A. make a console long that works off of Odin fmt print
 	3. Do a basic 2d editor
-
+	
 	graphics:
 	sponza model loading : todo
 	sun light : todo
@@ -84,6 +87,7 @@ import editor "engine/editor"
 	at that point we will want to move onto something new which will be rendering techniques.
 	
 */
+
 Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wparam, lParam : window32.Lparam) -> window32.Lresult{
 	context = runtime.default_context();
 	platform.ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam);//{
@@ -114,16 +118,19 @@ WindowData :: struct {
 };
 
 ErrorStr :: cstring;
+GWL_STYLE :: -16
+set_screen_mode :: proc(ps : ^platform.PlatformState,is_full_screen : bool){
+	platform.WINSetScreenMode(ps,is_full_screen)
+}
 
-
-spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, ^WindowData){
+spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, WindowData){
     // Register the window class.
     using la;
+	window : WindowData;
 
     CLASS_NAME : cstring = "Main Vulkan Window";
 
     wc : window32.Wnd_Class_Ex_A = {}; 
-
     hInstance := cast(window32.Hinstance)(window32.get_module_handle_a(nil));
     ps.is_running = true;
     ps.window.dim = Vector2f32{f32(width), f32(height)};
@@ -134,7 +141,7 @@ spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : 
     wc.instance = hInstance;
     wc.class_name = CLASS_NAME;
 
-    if window32.register_class_ex_a(&wc) == 0 do return "Failed to register class!", nil;
+    if window32.register_class_ex_a(&wc) == 0 do return "Failed to register class!", window;
 
     hwnd := window32.create_window_ex_a(
         0,
@@ -150,9 +157,9 @@ spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : 
 
     ps.window.handle = hwnd;
     
-    if hwnd == nil do return "failed to create window!", nil;
+    if hwnd == nil do return "failed to create window!", window;
 
-    window := new(WindowData);
+    
     window.hInstance = hInstance;
     window.hwnd = hwnd;
     window.width = width;
@@ -195,9 +202,11 @@ main :: proc() {
 	   fmt.println(ps.window.handle);
 	   //    if !platformtest(&platform.ps,window_dim,window_p)
 	   result,window_data := spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y);
-
+	   if len(result) == 0{
+	   	set_screen_mode(&ps,true)
+	   }
 	   if !platform.PlatformInit(&ps, window_dim, window_p, 5) {
-		   fmt.println("Failed to initialize platform window!");
+		fmt.println("Failed to initialize platform window!");
 		   assert(false);
 	   } else {
 		   fmt.println("Initialized platform window!");
@@ -205,54 +214,52 @@ main :: proc() {
 		   fmt.println(ps.window.handle);
 		   fmt.println(ps.window.dim);
 		   fmt.println("Initializing graphics Window and api's.");
-		   //Lets init directx12
-
 
 		   init_result := gfx.init(&ps);
 
 		   if (init_result.is_init) {
-			device = init_result.device;
-			//Do some setup if needed
-			fmt.println("Graphics are initialized...");
-		} else {
-			//Could not initialize graphics device.
-			fmt.println("Failed to initialize graphics...");
-			assert(false);
-		}
+				device = init_result.device;
+				//Do some setup if needed
+				fmt.println("Graphics are initialized...");
+			} else {
+				//Could not initialize graphics device.
+				fmt.println("Failed to initialize graphics...");
+				assert(false);
+			}
 
-		//editor //imgui
-		//res := Imgui_State{};
-		version := imgui.get_version();
-    	imgui.create_context();
-    	imgui.style_colors_dark();
+			//editor //imgui
+			//res := Imgui_State{};
+			version := imgui.get_version();
+	    	imgui.create_context();
+	    	imgui.style_colors_dark();
 
-		io := imgui.get_io();
-		
-    	///imglfw.setup_state(window, true);
+			io := imgui.get_io();
+			
+	    	///imglfw.setup_state(window, true);
 
-    	//imgl.setup_state(&res.opengl_state);
+	    	//imgl.setup_state(&res.opengl_state);
 
-		//imgui_state := res;//imgui.init_imgui_state(window);
-    	//io := imgui.get_io();
-		g_pd3dSrvDescHeap : ID3D12DescriptorHeap;
+			//imgui_state := res;//imgui.init_imgui_state(window);
+	    	//io := imgui.get_io();
+			g_pd3dSrvDescHeap : ID3D12DescriptorHeap;
         	
-		imgui_desc : platform.D3D12_DESCRIPTOR_HEAP_DESC;
-    	imgui_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-    	imgui_desc.NumDescriptors = 1;
-    	imgui_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-    	g_pd3dSrvDescHeap = create_descriptor_heap(device.device,imgui_desc);
-        //if g_pd3dSrvDescHeap != nil{
-            //return false;
-        //    assert(false);    
-		//}
+			imgui_desc : platform.D3D12_DESCRIPTOR_HEAP_DESC;
+	    	imgui_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	    	imgui_desc.NumDescriptors = 1;
+	    	imgui_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	    	g_pd3dSrvDescHeap = create_descriptor_heap(device.device,imgui_desc);
+	        //if g_pd3dSrvDescHeap != nil{
+	            //return false;
+	        //    assert(false);    
+			//}
 
-		assert(g_pd3dSrvDescHeap.value != nil);
+			assert(g_pd3dSrvDescHeap.value != nil);
 
-		ImGui_ImplWin32_Init(ps.window.handle);
-		ImGui_ImplDX12_Init(device.device, gfx.num_of_back_buffers,
-			.DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap.value,
-			GetCPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value),
-			GetGPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value));
+			ImGui_ImplWin32_Init(ps.window.handle);
+			ImGui_ImplDX12_Init(device.device, gfx.num_of_back_buffers,
+				.DXGI_FORMAT_R8G8B8A8_UNORM, g_pd3dSrvDescHeap.value,
+				GetCPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value),
+				GetGPUDescriptorHandleForHeapStart(g_pd3dSrvDescHeap.value));
 
 		using gfx;
 		using enginemath;
@@ -411,6 +418,7 @@ main :: proc() {
 		using editor;
 		editor_scene_tree : EditorSceneTree;
 		editor_scene_tree_init(&editor_scene_tree);
+		should_show_log : bool = true
 
 		for ps.is_running {	
 			PullMouseState(&ps);
@@ -426,7 +434,7 @@ main :: proc() {
 			if show_demo_window do imgui.show_demo_window(&show_demo_window);
 
 			fmj_editor_scene_tree_show(&editor_scene_tree,&test_scene,&asset_ctx);
-
+			show_log(&should_show_log)
 
 			//get_local_	p(test_model_instance).x += 0.001;
 			t := get_t(test_model_instance);
@@ -487,7 +495,7 @@ main :: proc() {
 			 //if
 			 
 			 //}else{
-			ps.is_running = handle_msgs(window_data);
+			ps.is_running = handle_msgs(&window_data);
 			 //}
 
         		

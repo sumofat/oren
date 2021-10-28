@@ -12,6 +12,9 @@
 // If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 package platform;
+
+import logger "../logger"
+
 import imgui "../external/odin-imgui"
 import win32 "core:sys/win32"
 import win "core:sys/windows"
@@ -457,11 +460,17 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             return 0;
         }
         
-
         case win32.WM_MOUSEWHEEL:{
-            io.mouse_wheel += cast(f32)GET_WHEEL_DELTA_WPARAM(wParam) / cast(f32)WHEEL_DELTA;
+            delta :=  f32(i16(GET_WHEEL_DELTA_WPARAM(wParam)))
+            logger.print_log("delta: ",delta)
+            wheel_delta := f32(WHEEL_DELTA)
+            logger.print_log("wheel_delta : ",wheel_delta)
+            final_wheel := delta / wheel_delta
+            logger.print_log("final wheel value : ",final_wheel)
+            io.mouse_wheel += delta / wheel_delta;
             return 0;
         }
+
         ///case win32.WM_MOUSEHWHEEL:{
             //io.mouse_wheel_h += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
            // return 0;

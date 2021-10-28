@@ -233,8 +233,9 @@ foreign platform
     GetForegroundWindow :: proc "c"() ->  window32.Hwnd ---;
     IsChild :: proc "c"(hWndParent : window32.Hwnd,hWnd : window32.Hwnd) -> bool ---;
     TrackMouseEvent :: proc "c"(lpEventTrack : ^TRACKMOUSEEVENT) -> bool ---;
-    CopyTextureRegion :: proc(list : rawptr,pDst : ^D3D12_TEXTURE_COPY_LOCATION,DstX : c.uint,DstY : c.uint,DstZ : c.uint,pSrc : ^D3D12_TEXTURE_COPY_LOCATION,pSrcBox : ^D3D12_BOX) ---;
-    WaitForSingleObject :: proc(hHandle : windows.HANDLE,dwMilliseconds : windows.DWORD) -> windows.DWORD ---;
+    CopyTextureRegion :: proc "c" (list : rawptr,pDst : ^D3D12_TEXTURE_COPY_LOCATION,DstX : c.uint,DstY : c.uint,DstZ : c.uint,pSrc : ^D3D12_TEXTURE_COPY_LOCATION,pSrcBox : ^D3D12_BOX) ---;
+    WaitForSingleObject :: proc "c" (hHandle : windows.HANDLE,dwMilliseconds : windows.DWORD) -> windows.DWORD ---;
+    WINSetScreenMode :: proc "c"(ps : ^PlatformState,is_full_screen : bool) ---;
 }
 
 
