@@ -10,6 +10,9 @@ init_log :: proc(){
 }
 
 print_log :: proc(log : ..any){
+	if len(logs) >= 999{
+		clear(&logs)
+	}
 	fmted_log := fmt.aprint(log)
 	append(&logs,fmted_log)
 }

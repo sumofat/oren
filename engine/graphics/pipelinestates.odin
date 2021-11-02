@@ -1,8 +1,11 @@
 
 package graphics;
 import platform "../platform"
+import windows "core:sys/windows"
 
-create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,input_layout_count : int,vs_blob :  rawptr/*ID3DBlob**/,fs_blob : rawptr /*ID3DBlob* */,depth_enable := false) -> rawptr
+create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,
+    input_layout_count : int,vs_blob :  rawptr,fs_blob : rawptr,depth_enable := false,blend_enable :windows.BOOL= false,
+    src_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_SRC_ALPHA,dst_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_INV_SRC_ALPHA) -> rawptr
 {
     using platform;
     ppss : PipelineStateStream; 
@@ -34,9 +37,9 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     bdx.AlphaToCoverageEnable = false;
     bdx.IndependentBlendEnable = false;
     bdx.RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC;
-    bdx.RenderTarget[0].BlendEnable = false; 
-    bdx.RenderTarget[0].SrcBlend = .D3D12_BLEND_SRC_ALPHA;
-    bdx.RenderTarget[0].DestBlend = .D3D12_BLEND_INV_SRC_ALPHA;
+    bdx.RenderTarget[0].BlendEnable = blend_enable; 
+    bdx.RenderTarget[0].SrcBlend = src_blend_alpha;
+    bdx.RenderTarget[0].DestBlend = dst_blend_alpha;
 
     ppss.blend_state = PipelineStateSubObject(D3D12_BLEND_DESC){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, value = bdx};
 

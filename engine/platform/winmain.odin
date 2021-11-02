@@ -193,6 +193,7 @@ foreign platform
     PlatformInit :: proc "c" (ps : ^PlatformState,window_dim : la.Vector2f32,window_p : la.Vector2f32,n_show_cmd : c.int) -> bool ---;    
     HandleWindowsMessages :: proc "c" (ps : ^PlatformState) ---;
     PullMouseState :: proc "c"(ps : ^PlatformState) ---;
+    PullTimeState :: proc "c"(ps : ^PlatformState) ---;
     CreateDefaultDepthStencilBuffer :: proc "c"(dim : la.Vector2f32) ---;
     CreateDefaultRootSig :: proc "c"()  -> rawptr ---;    
     GetDevice :: proc "c"() -> rawptr ---;

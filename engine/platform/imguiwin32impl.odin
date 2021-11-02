@@ -461,13 +461,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
         }
         
         case win32.WM_MOUSEWHEEL:{
-            delta :=  f32(i16(GET_WHEEL_DELTA_WPARAM(wParam)))
-            logger.print_log("delta: ",delta)
-            wheel_delta := f32(WHEEL_DELTA)
-            logger.print_log("wheel_delta : ",wheel_delta)
-            final_wheel := delta / wheel_delta
-            logger.print_log("final wheel value : ",final_wheel)
-            io.mouse_wheel += delta / wheel_delta;
+            io.mouse_wheel += f32(i16(GET_WHEEL_DELTA_WPARAM(wParam))) / f32(WHEEL_DELTA)
             return 0;
         }
 

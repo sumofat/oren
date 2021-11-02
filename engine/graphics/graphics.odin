@@ -173,7 +173,7 @@ RenderCameraProjectionType :: enum {
 
 RenderCamera :: struct {
 	ot:                                   Transform, //perspective and ortho only
-	matrix:                               enginemath.f4x4,
+	m :                               enginemath.f4x4,
 	projection_matrix:                    enginemath.f4x4,
 	spot_light_shadow_projection_matrix:  enginemath.f4x4,
 	point_light_shadow_projection_matrix: enginemath.f4x4,
@@ -618,6 +618,10 @@ init :: proc(ps: ^platform.PlatformState) -> CreateDeviceResult {
 
 	mesh_pipeline_state := create_default_pipeline_state_stream_desc(default_root_sig, &input_layout_mesh[0], input_layout_count_mesh, mesh_rs.vs_blob, mesh_rs.fs_blob);
 	add_material(&ps, mesh_pipeline_state, "mesh");
+
+	mesh_alpha_blend_pipeline_state := create_default_pipeline_state_stream_desc(default_root_sig,&input_layout_mesh[0],input_layout_count_mesh,
+		mesh_rs.vs_blob,mesh_rs.fs_blob,false,true,.D3D12_BLEND_ONE,.D3D12_BLEND_SRC_ALPHA)
+	add_material(&ps,mesh_alpha_blend_pipeline_state,"mesh_alpha")
 
 	gbuff_pipeline_state := create_gbuffer_pipeline_state_stream_desc(default_root_sig, &input_layout_mesh[0], input_layout_count_mesh, rs_gbuffer.vs_blob, rs_gbuffer.fs_blob);
 	add_material(&ps, gbuff_pipeline_state, "gbuffer");

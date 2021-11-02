@@ -16,6 +16,12 @@ import enginemath "engine/math"
 import imgui  "engine/external/odin-imgui";
 import runtime "core:runtime"
 import editor "engine/editor"
+import entity "engine/entity"
+
+//test game real games would use
+//import game "../game"
+import game "game"
+
 //Graphics
 /*
 	Start with a simple deffered renderer and figure out how we want the pipeline to work
@@ -35,9 +41,52 @@ import editor "engine/editor"
 		a. fixed when full screen but still probably issues when not in fullscreen investigate later
 	2. input_floats and others not using pointers where arrays are rEQUIRED 
 		a. change to multipointers
-	A. make a console long that works off of Odin fmt print
+	3. create a basic engine update scheme
+		a. there are a list of entities with a list of update functions
+		b. the updpates are called in order
+		
 	3. Do a basic 2d editor
+		A. Not doing instanced drawing yet first do the quad basic draw alpha blended-
+		a. place bit mapped or color quads on a grid
+		b. also allow for freeform placement
+		c. basic animation
+		d. use directdrawinstanced to render basic quads that share bit maps.
+			essentialy we will try to fit as many 2d quads into the same draw call.
+		e. layers can be flat mapped or use projection mapping as they go out into the distance to create a parralax effect
+			(might be not how to do parralax rendering)
 	
+	4. Entities // Low priority
+		a. a flexible entity system
+		b. attach systems array to the entity example:
+			render would be removed from scene heiarcary traversal and we would make a render system list.
+			with a list of all entityes that are render something.  Traverse that list 
+		c. Making buckets of enities based on what components operate on  the entities in that bucket
+		d. Use an anycache that can take a key of void and size to create hashes based on arbitrary compoenents.
+		E. Experimenting with different ways of doing it quickly trying out different ways...
+			we are at the point where we need to fill in the buckets of entity archetypes with new entities being 
+			careful to track and copy the buckets when we add new archetypes.
+		F. Start testing and pushing the ECS system with some quads/bitmaps of various Types
+
+
+	5. Scene Hierarchry  // Low priority as we not  use that mostly just flat mostly this will be used with just 
+	//mesh rendering and animations
+		a. Remove the full traversal every frame only traverse from that node when a transform is touched
+		b. Remove mesh info from SceneObject should be tracked by systems themselves.
+		c. for UI viewing only get the entity and systems attached to SO and reflect them.
+		d. Make a UI button that doesnt diplay useful SO.  
+		e. Filter by type / name etc..
+	
+	6. Asset Pipeline is very cumbersome
+		1. allow to create a material with properties that can infer graphics state.
+		2. refelct the shaders to further get the state and vertex layout required
+		3. add some verification of the struct that is passed to the buffer when rendering to ensure matching
+
+	A. convert matrices to use the new builtin matrix in odin
+	B. PullTime is a mess in win32.cpp possibly use odin native intrinsics for it in the future
+	C. Have frozen meshes(meshes that are not only static in transform but also all properties) be ultra light
+	   in that they dont need to be instantiated at SceneObjects as well just id to the mesh 
+	 	could also be that if a property is changed that at that point it gets an instance on Scene
+
 	graphics:
 	sponza model loading : todo
 	sun light : todo
@@ -178,6 +227,7 @@ handle_msgs :: proc(window : ^WindowData) -> bool{
     }
     return cont;
 }
+
 main :: proc() {
 	   using la;
 	   using gfx;
@@ -314,11 +364,11 @@ main :: proc() {
 		rc.fov = 80;
 		rc.near_far_planes = f2{0.1, 1000};
 		rc.projection_matrix = init_pers_proj_matrix(ps.window.dim, rc.fov, rc.near_far_planes);
-		rc.matrix = la.MATRIX4F32_IDENTITY;
+		rc.m = la.MATRIX4F32_IDENTITY;
 
 		matrix_buffer        := &asset_ctx.asset_tables.matrix_buffer;
 		projection_matrix_id := buf_push(matrix_buffer, rc.projection_matrix);
-		rc_matrix_id         := buf_push(matrix_buffer, rc.matrix);
+		rc_matrix_id         := buf_push(matrix_buffer, rc.m);
 		rc.projection_matrix_id = projection_matrix_id;
 		rc.matrix_id = rc_matrix_id;
 
@@ -326,14 +376,14 @@ main :: proc() {
 		rc_ui.ot.r = la.quaternion_angle_axis(cast(f32)radians(0.0), f3{0, 0, 1});
 		rc_ui.ot.s = f3{1, 1, 1};
 		rc_ui.projection_matrix = init_screen_space_matrix(ps.window.dim);
-		rc_ui.matrix = MATRIX4F32_IDENTITY;
+		rc_ui.m = MATRIX4F32_IDENTITY;
 
 		screen_space_matrix_id := buf_push(matrix_buffer, rc_ui.projection_matrix);
-		identity_matrix_id     := buf_push(matrix_buffer, rc_ui.matrix);
+		identity_matrix_id     := buf_push(matrix_buffer, rc_ui.m);
 		//End Camera Setups
 
-		max_screen_p   := screen_to_world(rc.projection_matrix, rc.matrix, ps.window.dim, top_right_screen_xy, 0);
-		lower_screen_p := screen_to_world(rc.projection_matrix, rc.matrix, ps.window.dim, bottom_left_xy, 0);
+		max_screen_p   := screen_to_world(rc.projection_matrix, rc.m, ps.window.dim, top_right_screen_xy, 0);
+		lower_screen_p := screen_to_world(rc.projection_matrix, rc.m, ps.window.dim, bottom_left_xy, 0);
 
 		material      := asset_ctx.asset_tables.materials["base"];
 		mesh_material := asset_ctx.asset_tables.materials["mesh"];
@@ -357,6 +407,7 @@ main :: proc() {
 		new_trans := transform_init();
 		new_trans.s = f3{1, 1, 1};
 		new_trans.p = f3{0, -15, -10};
+
 
 		add_child_to_scene_object(&asset_ctx, rn_id, test_model_instance, new_trans);
 		new_trans.p = f3{0, 0, -6};
@@ -408,8 +459,8 @@ main :: proc() {
 			init_composite_pass(&asset_ctx);
 			//end experimental
 	
-		speed : f32 = 0.01;	
-		yspeed : f32 = 0.1;
+		speed : f32 = 10;	
+		yspeed : f32 = 1;
 		dir : f32 = 1;					
 		ydir : f32 = 1;
 		
@@ -419,15 +470,23 @@ main :: proc() {
 		editor_scene_tree : EditorSceneTree;
 		editor_scene_tree_init(&editor_scene_tree);
 		should_show_log : bool = true
+			
+		using entity
+		
+		init_ecs()
+		init_buckets()
+
+		//Examples ECS
+		init_lantern()
+		add_lantern_ecs(test_model_instance)
 
 		for ps.is_running {	
-			PullMouseState(&ps);
+			PullMouseState(&ps)
+			PullTimeState(&ps)
+			dt := ps.time.delta_seconds
 			io.mouse_pos = imgui.Vec2{f32(ps.input.mouse.p.x),f32(ps.input.mouse.p.y)};	
 			io.mouse_down[0] = ps.input.mouse.lmb.down;
 			//editor
-			//imglfw.update_display_size();
-    		//imglfw.update_mouse();
-    		//imglfw.update_dt();
     		ImGui_ImplDX12_NewFrame();
         	ImGui_ImplWin32_NewFrame();
 			imgui.new_frame();
@@ -435,36 +494,21 @@ main :: proc() {
 
 			fmj_editor_scene_tree_show(&editor_scene_tree,&test_scene,&asset_ctx);
 			show_log(&should_show_log)
+ 			
+ 			game.update(ps.time.delta_seconds)
+//Entity Logic Execute
+			update_ecs_entities()			
 
-			//get_local_	p(test_model_instance).x += 0.001;
-			t := get_t(test_model_instance);
-			if t.p.x > 4{
-				dir = -1;
-			}	
-			else if t.p.x < -4{
-				dir = 1;
-			}	
-
-			if t.p.z < -10{
-				ydir = 1;
-			}
-			else if t.p.z > -6{
-				ydir = -1;
-			}
-			t.local_p.x += speed * dir;
-			t.local_p.z += yspeed * ydir;
-				//get_local_s(test_model_instance)^ += f3{0.001, 0.001, 0.001};
-				//            get_t(test_model_instance).s += f3{0.1,0.1,0.1};
-	
-				//End game update
-			
-			//editor
+//editor
 			imgui.render();
-			
+
 			update_scene(&asset_ctx, &test_scene);
+
+//Prepare Rendering 
 			issue_render_commands(&render, &light_render, &test_scene, &asset_ctx, rc_matrix_id, projection_matrix_id);
 			//            issue_light_render_commands(&light_render,&test_scene,&asset_ctx,rc_matrix_id,projection_matrix_id);            
 
+//Execute Rendering
 			//Deffered rendering
 			//GBUFFER Pass
 			setup_gbuffer_pass(&render, matrix_buffer, &matrix_quad_buffer);

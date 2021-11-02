@@ -155,10 +155,10 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         if child.has_matrix == 1
         {
                     
-            out_mat = f4x4{{child.matrix[0],child.matrix[1],child.matrix[2],child.matrix[3]},
-                           {child.matrix[4],child.matrix[5],child.matrix[6],child.matrix[7]},
-                           {child.matrix[8],child.matrix[9],child.matrix[10],child.matrix[11]},
-                           {child.matrix[12],child.matrix[13],child.matrix[14],child.matrix[15]}};                                        
+            out_mat = f4x4{{child.m[0],child.m[1],child.m[2],child.m[3]},
+                           {child.m[4],child.m[5],child.m[6],child.m[7]},
+                           {child.m[8],child.m[9],child.m[10],child.m[11]},
+                           {child.m[12],child.m[13],child.m[14],child.m[15]}};                                        
         }
         else
         {
@@ -237,10 +237,10 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 out_mat := la.MATRIX4F32_IDENTITY;
                 if root_node.has_matrix == 1
                 {
-                    out_mat = f4x4{{root_node.matrix[0],root_node.matrix[1],root_node.matrix[2],root_node.matrix[3]},
-                                   {root_node.matrix[4],root_node.matrix[5],root_node.matrix[6],root_node.matrix[7]},
-                                   {root_node.matrix[8],root_node.matrix[9],root_node.matrix[10],root_node.matrix[11]},
-                                   {root_node.matrix[12],root_node.matrix[13],root_node.matrix[14],root_node.matrix[15]}};                                        
+                    out_mat = f4x4{{root_node.m[0],root_node.m[1],root_node.m[2],root_node.m[3]},
+                                   {root_node.m[4],root_node.m[5],root_node.m[6],root_node.m[7]},
+                                   {root_node.m[8],root_node.m[9],root_node.m[10],root_node.m[11]},
+                                   {root_node.m[12],root_node.m[13],root_node.m[14],root_node.m[15]}};                                        
                 }
                 else
                 {

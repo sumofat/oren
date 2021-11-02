@@ -6,6 +6,7 @@ import "core:mem"
 
 Hash :: struct (key_type,value_type : typeid)
 {
+    
     hash : map[key_type]value_type,
 //    key_size : umm,
     is_init : bool,
@@ -134,10 +135,9 @@ anycache_add_to_free_list :: proc(cache : ^AnyCache($key_type,$value_type),key :
 
 anycache_add :: proc(cache : ^AnyCache($key_type,$value_type),key : key_type,thing : value_type) -> bool
 {
-    assert(cache->is_using_free_list != false);    
-    index : u64  = buf_push(&cache->anythings,thing);
-    //u64* a = (u32*)index;
-    r := hash_add(&cache->hash,key,index);
+    assert(cache.is_using_free_list == false);    
+    index : u64  = buf_push(&cache.anythings,thing);
+    r := hash_add(&cache.hash,key,index);
     return r;
 }
 
