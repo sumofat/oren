@@ -17,6 +17,7 @@ import imgui  "engine/external/odin-imgui";
 import runtime "core:runtime"
 import editor "engine/editor"
 import entity "engine/entity"
+//import sprite "engine/sprite"
 
 //test game real games would use
 //import game "../game"
@@ -316,9 +317,7 @@ main :: proc() {
 		//	using platform;
 
 		//engine init
-		assetctx_init(&asset_ctx);
-		render       := renderer_init(40_000,GeometryRenderCommandList,RenderCommand);
-		light_render := renderer_init(1_000,LightRenderCommandList,LightRenderCommand);
+		assetctx_init(&asset_ctx)
 
 		//scene
 		scenes := make(map[string]Scene);
@@ -456,8 +455,9 @@ main :: proc() {
 		init_lighting_pass1();
 		init_lighting_pass2();
 		//		    init_perspective_projection_pass();
-			init_composite_pass(&asset_ctx);
-			//end experimental
+		init_composite_pass(&asset_ctx);
+		init_custom_pass()
+		//end experimental
 	
 		speed : f32 = 10;	
 		yspeed : f32 = 1;
@@ -475,11 +475,14 @@ main :: proc() {
 		
 		init_ecs()
 		init_buckets()
-
+		create_sprite_render_system(&asset_ctx,&custom_render)
 		//Examples ECS
 		init_lantern()
 		add_lantern_ecs(test_model_instance)
 
+		add_sprite(f3{0,0,0},f3{10,10,1},QUATERNIONF32_IDENTITY)
+		add_sprite(f3{300,300,0},f3{10,10,1},QUATERNIONF32_IDENTITY)
+		add_sprite(f3{300,300,0},f3{30,30,1},QUATERNIONF32_IDENTITY)
 		for ps.is_running {	
 			PullMouseState(&ps)
 			PullTimeState(&ps)
@@ -526,6 +529,9 @@ main :: proc() {
 			setup_composite_pass();
 			execute_composite_pass(composite_pass);
 
+			setup_custom_pass(&custom_render, matrix_buffer, &matrix_quad_buffer)
+			execute_custom_pass(custom_pass)
+
             setup_imgui_pass();
             execute_imgui_pass(g_pd3dSrvDescHeap.value);
 			//Basic forward rendering
@@ -544,8 +550,9 @@ main :: proc() {
 
         		
 			//TODO(Ray):Have all the command lists a buffer iterate and clear
-			buf_clear(&render.list.command_buffer);
-			buf_clear(&light_render.list.command_buffer);
+			end_passes()
+			//buf_clear(&render.list.command_buffer);
+			//buf_clear(&light_render.list.command_buffer);
 		}
 	}
 }

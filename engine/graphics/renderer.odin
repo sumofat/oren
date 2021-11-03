@@ -3,10 +3,7 @@ import platform "../platform"
 import con "../containers"
 import enginemath "../math"
 
-
 render_commands:      con.Buffer(D12RenderCommand);
-//render_commands_ptr:  ^RenderCommandList(GeometryRenderCommandList);
-//render_command_lists: con.Buffer(RenderCommandList(GeometryRenderCommandList));
 
 RenderCommand :: struct {
 	geometry:              RenderGeometry,
@@ -23,12 +20,21 @@ RenderCommand :: struct {
 	material_name:         string,
 }
 
+CustomRenderCommand :: struct {
+	geometry:              RenderGeometry,
+	material_id:           u64,
+	matrix_id:       u64,
+	texture_id:            u64,
+	is_indexed:            bool,
+	material_name:         string,
+}
+
 LightRenderCommand :: struct{
     light : Light,
     using render_command : RenderCommand,
 }
 
-GeometryRenderCommandList :: struct {
+GeometryRenderCommandList :: struct{
 	command_buffer : con.Buffer(RenderCommand),
 }
 
@@ -36,9 +42,15 @@ LightRenderCommandList :: struct{
     command_buffer : con.Buffer(LightRenderCommand),
 }
 
+CustomRenderCommandList :: struct{
+	command_buffer : con.Buffer(CustomRenderCommand),
+}
+
 RenderCommandList :: struct($list_type: typeid) {
 	list : list_type,
 }
+
+
 
 RenderProjectionPass :: struct {
 	matrix_buffer:      ^con.Buffer(enginemath.f4x4),
@@ -77,6 +89,14 @@ CompositePass :: struct {
 	vertex_buffer_id:       u64,
 	uv_buffer_id:           u64,
 	render_target_start_id: u64,
+}
+
+//NOTE(Ray):This pass is an attempt at being highly flexible
+CustomPass :: struct{
+	matrix_buffer :      ^con.Buffer(enginemath.f4x4),
+	matrix_quad_buffer : ^con.Buffer(enginemath.f4x4),
+	root_sig:           rawptr,
+	render_targets:     con.Buffer(platform.D3D12_CPU_DESCRIPTOR_HANDLE),
 }
 
 RenderPass :: struct($type: typeid,$list_type : typeid) {list: ^RenderCommandList(list_type), data: type}

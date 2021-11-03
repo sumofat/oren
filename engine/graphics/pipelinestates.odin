@@ -4,8 +4,8 @@ import platform "../platform"
 import windows "core:sys/windows"
 
 create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,
-    input_layout_count : int,vs_blob :  rawptr,fs_blob : rawptr,depth_enable := false,blend_enable :windows.BOOL= false,
-    src_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_SRC_ALPHA,dst_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_INV_SRC_ALPHA) -> rawptr
+    input_layout_count : int,vs_blob :  rawptr,fs_blob : rawptr,depth_enable :windows.BOOL= false,blend_enable :windows.BOOL= false,
+    src_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_SRC_ALPHA,dst_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_INV_SRC_ALPHA,front_ccw : windows.BOOL = true) -> rawptr
 {
     using platform;
     ppss : PipelineStateStream; 
@@ -30,7 +30,7 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     
     //    CD3DX12_RASTERIZER_DESC raster_desc = CD3DX12_RASTERIZER_DESC(d);
     raster_desc := DEFAULT_D3D12_RASTERIZER_DESC;
-    raster_desc.FrontCounterClockwise = true;
+    raster_desc.FrontCounterClockwise = front_ccw;
     ppss.rasterizer_state = PipelineStateSubObject(D3D12_RASTERIZER_DESC){ type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER, value = raster_desc};
 
     bdx : D3D12_BLEND_DESC;
@@ -44,7 +44,7 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     ppss.blend_state = PipelineStateSubObject(D3D12_BLEND_DESC){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, value = bdx};
 
     dss1 : D3D12_DEPTH_STENCIL_DESC1 = DEFAULT_D3D12_DEPTH_STENCIL_DESC1;
-    
+    dss1.DepthEnable = depth_enable
     ppss.depth_stencil_state = PipelineStateSubObject(D3D12_DEPTH_STENCIL_DESC1){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1, value = dss1};
 
     mesh_stream_desc : PipelineStateStreamDescriptor = {size_of(ppss),&ppss};

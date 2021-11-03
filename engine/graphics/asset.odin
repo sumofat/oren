@@ -15,6 +15,7 @@ import window32 "core:sys/win32"
 
 import con "../containers"
 import enginemath "../math"
+//import sprite "sprite"
 
 asset_ctx : AssetContext;
 
@@ -52,7 +53,7 @@ Texture :: struct
     state : rawptr,// NOTE(Ray Garner): temp addition
     slot : u32,
 };
-
+/*
 Sprite :: struct
 {
     id : u64,
@@ -61,7 +62,7 @@ Sprite :: struct
     color : enginemath.f4,
     is_visible : bool,
     material_name : string,
-};
+};*/
 
 VertCompressionType :: enum
 {

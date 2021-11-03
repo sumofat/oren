@@ -4,7 +4,7 @@ import e_math "../math"
 import platform "../platform"
 import logger "../logger"
 import ocon "core:container"
-import gfx "../graphics"
+//import gfx "../graphics"
 
 Entity :: distinct u64
 TRS :: struct{
@@ -300,9 +300,9 @@ update_ecs_lantern :: proc(bucket : ^EntityBucket,data : rawptr){
 		e.p.z += yspeed * ydir * dt
 		//logger.print_log(e)
 		
-		t := gfx.get_t(so_id);
-		t.local_p.x = e.p.x//+= speed * dir * dt;
-		t.local_p.z = e.p.z//yspeed * ydir * dt;
+		//t := gfx.get_t(so_id);
+		//t.local_p.x = e.p.x//+= speed * dir * dt;
+		//t.local_p.z = e.p.z//yspeed * ydir * dt;
 	}
 }
 
