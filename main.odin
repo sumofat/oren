@@ -49,13 +49,19 @@ import game "game"
 	3. Do a basic 2d editor
 		A. Not doing instanced drawing yet first do the quad basic draw alpha blended-
 		a. place bit mapped or color quads on a grid
-		b. also allow for freeform placement
+		b. freeform placement
 		c. basic animation
-		d. use directdrawinstanced to render basic quads that share bit maps.
+	*	d. use directdrawinstanced to render basic quads that share bit maps. 
 			essentialy we will try to fit as many 2d quads into the same draw call.
-		e. layers can be flat mapped or use projection mapping as they go out into the distance to create a parralax effect
+		e. layers or groups can be flat mapped or use projection mapping as they go out into the distance to create a parralax effect
 			(might be not how to do parralax rendering)
-	
+		f. need to make sure matrix works correctly ortho matrix.
+		g. get basic sprites 
+		h. figure out textures with the sprite system
+		i. will need layers or groups
+		j. do we need to have entities on sprites could just have the command written out by 
+			something like drawsprite api save a for loop of sprites
+
 	4. Entities // Low priority
 		a. a flexible entity system
 		b. attach systems array to the entity example:
@@ -67,7 +73,9 @@ import game "game"
 			we are at the point where we need to fill in the buckets of entity archetypes with new entities being 
 			careful to track and copy the buckets when we add new archetypes.
 		F. Start testing and pushing the ECS system with some quads/bitmaps of various Types
-
+		G. Because the user game systems are created or later than this one
+			any systems created here would be behind by one frame at least.
+			fix this by sorting systems
 
 	5. Scene Hierarchry  // Low priority as we not  use that mostly just flat mostly this will be used with just 
 	//mesh rendering and animations
@@ -81,6 +89,21 @@ import game "game"
 		1. allow to create a material with properties that can infer graphics state.
 		2. refelct the shaders to further get the state and vertex layout required
 		3. add some verification of the struct that is passed to the buffer when rendering to ensure matching
+		4. having specific states on the pipeline is difficult
+			a. we should have meta data for the pipeline associated with a shader
+
+	7. RenderPipeline Dx12
+		a. default_srv_heap count is the texture id we need to make a heap allocator that can keep track of free
+		 	indexes into the heap and create new heaps and link them together when we have more than 512 textures in play at once.
+		 	
+	8. Memory CPU and GPU
+		a. create a memory tracker for gpu and than cpu later.
+		b. need to handle gpu memory allocation for constant buffers 
+			a. resize / delete / create etc...
+
+	9. Sound
+		a. get some basic sound with fmod but before that we can try other more simple api's
+
 
 	A. convert matrices to use the new builtin matrix in odin
 	B. PullTime is a mess in win32.cpp possibly use odin native intrinsics for it in the future
@@ -427,7 +450,9 @@ main :: proc() {
 		*/
 
 		//matrix memory for mapping        
-		matrix_mem_size: u64 = (size_of(f4x4)) * 100;
+		//TODO(Ray):Need to tighten this up !!! if we try to push more matrices than we have 
+		//allocated for will silently failmapped_matrix_data
+		matrix_mem_size: u64 = (size_of(f4x4)) * 900;
 		matrix_gpu_arena := AllocateGPUArena(device.device, matrix_mem_size);
 
 		set_arena_constant_buffer(device.device, &matrix_gpu_arena, default_srv_desc_heap.count, default_srv_desc_heap.heap);
@@ -475,14 +500,19 @@ main :: proc() {
 		
 		init_ecs()
 		init_buckets()
-		create_sprite_render_system(&asset_ctx,&custom_render)
+
+		//TODO(Ray):Because the user game systems are created or later than this one
+		//any systems created here would be behind by one frame at least.
+		//fix this by sorting systems
+		create_sprite_render_system("data/asteroid.png",&custom_render)
 		//Examples ECS
 		init_lantern()
 		add_lantern_ecs(test_model_instance)
 
-		add_sprite(f3{0,0,0},f3{10,10,1},QUATERNIONF32_IDENTITY)
-		add_sprite(f3{300,300,0},f3{10,10,1},QUATERNIONF32_IDENTITY)
-		add_sprite(f3{300,300,0},f3{30,30,1},QUATERNIONF32_IDENTITY)
+		//NOTE(RAY):First frame of running will be an init frame called by the game.
+		//that can setup systems ect...
+		init_frame_done := false
+
 		for ps.is_running {	
 			PullMouseState(&ps)
 			PullTimeState(&ps)
@@ -498,7 +528,13 @@ main :: proc() {
 			fmj_editor_scene_tree_show(&editor_scene_tree,&test_scene,&asset_ctx);
 			show_log(&should_show_log)
  			
- 			game.update(ps.time.delta_seconds)
+ 			if !init_frame_done{
+	 			game.init()
+	 			init_frame_done = true
+ 			}else{
+	 			game.update(ps.time.delta_seconds)
+ 			}
+
 //Entity Logic Execute
 			update_ecs_entities()			
 

@@ -13,7 +13,7 @@ import imgui "../external/odin-imgui"
 
 render       := renderer_init(40_000,GeometryRenderCommandList,RenderCommand)
 light_render := renderer_init(1_000,LightRenderCommandList,LightRenderCommand)
-custom_render := renderer_init(1_000,CustomRenderCommandList,CustomRenderCommand)
+custom_render := renderer_init(2_000,CustomRenderCommandList,CustomRenderCommand)
 
 pers_proj_pass : RenderPass(RenderProjectionPass,GeometryRenderCommandList)
 gbuffer_pass : RenderPass(GbufferPass,GeometryRenderCommandList)
@@ -359,11 +359,7 @@ execute_composite_pass :: proc(pass : RenderPass(CompositePass,GeometryRenderCom
 		add_draw_command(0,6,platform.D3D12_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);                                
 	}
 
-    if(has_update)
-    {
-	    mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));		
-	    buf_clear(&matrix_quad_buffer);
-    }
+    
     
 	add_end_command_list_command();		
 }
@@ -683,7 +679,12 @@ execute_custom_pass :: proc(pass : RenderPass(CustomPass,CustomRenderCommandList
         }
         add_end_command_list_command();     
     }
-
+    
+    if(has_update)
+    {
+        mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));        
+        buf_clear(&matrix_quad_buffer);
+    }
 //    if(has_update)
     {
 //      mem.copy(mapped_matrix_data,mem.raw_dynamic_array_data(matrix_quad_buffer.buffer),cast(int)buf_len(matrix_quad_buffer) * size_of(f4x4));        

@@ -17,7 +17,7 @@ import con "../containers"
 import enginemath "../math"
 //import sprite "sprite"
 
-asset_ctx : AssetContext;
+asset_ctx : AssetContext
 
 AssetTables :: struct
 {
@@ -144,6 +144,25 @@ RenderMaterial :: struct
     base_color : enginemath.f4,
 };
 
+assetctx_init :: proc(ctx : ^AssetContext)
+{
+    using platform;
+    using con;
+    using enginemath; 
+    ctx.scene_objects = buf_init(100,SceneObject);
+    asset_tables := &ctx.asset_tables;
+//    asset_tables.materials = ;//buf_init(100,RenderMaterial);//fmj_anycache_init(4096,sizeof(FMJRenderMaterial),sizeof(u64),true);
+    
+    asset_tables.sprites = buf_init(500,Sprite);
+    asset_tables.textures = buf_init(100,Texture);
+
+    asset_tables.vertex_buffers = buf_init(100,D3D12_VERTEX_BUFFER_VIEW);
+    asset_tables.index_buffers = buf_init(100,D3D12_INDEX_BUFFER_VIEW);
+    asset_tables.matrix_buffer = buf_init(900,f4x4);
+
+    asset_tables.meshes = buf_init(100,Mesh);
+}
+
 load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64,type : SceneObjectType)
 {
     using enginemath;
@@ -181,7 +200,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
 //            result.model.model_name = string(file_path);
             mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,material);
             import_type = SceneObjectType.mesh;
-            upload_meshes(ctx,mesh_range);            
+            upload_meshes(mesh_range);            
         }
 
 	    mptr : rawptr = nil;
@@ -261,7 +280,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 {
                     mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material);
                     import_type = SceneObjectType.mesh;
-                    upload_meshes(ctx,mesh_range);
+                    upload_meshes(mesh_range);
                 }
 
                 mptr : rawptr = nil;
@@ -551,7 +570,29 @@ image_from_mem :: proc(ptr : ^u8,size : i32,texture : ^Texture ,desired_channels
 //    texture.texture = {};
     texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
 }
-    
+
+image_from_file :: proc(filename : cstring,texture : ^Texture ,desired_channels : i32)
+{
+    dimx : i32;
+    dimy : i32;
+    comp : i32;
+    stbi.info(filename,&dimx, &dimy, &comp);
+
+    texture.texels = stbi.load(filename,&dimx,&dimy,cast(^i32)&texture.channel_count,desired_channels)
+    //texture.texels = stbi.load_from_memory(ptr,size,&dimx,&dimy,cast(^i32)&texture.channel_count,desired_channels);
+
+    texture.dim = enginemath.f2{cast(f32)dimx,cast(f32)dimy};
+    texture.width_over_height = cast(f32)(dimx / dimy);
+
+    // NOTE(Ray Garner):stbi_info always returns 8bits/1byte per channels if we want to load 16bit or float need to use a 
+    //a different api. for now we go with this. 
+    //Will probaby need a different path for HDR textures etc..
+    texture.bytes_per_pixel = cast(u32)desired_channels;
+    texture.align_percentage = enginemath.f2{0.5,0.5};
+    texture.channel_count = cast(u32)desired_channels;
+    texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
+}
+
 texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture
 {
     tex : Texture;
@@ -560,10 +601,18 @@ texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture
     return tex;
 }
 
+texture_from_file :: proc(filename : cstring,desired_channels : i32) -> Texture{
+    tex : Texture
+    image_from_file(filename,&tex,desired_channels)
+    assert(tex.texels != nil)
+    return tex
+}
+
 texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> u64
 {
     using con;
-    tex_id := buf_push(&ctx.asset_tables.textures,texture^);
+    tex_id : u64 = u64(heap.count)
+    buf_push(&ctx.asset_tables.textures,texture^);
 
     hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
@@ -635,17 +684,18 @@ set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,si
     return id;
 }
 
-upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
+upload_meshes :: proc(range : enginemath.f2)
 {
     using con;
+    using asset_ctx
     for i := range.x;i <= range.y;i+=1{
         is_valid := 0;
         mesh_r : GPUMeshResource;
-        mesh := buf_chk_out(&ctx.asset_tables.meshes,cast(u64)i);
+        mesh := buf_chk_out(&asset_tables.meshes,cast(u64)i);
         id_range := enginemath.f2{};
         if mesh.vertex_count > 0
         {
-            id_range.x = cast(f32)set_buffer(ctx,&mesh_r.vertex_buff,size_of(f32) * 3,mesh.vertex_data_size,mesh.vertex_data);            
+            id_range.x = cast(f32)set_buffer(&asset_ctx,&mesh_r.vertex_buff,size_of(f32) * 3,mesh.vertex_data_size,mesh.vertex_data);            
             is_valid += 1;
         }
         else
@@ -657,14 +707,14 @@ upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
         
         if mesh.normal_count > 0
         {
-            set_buffer(ctx,&mesh_r.normal_buff,size_of(f32) * 3,mesh.normal_data_size,mesh.normal_data);            
+            set_buffer(&asset_ctx,&mesh_r.normal_buff,size_of(f32) * 3,mesh.normal_data_size,mesh.normal_data);            
             start_range  = start_range + 1.0;
             is_valid  += 1;
         }
         
         if mesh.uv_count > 0
         {
-            set_buffer(ctx,&mesh_r.uv_buff,size_of(f32) * 2,mesh.uv_data_size,mesh.uv_data);            	    
+            set_buffer(&asset_ctx,&mesh_r.uv_buff,size_of(f32) * 2,mesh.uv_data_size,mesh.uv_data);            	    
             start_range += 1.0;            
             is_valid += 1;
         }
@@ -680,7 +730,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
             format = platform.DXGI_FORMAT.DXGI_FORMAT_R32_UINT;                
             SetArenaToIndexVertexBufferView(&mesh_r.element_buff,size,format);
             upload_buffer_data(&mesh_r.element_buff,mesh.index_32_data,size);            
-            index_id := buf_push(&ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
+            index_id := buf_push(&asset_ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
             
             mesh_r.index_id = cast(u32)index_id;
             is_valid += 1;
@@ -695,7 +745,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
 	    
             SetArenaToIndexVertexBufferView(&mesh_r.element_buff,size,format);
             upload_buffer_data(&mesh_r.element_buff,mesh.index_16_data,size);            
-            index_id := buf_push(&ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
+            index_id := buf_push(&asset_ctx.asset_tables.index_buffers,mesh_r.element_buff.buffer_view.index_buffer_view);
             
             mesh_r.index_id = cast(u32)index_id;
             is_valid += 1;
@@ -712,7 +762,7 @@ upload_meshes :: proc(ctx : ^AssetContext,range : enginemath.f2)
             assert(false);
         }
 
-        buf_chk_in(&ctx.asset_tables.meshes);        
+        buf_chk_in(&asset_ctx.asset_tables.meshes);        
     }
 }
 

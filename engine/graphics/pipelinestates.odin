@@ -5,7 +5,7 @@ import windows "core:sys/windows"
 
 create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout : ^platform.D3D12_INPUT_ELEMENT_DESC,
     input_layout_count : int,vs_blob :  rawptr,fs_blob : rawptr,depth_enable :windows.BOOL= false,blend_enable :windows.BOOL= false,
-    src_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_SRC_ALPHA,dst_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_INV_SRC_ALPHA,front_ccw : windows.BOOL = true) -> rawptr
+    src_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_SRC_ALPHA,dst_blend_alpha : platform.D3D12_BLEND = .D3D12_BLEND_INV_SRC_ALPHA,blend_op : platform.D3D12_BLEND_OP = .D3D12_BLEND_OP_ADD ,front_ccw : windows.BOOL = true) -> rawptr
 {
     using platform;
     ppss : PipelineStateStream; 
@@ -36,10 +36,11 @@ create_default_pipeline_state_stream_desc :: proc(root_sig : rawptr,input_layout
     bdx : D3D12_BLEND_DESC;
     bdx.AlphaToCoverageEnable = false;
     bdx.IndependentBlendEnable = false;
-    bdx.RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC;
-    bdx.RenderTarget[0].BlendEnable = blend_enable; 
-    bdx.RenderTarget[0].SrcBlend = src_blend_alpha;
-    bdx.RenderTarget[0].DestBlend = dst_blend_alpha;
+    bdx.RenderTarget = DEFAULT_D3D12_RENDER_TARGET_BLEND_DESC
+    bdx.RenderTarget[0].BlendEnable = blend_enable 
+    bdx.RenderTarget[0].SrcBlend = src_blend_alpha
+    bdx.RenderTarget[0].DestBlend = dst_blend_alpha
+    bdx.RenderTarget[0].BlendOp = blend_op
 
     ppss.blend_state = PipelineStateSubObject(D3D12_BLEND_DESC){type = .D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND, value = bdx};
 
