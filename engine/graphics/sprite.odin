@@ -112,6 +112,8 @@ SpriteLayerDescriptor :: struct{
 
 create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : SpriteCameraSettings = default_camera_settings) -> ^SpriteLayer{
 	assert(MAX_LAYERS != len(sprite_buffers))
+	using platform.ps
+	using e_math
 	new_layer : SpriteLayer
 	
 	//new_sprite_buffer := con.buf_init(1,Sprite)
@@ -119,6 +121,11 @@ create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : Spr
 	new_sprite_buffer_id := len(sprite_buffers)//con.buf_push(&sprite_buffers,new_sprite_buffer)
 	append(&sprite_buffers,con.buf_init(1,Sprite))
 	new_layer.buffer_id = u64(new_sprite_buffer_id)
+	
+	projection_m := init_ortho_proj_matrix(window.dim * 0.1,0.0,1.0);
+	camera_m := f4x4_identity
+	new_layer.camera_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,camera_m)
+	new_layer.projection_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,projection_m)
 
 	ok,new_layer_arch_id  := pkg_entity.get_archetype([]typeid{typeid_of(Sprite)},[]rawptr{rawptr(&sprite_buffers[1])},tag)
 	new_layer.arch_id = new_layer_arch_id

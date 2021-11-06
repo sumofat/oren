@@ -28,7 +28,11 @@ init :: proc(){
 		velocity := linalg.mul(linalg.quaternion_angle_axis(radian,f3{0,0,1}),ref_vector)
 		print_log("velocity: ",velocity)
 		add_asteroid(nil,f3{0,0,0},quat_identity,f3{10,10,1},velocity)
-		add_asteroid(new_layer,f3{0,0,0},quat_identity,f3{10,10,1},velocity)
+
+		layer_radian := linalg.radians(deg + 5)
+		layer_velocity := linalg.mul(linalg.quaternion_angle_axis(layer_radian,f3{0,0,1}),ref_vector)
+		
+		add_asteroid(new_layer,f3{0,0,0},quat_identity,f3{10,10,1},layer_velocity)
 		deg += 10
 	}
 	is_init = true
