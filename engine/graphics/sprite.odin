@@ -7,11 +7,12 @@ import pkg_entity "../entity"
 import linalg "core:math/linalg"
 import strings "core:strings"
 import platform "../platform"
-SpriteGroup :: struct{
+SpriteLayer :: struct{
 	projection_m_id : u64,
 	camera_m_id : u64,
+	texture_id : u64,
 	arch_id : pkg_entity.EntityBucketKey,
-	render_list : ^RenderCommandList(CustomRenderCommandList),
+	buffer_id : u64,
 }
 
 Sprite :: struct{
@@ -21,28 +22,47 @@ Sprite :: struct{
 	texture_id : u64,
 }
 
-sprite_group : SpriteGroup
+default_sprite_path :: "data/asteroid.png"
+sprite_layers : con.Buffer(SpriteLayer)
 quad_mesh_id : u64
 global_texture_id : u64
+default_layer_id : u64
+//sprite_buffers : con.Buffer(con.Buffer(Sprite))
+sprite_buffers : [dynamic]con.Buffer(Sprite)
+MAX_LAYERS :: 10
+test_sprite_buffer : con.Buffer(Sprite)
 
-add_sprite :: proc(p : e_math.f3,r : e_math.Quat,s : e_math.f3) -> u64{
+add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math.f3,texture_name : string = "") -> u64{
 	using e_math
 	result : Sprite
 	result.material = asset_ctx.asset_tables.materials["mesh_alpha"]
-	new_e := pkg_entity.create_entity(sprite_group.arch_id)
+	current_layer := layer
+	if current_layer == nil{
+		current_layer = con.buf_ptr(&sprite_layers,default_layer_id)
+		current_layer.buffer_id = 0
+	}
+
+	new_e := pkg_entity.create_entity(current_layer.arch_id)
 	m : f4x4
-	//TODO(Ray):have to verify this matrix is in the right memory layout
-	mat := con.buf_get(&asset_ctx.asset_tables.matrix_buffer,u64(sprite_group.projection_m_id))
+	mat := con.buf_get(&asset_ctx.asset_tables.matrix_buffer,u64(current_layer.projection_m_id))
 	trs_mat := linalg.matrix4_from_trs_f32(p,r,s)
 	m = linalg.matrix_mul(mat,trs_mat)
 	result.m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,m)
-	result.proj_id = sprite_group.projection_m_id
+	result.proj_id = current_layer.projection_m_id
+
 //add texture
-//TODO(Ray):ensure the same texture doesnt get loaded twice or the gpu references  the same  texture
+	if texture_name == ""{
 
-	result.texture_id = global_texture_id
+		result.texture_id = current_layer.texture_id
+	}else{
+		//TODO(Ray):ensure the same texture doesnt get loaded twice or the gpu references  the same  texture
+		tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
+		result.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+	}
 
-	return con.buf_push(&asset_ctx.asset_tables.sprites,result)
+	return con.buf_push(&sprite_buffers[current_layer.buffer_id],result)
+	//return con.buf_push(&test_sprite_buffer,result)
+	//return con.buf_push(con.buf_ptr(&sprite_buffers,current_layer.buffer_id),result)
 }
 
 sprite_update :: proc(entity_bucket : ^pkg_entity.EntityBucket,data : rawptr){
@@ -71,26 +91,87 @@ sprite_update :: proc(entity_bucket : ^pkg_entity.EntityBucket,data : rawptr){
 		com.matrix_id = sprite.m_id//child_so.m_id
 		///com.camera_matrix_id = sprite_group.camera_m_id
 		//com.perspective_matrix_id = sprite_group.projection_m_id//p_mat
-		con.buf_push(&sprite_group.render_list.list.command_buffer, com)
+		con.buf_push(&custom_render.list.command_buffer, com)
 
 	}
 }
 
-create_sprite_render_system :: proc(texture_name : string,render_list : ^RenderCommandList(CustomRenderCommandList)){
+SpriteCameraSettings :: struct{
+	projection_m_id : u64,
+	camera_m_id : u64,
+}
+
+default_camera_settings : SpriteCameraSettings
+
+SpriteLayerDescriptor :: struct{
+	texture_name : string,
+	tag : u64,
+	camera : RenderCamera,
+
+}
+
+create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : SpriteCameraSettings = default_camera_settings) -> ^SpriteLayer{
+	assert(MAX_LAYERS != len(sprite_buffers))
+	new_layer : SpriteLayer
+	
+	//new_sprite_buffer := con.buf_init(1,Sprite)
+	//new_sprite_buffer_ptr := con.buf_ptr(&sprite_buffers,new_sprite_buffer_id)
+	new_sprite_buffer_id := len(sprite_buffers)//con.buf_push(&sprite_buffers,new_sprite_buffer)
+	append(&sprite_buffers,con.buf_init(1,Sprite))
+	new_layer.buffer_id = u64(new_sprite_buffer_id)
+
+	ok,new_layer_arch_id  := pkg_entity.get_archetype([]typeid{typeid_of(Sprite)},[]rawptr{rawptr(&sprite_buffers[1])},tag)
+	new_layer.arch_id = new_layer_arch_id
+	pkg_entity.create_system(sprite_update,new_layer_arch_id)
+
+	if texture_name != ""{
+		tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
+		new_layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+	}
+
+	id := con.buf_push(&sprite_layers,new_layer)
+	return con.buf_ptr(&sprite_layers,id)
+}
+
+init_sprite_render_system :: proc(){
 	using e_math
 	using platform.ps
+	layer : SpriteLayer
+	//this layer is the default layer
+	//when setting up a sprite if no layer is sspecified this is the layer that will be used.
 	create_quad(1,1)
+	sprite_layers = con.buf_init(1,SpriteLayer)
 	projection_m := init_ortho_proj_matrix(window.dim * 0.1,0.0,1.0);
 	camera_m := f4x4_identity
-	sprite_group.camera_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,camera_m)
-	sprite_group.projection_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,projection_m)
+	layer.camera_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,camera_m)
+	layer.projection_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,projection_m)
+	layer.buffer_id = 0
 
-	ok,sprite_arch_id := pkg_entity.get_archetype([]typeid{typeid_of(Sprite)},[]rawptr{rawptr(&asset_ctx.asset_tables.sprites)})
-	sprite_group.arch_id = sprite_arch_id
+	default_camera_settings.projection_m_id = layer.projection_m_id
+	default_camera_settings.camera_m_id = layer.camera_m_id
+
+
+	//sprite_buffers = con.buf_init(1,con.Buffer(Sprite))
+	sprite_buffers = make([dynamic]con.Buffer(Sprite),0,MAX_LAYERS)
+	append(&sprite_buffers,con.buf_init(1,Sprite))
+	//new_sprite_buffer_id := con.buf_push(&sprite_buffers,new_sprite_buffer)
+	//new_sprite_buffer_ptr := con.buf_ptr(&sprite_buffers,0)
+
+	//test := con.buf_ptr(&sprite_buffers,new_sprite_buffer_id)
+	//assert(con.buf_len(test^) == 0)
+	//test_sprite_buffer = con.buf_init(1,Sprite)
+
+	ok,sprite_arch_id := pkg_entity.get_archetype([]typeid{typeid_of(Sprite)},[]rawptr{rawptr(&sprite_buffers[0])},0)
+	
+//rawptr(&asset_ctx.asset_tables.sprites)
+	//ok,sprite_arch_id := pkg_entity.get_archetype([]typeid{typeid_of(Sprite)},[]rawptr{rawptr(&asset_ctx.asset_tables.sprites)})
+	layer.arch_id = sprite_arch_id
 	pkg_entity.create_system(sprite_update,sprite_arch_id)
-	sprite_group.render_list = render_list
-	tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
-	global_texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+	//NOTE(Ray): will be default texture for this layer unless excplicitly set in add_sprite
+	tex := texture_from_file(strings.clone_to_cstring(default_sprite_path),4)
+	layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+	default_layer_id := con.buf_push(&sprite_layers,layer)
+
 }
 
 create_quad :: proc(width : f32 = 1, height : f32 = 1) -> Mesh{

@@ -30,7 +30,7 @@ tes :: proc(l : Lantern_Ent){
 
 	
 ComponentSet :: struct{
-	id : EntityArchetypeID,
+	key : EntityBucketKey,
 	components : con.Buffer(EntityComponent),
 }
 
@@ -51,8 +51,8 @@ EntityBucket :: struct{
 
 EntityBucketKey :: struct{
 	key : EntityArchetypeID,
+	tag : u64,
 }
-
 
 entity_buckets : con.AnyCache(EntityBucketKey,EntityBucket)
 MAX_ARCHETYPE_COUNT :: 300
@@ -83,10 +83,14 @@ init_ecs :: proc(){
 update_ecs_entities :: proc(){
 	key : EntityBucketKey
 	for s ,i in systems.buffer{
-		bucket := retrieve_bucket(s.bucket_key)
-		ec := con.buf_get(&bucket.components,0)
-		s.update(bucket,ec.data)
-		//logger.print_log("excute system : ",bucket)
+		if s.update != nil{
+			bucket := retrieve_bucket(s.bucket_key)
+			if bucket != nil{
+				ec := con.buf_get(&bucket.components,0)
+				s.update(bucket,ec.data)
+				logger.print_log("excute system : ",bucket)
+			}
+		}
 	}
 }
 
@@ -125,10 +129,10 @@ add_component_to_bucket :: proc(bucket : ^EntityBucket,comp : EntityComponent){
 	con.buf_push(&bucket.components,comp)
 }
 
-add_archetype :: proc() -> EntityBucketKey{
+add_archetype :: proc(tag : u64) -> EntityBucketKey{
 	result : EntityBucketKey
 	result.key = EntityArchetypeID(current_archetype_id)
-	
+	result.tag = tag
 	current_archetype_id += 1
 	return result
 }
@@ -151,38 +155,43 @@ create_entity :: proc(key : EntityBucketKey) -> Entity{
 	return new_e
 }
 
-get_archetype :: proc(types : []typeid,data : []rawptr)-> (is_new_id : bool,arch_id : EntityBucketKey){
+get_archetype :: proc(types : []typeid,data : []rawptr,tag : u64 = 0)-> (is_new_id : bool,arch_id : EntityBucketKey){
 	//search for same component combination
 	true_set : ComponentSet
-	for s in component_set.buffer{
-		is_in_set : bool = true
-		for c in s.components.buffer{
-			for t in types{
-				if t != c.t{
-					is_in_set = false
+	for s in component_set.buffer{//buckets
+
+		for c in s.components.buffer{//components in buckets
+			is_in_set : bool = false
+
+			for t in types{//types we want to add
+				if t != c.t{//if one type is  not equal to the component
+					is_in_set = true
 				}
 			}
+			//if the tags are equal than than continue if the tag is different create a new bucket
+			if is_in_set == false && s.key.tag == tag{
+				return false,s.key//EntityBucketKey{s.keyid,tag}
+			}
 		}
-		if is_in_set == true{
-			return false,EntityBucketKey{s.id}
-		} 
+
+	 
 	}
 
 	//No component set found create a new bucket and archetype
-	new_arch_id := add_archetype()
+	new_arch_id := add_archetype(tag)
 
 	//add bucket for that 
 	add_bucket(new_arch_id)
 	new_bucket := get_bucket(new_arch_id)
-	logger.print_log(new_bucket)
+	//logger.print_log(new_bucket)
 
 	new_comp_set : ComponentSet
-	new_comp_set.id = new_arch_id.key
+	new_comp_set.key = new_arch_id
 	new_comp_set.components = con.buf_init(u64(len(types)),EntityComponent)
 	for t ,i in types{
 		new_comp : EntityComponent
 		new_comp.t = t//types
-		new_comp.data = data[i]//[]rawptr{rawptr(&lanterns)}
+		new_comp.data = data[i]
 		add_component_to_bucket(new_bucket,new_comp)
 		con.buf_push(&new_comp_set.components,new_comp)
 	}

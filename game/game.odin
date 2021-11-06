@@ -4,6 +4,7 @@ import e_math "../engine/math"
 import math "core:math"
 import linalg "core:math/linalg"
 import logger "../engine/logger"
+import  gfx "../engine/graphics"
 /*
 //TODO(Ray):We dont really want to have this in the game but we need access to platformstate
 package platform "engine/platform"
@@ -14,17 +15,21 @@ init :: proc(){
 	using e_math
 	using math
 	using logger
+	using gfx
 	init_asteroids()
+	new_layer := create_sprite_layer("data/asteroid.png",1)
+
 	deg : f32 = 0.0
 	ref_vector : f3 = f3{1,0,0} * 5
-	for i in 0..300{
+	for i in 0..36{
 		radian : f32 = linalg.radians(deg)
 		
 		print_log("radian: ",radian)
 		velocity := linalg.mul(linalg.quaternion_angle_axis(radian,f3{0,0,1}),ref_vector)
 		print_log("velocity: ",velocity)
-		add_asteroid(f3{0,0,0},quat_identity,f3{10,10,1},velocity)
-		deg += 1
+		add_asteroid(nil,f3{0,0,0},quat_identity,f3{10,10,1},velocity)
+		add_asteroid(new_layer,f3{0,0,0},quat_identity,f3{10,10,1},velocity)
+		deg += 10
 	}
 	is_init = true
 }

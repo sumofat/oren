@@ -61,7 +61,8 @@ import game "game"
 		i. will need layers or groups
 		j. do we need to have entities on sprites could just have the command written out by 
 			something like drawsprite api save a for loop of sprites
-
+		k. create a texture cache to ensure same texture doesnt get used twice unless intentional
+		
 	4. Entities // Low priority
 		a. a flexible entity system
 		b. attach systems array to the entity example:
@@ -504,7 +505,7 @@ main :: proc() {
 		//TODO(Ray):Because the user game systems are created or later than this one
 		//any systems created here would be behind by one frame at least.
 		//fix this by sorting systems
-		create_sprite_render_system("data/asteroid.png",&custom_render)
+		init_sprite_render_system()
 		//Examples ECS
 		init_lantern()
 		add_lantern_ecs(test_model_instance)
