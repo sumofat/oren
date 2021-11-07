@@ -673,6 +673,15 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> u
     return tex_id;
 }
 
+load_texture_from_path_to_default_heap :: proc(path : string) -> u64{
+    return load_texture_from_path(path,&default_srv_desc_heap)
+}
+
+load_texture_from_path :: proc(path : string,heap : ^GPUHeap) -> u64{
+    tex := texture_from_file(strings.clone_to_cstring(path),4)
+    return texture_add(&asset_ctx,&tex,heap)
+}
+
 set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,size : u64,data : ^f32) -> u64
 {
     v_size := size;

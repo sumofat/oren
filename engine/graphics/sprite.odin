@@ -32,6 +32,16 @@ sprite_buffers : [dynamic]con.Buffer(Sprite)
 MAX_LAYERS :: 10
 test_sprite_buffer : con.Buffer(Sprite)
 
+get_sprite :: proc(layer : ^SpriteLayer,sprite_id : u64) -> ^Sprite{
+	current_layer := layer
+	if current_layer == nil{
+		current_layer = con.buf_ptr(&sprite_layers,default_layer_id)
+	}
+	ptr := con.buf_ptr(&sprite_buffers[current_layer.buffer_id],sprite_id)
+	assert(ptr != nil)
+	return ptr
+}
+
 add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math.f3,texture_name : string = "") -> u64{
 	using e_math
 	result : Sprite
@@ -52,7 +62,6 @@ add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math
 
 //add texture
 	if texture_name == ""{
-
 		result.texture_id = current_layer.texture_id
 	}else{
 		//TODO(Ray):ensure the same texture doesnt get loaded twice or the gpu references  the same  texture
@@ -187,7 +196,7 @@ create_quad :: proc(width : f32 = 1, height : f32 = 1) -> Mesh{
         using mem
         using asset_ctx
         // Create a quad mesh.
-		mesh := Mesh{};
+	mesh := Mesh{};
         w := width * .5
         h := height * .5
 

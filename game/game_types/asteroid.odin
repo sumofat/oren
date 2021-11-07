@@ -88,7 +88,7 @@ add_asteroid :: proc(layer : ^gfx.SpriteLayer,p : e_math.f3,r : e_math.Quat,s : 
 	t.s = s//f3{1,1,1}
 	t.r = r//quat_identity
 	con.anycache_add(&pkg_entity.trs,new_e,t)
-
+	
 	sprite_id = gfx.add_sprite(layer,p,r,s)
 	if layer == nil{
 		layer_buffer_id = 0
