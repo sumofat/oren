@@ -127,6 +127,8 @@ add_money : f32
 total_money : f32
 auto_spin : bool
 wait_before_next_spin : f32
+bet : f32
+bet_amount : f32
 
 show_temp_ui :: proc(is_showing : ^bool){
 	if !imgui.begin("Slot Temp UI",is_showing){
@@ -137,6 +139,8 @@ show_temp_ui :: proc(is_showing : ^bool){
 	if imgui.button("Start Spin"){
 		is_spinning = true
 		accum_time = 0
+		is_results_counted = false
+		wait_before_next_spin = 0
 	}
 	imgui.input_float("Amount to add : ",&add_money)
 	if imgui.button("Add Money"){
@@ -145,6 +149,14 @@ show_temp_ui :: proc(is_showing : ^bool){
 		
 	}
 
+	imgui.input_float("Bet Amount : ",&bet)
+
+	if is_spinning == false{
+		if imgui.button("Set Bet"){
+			bet_amount = bet
+		}
+	}
+	imgui.text("Bet Amount : %v",bet_amount)
 	imgui.text("Total Money: %v",total_money)
 
 	imgui.checkbox("auto spin",&auto_spin)
@@ -156,6 +168,7 @@ show_temp_ui :: proc(is_showing : ^bool){
 			accum_time = 0
 			wait_before_next_spin = 0
 			is_results_counted = false
+			total_money -= bet_amount
 		}
 	}
 
@@ -193,9 +206,15 @@ init_basic_machine :: proc(){
 	append(&texture_ids,gfx.load_texture_from_path_to_default_heap("data/pear.png"))
 	append(&texture_ids,gfx.load_texture_from_path_to_default_heap("data/apple.png"))
 
+
+
+	grid : SlotGrid
+	grid.tile_size = f2{5,5}
+	grid.tile_grid = buf_init(1,SlotGridTile)
+	
 	//Get these entries from disk or network
 	symbol_payouts.entries = buf_init(10,SymbolPayoutEntry)
-	for i in 0..24{
+	for i in 0..24{//(grid.tile_size.x * grid.tile_size.y - 1){
 		entry : SymbolPayoutEntry
 		entry.amount = u32(100 * (i + 1))
 		entry.count = u32(1 * (i + 1))
@@ -219,15 +238,12 @@ init_basic_machine :: proc(){
 		buf_push(&machine.lines,new_line)
 	}
 
-	grid : SlotGrid
-	grid.tile_size = f2{5,5}
-	grid.tile_grid = buf_init(1,SlotGridTile)
 	stride := grid.tile_size.x
-	center_point := platform.ps.window.dim / 2.0
-	width_of_columns :f32 = 10.0
+	width_of_columns :f32 = 15.0
 	column_padding : f32 = 1.0
-	//origin_left := (f32((grid.tile_size.x / 2.0)) * f32(width_of_columns)) - center_point.x
-	origin_left := ((stride / 2.0) * f32(width_of_columns)) - (stride / 2.0)
+	total_width_in_units := (width_of_columns * stride)
+	origin_left := (total_width_in_units / 2.0) - total_width_in_units
+	//origin_left := ((stride / 2.0) * f32(width_of_columns)) - (stride / 2.0)
 	start_row := origin_left
 	start_column := origin_left
 	for row in 0..grid.tile_size.x - 1{
