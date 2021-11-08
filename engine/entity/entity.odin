@@ -88,7 +88,7 @@ update_ecs_entities :: proc(){
 			if bucket != nil{
 				ec := con.buf_get(&bucket.components,0)
 				s.update(bucket,ec.data)
-				logger.print_log("excute system : ",bucket)
+				//logger.print_log("excute system : ",bucket)
 			}
 		}
 	}

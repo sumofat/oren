@@ -237,6 +237,7 @@ foreign platform
     CopyTextureRegion :: proc "c" (list : rawptr,pDst : ^D3D12_TEXTURE_COPY_LOCATION,DstX : c.uint,DstY : c.uint,DstZ : c.uint,pSrc : ^D3D12_TEXTURE_COPY_LOCATION,pSrcBox : ^D3D12_BOX) ---;
     WaitForSingleObject :: proc "c" (hHandle : windows.HANDLE,dwMilliseconds : windows.DWORD) -> windows.DWORD ---;
     WINSetScreenMode :: proc "c"(ps : ^PlatformState,is_full_screen : bool) ---;
+    OutputDebugStringW :: proc(lpOutputString : cstring) ---
 }
 
 
