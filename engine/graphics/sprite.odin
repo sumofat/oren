@@ -16,6 +16,7 @@ SpriteLayer :: struct{
 }
 
 Sprite :: struct{
+	
 	material : RenderMaterial,
 	m_id : u64,
 	proj_id : u64,
@@ -35,7 +36,7 @@ test_sprite_buffer : con.Buffer(Sprite)
 
 set_sprite_trs :: proc(layer : ^SpriteLayer,sprite_id : u64,p : e_math.f3,r : e_math.Quat,s : e_math.f3){
 	using asset_ctx
-	
+
 	current_layer := layer
 	if current_layer == nil{
 		current_layer = con.buf_ptr(&sprite_layers,default_layer_id)
