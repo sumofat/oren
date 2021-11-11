@@ -30,13 +30,15 @@ SymbolPayout :: struct{
 SymbolPayoutEntry :: struct{
 	//count : [3]u32,//0 = 3x, 1 = 4x, 2 = 5x
 	amount : [3]u32,//
-	symbol : SlotSymbol,
+	texture_id : u64,
 }
 
 SlotGridTile :: struct{
-	symbol : SlotSymbol,
+	//symbol : SlotSymbol,
+	texture_id : u64,
 	sprite_id : u64,
 	t : pkg_entity.TRS,
+	symbol_payout_id : u64,
 }
 
 SlotGrid :: struct{
@@ -47,18 +49,14 @@ SlotGrid :: struct{
 	sprite_layer : ^gfx.SpriteLayer,
 }
 
-SlotSymbol :: struct{
-	texture_id : u64,
-	payout_entry : ^SymbolPayoutEntry,
-}
-
 SlotLine :: struct{
 	slots : con.Buffer(u64),//index into slotgrid.tile_grid	
 	is_spin_complete : bool,
+	is_stop_set: bool,
 	accum_time : f32,
 	speed : f32,
 	delay : f32,
-	current_stop_row : int,
+	current_bottom_row : int,
 }
 
 SlotSprite :: struct{
@@ -72,17 +70,18 @@ PayLineEntry :: struct{
 }
 
 PayLineResultEntry :: struct{
-	match_type : SlotSymbol,
+	//match_type : SlotSymbol,
+	texture_id : u64,
 	grid_idx : int,
+	symbol_payout_id : u64,
 }
 
 slot_sprites : con.Buffer(SlotSprite)
+payout_cache : con.AnyCache(u64,SymbolPayoutEntry)
 
 //test machine
 machine : SlotMachine
 paytable : SlotMachinePayTable
-
-symbol_payouts : SymbolPayout
 
 random_number_state : rand.Rand
 is_spinning := false
@@ -115,44 +114,52 @@ Stop on time or on press after time stop on next tile closest to y zero
 use distance to calculate the result grid 
 */
 
-get_playable_grid :: proc(result_grid_in : ^[]SlotGridTile){
+get_playable_grid :: proc(){
 	using machine
 	using con
 
-	assert(result_grid_in != nil)
-
 	tiles : []SlotGridTile = grid.tile_grid.buffer[:]
 	max_playable_tile_count := int(grid.playable_size.x * grid.playable_size.y)
-	result_grid : []SlotGridTile = result_grid_in^
 
 	vert_stride := grid.tile_size.x
 	stride : int = int(grid.stride)
+	
 
-	for l, column in lines.buffer{
-		//TODO(Ray): magic number 2 to be replaced based on playable grid size
-		lower_bound := safe_modulo(l.current_stop_row - 2,int(vert_stride))
+	for row in 0..int(grid.playable_size.x) - 1{
+		for line , column in lines.buffer{
+			logger.print_log("pgrid ","idx ",(row*stride + column),playable_grid[(row * stride) + column:(row * stride)+ column + 1])
+			copy(playable_grid[(row * stride) + column:(row * stride)+ column + 1], tiles[(row * stride) + column:(row * stride)+ column + 1])
+			//lower_bound = (lower_bound + 1) % (int(vert_stride))
+		}
+	}
+/*
+	for l, column in &lines.buffer{
+		lower_bound := safe_modulo(l.current_bottom_row,int(vert_stride))
+
 		for row in 0..int(grid.playable_size.x) - 1{
-			idx := (lower_bound * stride) + column
-			copy(result_grid[row * stride:][:column], tiles[lower_bound * stride:][ : column])
+//			logger.print_log("pgrid ",playable_grid[row * stride:][:column])
+			//logger.print_log("tiles ",tiles[lower_bound * stride:][:column + 1])
+			copy(playable_grid[row * stride:][:column], tiles[lower_bound * stride:][ : column ])
 			lower_bound = (lower_bound + 1) % (int(vert_stride))
 		}
 	}
-	result_grid_in^ = result_grid
+	*/
 }
 
+playable_grid : []SlotGridTile
 
-check_payline ::  proc(pay_line_results : ^[dynamic]PayLineResultEntry){
+get_symbol_on_payline ::  proc(pay_line_results : ^[dynamic]PayLineResultEntry){
 	using machine
 	using con
 
 	assert(pay_line_results != nil)
 	tile_count :int = int(grid.playable_size.x) * int(grid.playable_size.y)
-	playable_grid := make([]SlotGridTile,tile_count)
+	playable_grid = make([]SlotGridTile,tile_count)
 	defer{
-		delete(playable_grid)
+		//delete(playable_grid)
 	}
-	get_playable_grid(&playable_grid)
 
+	get_playable_grid()
 
 	pay_lines : [dynamic]con.Buffer(PayLineEntry) = make([dynamic]con.Buffer(PayLineEntry))
 
@@ -176,11 +183,13 @@ check_payline ::  proc(pay_line_results : ^[dynamic]PayLineResultEntry){
 	append(&pay_lines,test_payline)
 	for pay_line in &pay_lines{
 		for entry in pay_line.buffer{
-			tile := playable_grid[entry.idx]
+			tile := buf_get(&machine.grid.tile_grid,u64(entry.idx))
 			result_entry : PayLineResultEntry
 			result_entry.grid_idx = entry.idx
+			result_entry.texture_id = tile.texture_id
+			result_entry.symbol_payout_id = tile.symbol_payout_id
 			//TODO(Ray):change this to lookup into thte symbol table when we are 
-			result_entry.match_type = tile.symbol
+			//result_entry.match_type = tile.symbol
 			append(pay_line_results,result_entry)
 		}
 	}
@@ -193,10 +202,9 @@ check_payline ::  proc(pay_line_results : ^[dynamic]PayLineResultEntry){
 			//return value won	
 }
 
-
 spin_dir : f32 = -1
 
-animate_slot :: proc(slot_idx : int,offset_y : f32,stop_at_zero : bool = false,stop_row : int = -1) -> bool{
+animate_slot :: proc(slot_idx : int,offset_y : f32) -> bool{
 	using con
 	using gfx.asset_ctx
 	offset_y_spin := offset_y * spin_dir
@@ -205,33 +213,20 @@ animate_slot :: proc(slot_idx : int,offset_y : f32,stop_at_zero : bool = false,s
 		for i := 0;i < int(buf_len(line.slots));i+=1{
 			tile_id := buf_get(&line.slots,u64(i))
 			tile := buf_ptr(&machine.grid.tile_grid,tile_id)
-			//spin up
-			//next_tile_id := buf_get(&line.slots,u64((i + 1) % int(buf_len(line.slots))))
-			//next_tile := buf_ptr(&machine.grid.tile_grid,next_tile_id)
-			//spin down
-			//u64((i + 1) % int(buf_len(line.slots)))
 			next_tile_id := buf_get(&line.slots,u64(safe_modulo(i - 1,int(buf_len(line.slots)))))
 			next_tile := buf_ptr(&machine.grid.tile_grid,next_tile_id)
 			
 			assert(tile != nil)
 			assert(next_tile != nil)
 			sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
-			sprite.visible = true
-			if stop_at_zero && tile.t.p.y < 1 && tile.t.p.y > -1 && i == stop_row{
-				assert(stop_row > -1)
-				line.is_spin_complete = true
-				return true
-			}else{
-				tile.t.p.y += offset_y_spin
-				//check if we will wrap and if so wrap
-				if tile.t.p.y < ((origin_top)){
-					//wrap to bottom
-					tile.t.p.y =  next_tile.t.p.y + height_of_rows
-				}
+			
+			tile.t.p.y += offset_y_spin
+			//check if we will wrap and if so wrap
+			if tile.t.p.y < ((origin_top)){
+				//wrap to bottom
+				tile.t.p.y =  next_tile.t.p.y + height_of_rows
 			}
 			
-			//set sprite position
-//			gfx.set_sprite_trs(machine.grid.sprite_layer,tile.symbol.sprite_id,tile.t.p,tile.t.r,tile.t.s)
 			sprite_matrix := con.buf_ptr(&asset_tables.matrix_buffer,sprite.m_id)
 
 			mat := con.buf_get(&asset_tables.matrix_buffer,u64(sprite.proj_id))
@@ -243,40 +238,86 @@ animate_slot :: proc(slot_idx : int,offset_y : f32,stop_at_zero : bool = false,s
 	return false
 }
 
-animate_slot_row_to_p :: proc(slot_idx : int,position_y : f32,row : int) -> bool{
+stop_row_p :f32 = -30.05
+
+finish_slot_animation :: proc(slot_idx : int,offset_y : f32) -> bool{
 	using con
 	using gfx.asset_ctx
-
+	offset_y_spin := offset_y * spin_dir
 	line := buf_ptr(&machine.lines,u64(slot_idx))
-	for i := 0;i < int(buf_len(line.slots));i+=1{
-		tile_id := buf_get(&line.slots,u64(i))
-		tile := buf_ptr(&machine.grid.tile_grid,tile_id)
-		next_tile_id := buf_get(&line.slots,u64((i + 1) % int(buf_len(line.slots))))
-		next_tile := buf_ptr(&machine.grid.tile_grid,next_tile_id)
-		
-		offset_y := tile.t.p.y - position_y
-		assert(tile != nil)
-		sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
-		tile.t.p.y += offset_y
-		//check if we will wrap and if so wrap
-		if tile.t.p.y > (abs(origin_top)){
-			//wrap to bottom
-			tile.t.p.y =  next_tile.t.p.y - height_of_rows
+
+	if line.is_spin_complete == false{
+		play_grid_id := 0
+		for i := 0;i < int(buf_len(line.slots));i+=1{
+			tile_id := buf_get(&line.slots,u64(i))
+			tile := buf_ptr(&machine.grid.tile_grid,tile_id)
+			next_tile_id := buf_get(&line.slots,u64(safe_modulo(i - 1,int(buf_len(line.slots)))))
+			next_tile := buf_ptr(&machine.grid.tile_grid,next_tile_id)
+			
+			assert(tile != nil)
+			assert(next_tile != nil)
+
+			tile.t.p.y += offset_y_spin
+			//check if we will wrap and if so wrap
+			is_wrapping := false
+
+			if tile.t.p.y < ((origin_top)){
+				//wrap to bottom
+				tile.t.p.y =  next_tile.t.p.y + height_of_rows
+				is_wrapping = true					
+			}
+			
+			sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
+			
+			//if tile.t.p.y < 0.1 && tile.t.p.y > -0.1 && i == line.current_stop_row && line.is_stop_set{
+			if tile.t.p.y > -31.1 && tile.t.p.y <= -30.0 && i == line.current_bottom_row && line.is_stop_set{
+			///if line.is_stop_set{
+				//assert(line.current_bottom_row > -1)
+				line.is_spin_complete = true
+				return true
+			}else if line.is_stop_set == false{
+				//check if we will wrap and if so wrap
+				if is_wrapping{
+				//if true{
+					bottom_row := 0
+					finish_row_index := bottom_row
+					stride := int(machine.grid.tile_size.y)
+					for j in 0..int(machine.grid.playable_size.x) - 1{
+						//tiles with final ids
+
+						final_tile := playable_grid[(j * stride) + slot_idx : (j*stride) + (slot_idx + 1)]
+						
+						//tiles to replace the final results
+						replace_tile_id := buf_get(&line.slots,u64(finish_row_index))
+						replace_tile := buf_ptr(&machine.grid.tile_grid,replace_tile_id)
+						
+						assert(len(final_tile) > 0 && len(final_tile) == 1)
+						replace_tile.texture_id = final_tile[0].texture_id//finish_tile.texture_id
+						replace_tile.symbol_payout_id = final_tile[0].symbol_payout_id
+
+						current_play_grid_rows_tile_ids[j][slot_idx] = u64((j * stride) + slot_idx)//u64(finish_row_index)
+
+						finish_row_index = (finish_row_index + 1) % int(machine.grid.tile_size.x)
+					}
+					line.current_bottom_row = bottom_row
+					play_grid_id = bottom_row
+					
+					line.is_stop_set = true
+				}
+			}
+			sprite_matrix := con.buf_ptr(&asset_tables.matrix_buffer,sprite.m_id)
+
+			mat := con.buf_get(&asset_tables.matrix_buffer,u64(sprite.proj_id))
+			trs_mat := linalg.matrix4_from_trs(tile.t.p,tile.t.r,tile.t.s)
+			mul_mat := linalg.matrix_mul(mat,trs_mat)
+			sprite_matrix^ = mul_mat
 		}
-
-		//set sprite position
-		sprite_matrix := con.buf_ptr(&asset_tables.matrix_buffer,sprite.m_id)
-
-		mat := con.buf_get(&asset_tables.matrix_buffer,u64(sprite.proj_id))
-		trs_mat := linalg.matrix4_from_trs(tile.t.p,tile.t.r,tile.t.s)
-		mul_mat := linalg.matrix_mul(mat,trs_mat)
-		sprite_matrix^ = mul_mat
 	}
 	return false
 }
 
 pick_random_row :: proc()-> int{
-	return int(rand.float32_range(0,machine.grid.tile_size.x))
+	return int(rand.float32_range(0,machine.grid.tile_size.x - 1))
 }
 
 //first init
@@ -291,9 +332,10 @@ assign_random_symbol_to_grid :: proc(){
 			idx := (row * grid.stride) + column
 			tile := buf_ptr(&grid.tile_grid,u64(idx))
 			sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
-			rand_symbol_id := u64(rand.float32_range(0,6))
-			tile.symbol = buf_get(&symbol_payouts.entries,rand_symbol_id).symbol
-			sprite.texture_id = tile.symbol.texture_id
+			rand_symbol_id := u64(rand.float32_range(0,5))
+			tile.texture_id = anycache_get_ptr(&payout_cache,u64(rand_symbol_id)).texture_id
+			tile.symbol_payout_id = rand_symbol_id
+			sprite.texture_id = tile.texture_id
 
 			//set sprite position on grid
 			sprite_matrix := con.buf_ptr(&asset_tables.matrix_buffer,sprite.m_id)
@@ -308,7 +350,7 @@ assign_random_symbol_to_grid :: proc(){
 calculate_results :: proc(){
 	using machine
 	for l in &lines.buffer{
-		l.current_stop_row = pick_random_row()
+		//l.current_bottom_row = pick_random_row()
 	}
 
 	pay_line_results : [dynamic]PayLineResultEntry = make([dynamic]PayLineResultEntry,0,1)
@@ -316,22 +358,65 @@ calculate_results :: proc(){
 		delete(pay_line_results)
 	}
 
-	check_payline(&pay_line_results)
-
-	for plr in pay_line_results{
+	get_symbol_on_payline(&pay_line_results)
+	previous_plr : PayLineResultEntry
+	match_count := 0
+	matching_symbol : u64
+	for plr, i in pay_line_results{
 		//reference an actual symbol table
 		//5 500
 		//4 400
 		//3 300
-
-		//plr.match_type 
+		if i == 1 && previous_plr.symbol_payout_id != plr.symbol_payout_id{
+			break
+		}else if i == 1 && previous_plr.texture_id == plr.texture_id{
+			matching_symbol = previous_plr.symbol_payout_id
+			match_count = 2
+		}else if i > 1 && matching_symbol == plr.symbol_payout_id && match_count > 1{
+			match_count += 1
+		}else if i != 0{
+			break
+		}
+		previous_plr = plr
+	}
+	//TODO(Ray):Magic number must go!!
+	if match_count >= 3{
+		payout_entry := con.anycache_get_ptr(&payout_cache,matching_symbol)
+		total_money += f32(payout_entry.amount[match_count - 3])//f32(matching_symbol.payout_entry.amount[match_count - 3])
 	}
 }
+
+show_hide_play_grid := false
+current_play_grid_rows_tile_ids : [5][5]u64
 
 show_temp_ui :: proc(is_showing : ^bool){
 	if !imgui.begin("Slot Temp UI",is_showing){
 		imgui.end()
 		return
+	}
+	
+	if imgui.button("Toggle Hide Playable Grid"){
+
+		if show_hide_play_grid == false{
+			for row in 0..int(machine.grid.playable_size.x) - 1{
+				for column in 0..int(machine.grid.playable_size.y) - 1{
+					tile := con.buf_get(&machine.grid.tile_grid,u64(current_play_grid_rows_tile_ids[row][column]))
+					sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
+					sprite.visible = false
+				}
+			}	
+		}else{
+			stride := int(machine.grid.stride)
+			for row in 0..int(machine.grid.tile_size.x) - 1{
+				for column in 0..int(machine.grid.tile_size.y) - 1{
+					tile := con.buf_get(&machine.grid.tile_grid,u64(row * stride + column))
+					sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
+					sprite.visible = true
+				}
+			}
+		}
+
+		show_hide_play_grid = ~show_hide_play_grid
 	}
 
 	if imgui.button("Start Spin"){
@@ -360,7 +445,7 @@ show_temp_ui :: proc(is_showing : ^bool){
 		for i in 0..4{
 			line := con.buf_ptr(&machine.lines,u64(i))
 			line.is_spin_complete = false
-
+			line.is_stop_set = false
 		}
 	}
 	imgui.input_float("Amount to add : ",&add_money)
@@ -414,20 +499,31 @@ update_machine :: proc(){
 			l.speed = 800
 			animate_slot(i, l.speed * time.delta_seconds)
 
-		}else{
+		}else if l.is_spin_complete == false{
 			l.accum_time += platform.ps.time.delta_seconds
-			l.speed = 80
+			l.speed = 400
 			
 			is_spinning = false
 			finish_count : int
 			stride := machine.grid.stride
+			zero_offset_y := l.speed * time.delta_seconds
+			if l.is_stop_set == true{
+				stop_tile_id := con.buf_get(&l.slots,u64(l.current_bottom_row))
+				stop_tile := con.buf_ptr(&machine.grid.tile_grid,stop_tile_id)
+				stop_tile_y := stop_tile.t.p.y
+				//zero_offset_y = stop_tile.t.p.y//linalg.lerp(tile.t.p.y,,platform.ps.time.delta_seconds)
+				//zero_offset_y = linalg.lerp(stop_tile.t.p.y,stop_row_p,l.speed * time.delta_seconds)
 
-			if animate_slot(i,l.speed * time.delta_seconds,true,l.current_stop_row){
+				//zero_offset_y = stop_row_p - stop_tile_y
+			}
+			//if animate_slot(i,zero_offset_y,true){
+			//if animate_slot(i,l.speed * time.delta_seconds,true){
+			if finish_slot_animation(i,zero_offset_y){//l.speed * time.delta_seconds){
 				finish_count += 1
 			}	
 
 			if finish_count >= 4{
-				is_spin_complete = true
+				l.is_spin_complete = true
 			}
 		}
 	}
@@ -454,6 +550,7 @@ render_background :: proc(){
 
 }
 
+
 init_basic_machine :: proc(){
 	using con
 	using e_math
@@ -461,34 +558,25 @@ init_basic_machine :: proc(){
 
 	random_number_state = create(u64(10))
 
-	symbol_payouts.entries = buf_init(1,SymbolPayoutEntry)
-
 //slot tiles
+	payout_cache = anycache_init(u64,SymbolPayoutEntry,false)
 	new_payout_entry : SymbolPayoutEntry
 	new_payout_entry.amount[0] = 100
 	new_payout_entry.amount[1] = 200
 	new_payout_entry.amount[2] = 300
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/asteroid.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/bill.png")
-	
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/hen.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/watermelon.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/ruby.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/pear.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-	
-	new_payout_entry.symbol.texture_id = gfx.load_texture_from_path_to_default_heap("data/apple.png")
-	buf_push(&symbol_payouts.entries,new_payout_entry)
-
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/asteroid.png")
+	anycache_add(&payout_cache,0,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/bill.png")
+	anycache_add(&payout_cache,1,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/hen.png")
+	anycache_add(&payout_cache,2,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/watermelon.png")
+	anycache_add(&payout_cache,3,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/ruby.png")
+	anycache_add(&payout_cache,4,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/pear.png")
+	anycache_add(&payout_cache,5,new_payout_entry)
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/apple.png")
 	
 /*
 	append(&texture_ids,gfx.load_texture_from_path_to_default_heap("data/bill.png"))
@@ -528,7 +616,7 @@ init_basic_machine :: proc(){
 	total_lines := grid.tile_size.y
 	machine.lines = buf_init(5,SlotLine)
 	for i in 0..total_lines - 1{
-		new_line := SlotLine{con.buf_init(u64(grid.tile_size.x),u64),false,1000,800,i + 0.2,-1}
+		new_line := SlotLine{con.buf_init(u64(grid.tile_size.x),u64),false,false,1000,800,i + 0.2,-1}
 		new_line.is_spin_complete = true
 		buf_push(&machine.lines,new_line)
 	}
@@ -545,12 +633,12 @@ init_basic_machine :: proc(){
 	start_column := origin_top
 
 	for row in 0..grid.tile_size.x - 1{
-
 		for column in 0..grid.tile_size.y - 1{
 			idx := (row * grid.stride) + column
 			tile : SlotGridTile
-			rand_symbol_id := u64(rand.float32_range(0,6))
-			tile.symbol = con.buf_get(&symbol_payouts.entries,rand_symbol_id).symbol//buf_get(&symbol_payouts.entries,u64(idx)).symbol
+			rand_symbol_id := u64(rand.float32_range(0,5))
+			tile.texture_id = anycache_get_ptr(&payout_cache,rand_symbol_id).texture_id//con.buf_get(&symbol_payouts.entries,rand_symbol_id).symbol
+			tile.symbol_payout_id = rand_symbol_id//= buf_get(&symbol_payouts.entries,u64(idx))
 			tile.t.r = quat_identity
 			tile.t.s = f3{10,10,1}
 			tile.t.p.x = start_row
@@ -578,3 +666,36 @@ init_basic_machine :: proc(){
 	static_grid = grid
 	assign_random_symbol_to_grid()
 }
+/*
+animate_slot_row_to_p :: proc(slot_idx : int,position_y : f32,row : int) -> bool{
+	using con
+	using gfx.asset_ctx
+
+	line := buf_ptr(&machine.lines,u64(slot_idx))
+	for i := 0;i < int(buf_len(line.slots));i+=1{
+		tile_id := buf_get(&line.slots,u64(i))
+		tile := buf_ptr(&machine.grid.tile_grid,tile_id)
+		next_tile_id := buf_get(&line.slots,u64((i + 1) % int(buf_len(line.slots))))
+		next_tile := buf_ptr(&machine.grid.tile_grid,next_tile_id)
+		
+		offset_y := tile.t.p.y - position_y
+		assert(tile != nil)
+		sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
+		tile.t.p.y += offset_y
+		//check if we will wrap and if so wrap
+		if tile.t.p.y > (abs(origin_top)){
+			//wrap to bottom
+			tile.t.p.y =  next_tile.t.p.y - height_of_rows
+		}
+
+		//set sprite position
+		sprite_matrix := con.buf_ptr(&asset_tables.matrix_buffer,sprite.m_id)
+
+		mat := con.buf_get(&asset_tables.matrix_buffer,u64(sprite.proj_id))
+		trs_mat := linalg.matrix4_from_trs(tile.t.p,tile.t.r,tile.t.s)
+		mul_mat := linalg.matrix_mul(mat,trs_mat)
+		sprite_matrix^ = mul_mat
+	}
+	return false
+}
+*/
