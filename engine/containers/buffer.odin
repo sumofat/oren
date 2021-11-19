@@ -103,7 +103,7 @@ buf_clear :: proc(b : ^Buffer($element_type))
 buf_free :: proc(b : ^Buffer($element_type))
 {
     assert(b != nil);
-    delete(&buffer.buffer);
+    delete(b.buffer);
     b.borrow_count = 0;
 }
 
@@ -116,6 +116,15 @@ buf_copy :: proc(buf : ^Buffer($element_type),copy_contents : bool  = false) -> 
     //    result.buffer = clone_dynamic_array(buf.buffer);
     resize(&result.buffer,len(buf.buffer));
     copy(result.buffer[:],buf.buffer[:]);        
+    return result;
+}
+
+buf_copy_slice :: proc(s : []$element_type)-> Buffer(element_type){
+    result : Buffer(element_type);
+    result.current_id = 0
+    result.borrow_count = 0
+    resize(&result.buffer,len(s));
+    copy(result.buffer[:],s[:]);        
     return result;
 }
 

@@ -56,3 +56,8 @@ rotate :: proc(q : Quat ,dir : f3) -> f3
     ca : f3 = la.vector_cross3(qxyz, t);
     return (dir+a)+ca;
 }
+
+//allows for negative number wrap
+safe_modulo :: proc(x : int , n : int)-> int{
+    return (x % n + n) % n
+}

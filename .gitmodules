@@ -16,3 +16,6 @@
 [submodule "engine/external/odin-imgui"]
 	path = engine/external/odin-imgui
 	url = https://github.com/ThisDrunkDane/odin-imgui.git
+[submodule "engine/external/msgpack"]
+	path = engine/external/msgpack
+	url = https://github.com/Skytrias/odin-msgpack.git

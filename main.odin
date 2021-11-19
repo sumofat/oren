@@ -260,22 +260,12 @@ main :: proc() {
 	   using platform;
 	   fmt.println("Executing Main!");
 
-	   //    x :f32 = math.degrees(20);
-	   //    fmt.println(x);
-	   //    x = fmj.radians(x);
-	   //    fmt.println(x);    
-	   //    fmt.println(x);
 
 	   window_dim := enginemath.f2{1920, 1080};
 	   window_p   := enginemath.f2{0, 0};
 	   show_cmd: i32 = 0;
-	   //    platform.ps.is_running  = true;
-
-	   //    testPlatformInit(&platform.ps,100);
-	   //fmt.println(platform.ps);
 	   fmt.println(ps.is_running);
 	   fmt.println(ps.window.handle);
-	   //    if !platformtest(&platform.ps,window_dim,window_p)
 	   result,window_data := spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y);
 	   if len(result) == 0{
 	   	set_screen_mode(&ps,true)
@@ -302,20 +292,11 @@ main :: proc() {
 				assert(false);
 			}
 
-			//editor //imgui
-			//res := Imgui_State{};
 			version := imgui.get_version();
 	    	imgui.create_context();
 	    	imgui.style_colors_dark();
 
 			io := imgui.get_io();
-			
-	    	///imglfw.setup_state(window, true);
-
-	    	//imgl.setup_state(&res.opengl_state);
-
-			//imgui_state := res;//imgui.init_imgui_state(window);
-	    	//io := imgui.get_io();
 			g_pd3dSrvDescHeap : ID3D12DescriptorHeap;
         	
 			imgui_desc : platform.D3D12_DESCRIPTOR_HEAP_DESC;
@@ -323,10 +304,6 @@ main :: proc() {
 	    	imgui_desc.NumDescriptors = 1;
 	    	imgui_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	    	g_pd3dSrvDescHeap = create_descriptor_heap(device.device,imgui_desc);
-	        //if g_pd3dSrvDescHeap != nil{
-	            //return false;
-	        //    assert(false);    
-			//}
 
 			assert(g_pd3dSrvDescHeap.value != nil);
 
@@ -419,9 +396,6 @@ main :: proc() {
 		light_sphere_model_result := asset_load_model(&asset_ctx, "data/sphere.glb", mesh_material, SceneObjectType.light);
 		light_sphere_instance     := create_model_instance(&asset_ctx, light_sphere_model_result);
 
-
-		//	    add_new_child_to_scene_object(&asset_ctx,rn_id,f3{},Quat{},f3{1,1,1},nil,"test_so");
-
 		test_so := buf_chk_out(&asset_ctx.scene_objects, test_model_result.scene_object_id);
 		test_so.name = string("track so");
 
@@ -475,7 +449,7 @@ main :: proc() {
 		buf_chk_in(&asset_ctx.scene_objects);
 		//end game object setup
 
-		//experimental
+		//init of render passes
 		init_gbuffer_pass();
 		//        init_projective_pass();
 		init_lighting_pass1();
@@ -483,13 +457,15 @@ main :: proc() {
 		//		    init_perspective_projection_pass();
 		init_composite_pass(&asset_ctx);
 		init_custom_pass()
-		//end experimental
+		//end render passes
 	
+	//test game stuuff
 		speed : f32 = 10;	
 		yspeed : f32 = 1;
 		dir : f32 = 1;					
 		ydir : f32 = 1;
 		
+		//editor stuff
 		show_demo_window := true;
 
 		using editor;
