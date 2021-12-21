@@ -2,6 +2,7 @@ package platform
 
 import platform "../platform"
 
+
 ps : PlatformState;
 
 PlatformState :: struct

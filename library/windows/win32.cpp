@@ -435,11 +435,26 @@ void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
     else
     {
         ps->window.is_full_screen_mode = false;
-        SetWindowLong(Window, GWL_STYLE,Style& ~WS_OVERLAPPEDWINDOW);
-        SetWindowPlacement(Window, &ps->window.global_window_p);
-        SetWindowPos(Window,0, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
-                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        //GetWindowPlacement(Window, &ps->window.global_window_p)
+        //ps->window.global_window_p.length = sizeof(WINDOWPLACEMENT);
+        //if (SetWindowPlacement(Window, &ps->window.global_window_p))
+        {
+            MONITORINFO mi = { sizeof(mi) };
+            GetMonitorInfo(MonitorFromWindow(Window,MONITOR_DEFAULTTOPRIMARY), &mi);
+            //SetWindowLong(Window, GWL_STYLE,Style& ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(Window,0, (mi.rcMonitor.right/2) - (ps->window.dim.x / 2), (mi.rcMonitor.bottom/2) - (ps->window.dim.y / 2), ps->window.dim.x, ps->window.dim.y,0);
+/*
+            SetWindowPos(Window, HWND_TOP,
+                         mi.rcMonitor.left, mi.rcMonitor.top,
+                         mi.rcMonitor.right - mi.rcMonitor.left,
+                         mi.rcMonitor.bottom - mi.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+*/
+
+            //SetWindowPlacement(Window, &ps->window.global_window_p);
+        }
+        
+        
     }
 }
 /*
