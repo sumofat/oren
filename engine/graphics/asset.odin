@@ -169,12 +169,13 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
 {
     using enginemath;
     for i := 0;i < cast(int)node.children_count;i+=1{
-        child_ptr := mem.ptr_offset(node.children,i);//cgltf.node
-        child : ^cgltf.node = child_ptr^;	
+        //child_ptr := mem.ptr_offset(node.children,i);//cgltf.node
+        child_ptr := node.children[i]
+        child : ^cgltf.node = child_ptr;	
         trans := transform_init();
 
         out_mat := la.MATRIX4F32_IDENTITY;
-        if child.has_matrix == 1
+        if child.has_matrix == true
         {
                     
             out_mat = f4x4{{child.m[0],child.m[1],child.m[2],child.m[3]},
@@ -230,13 +231,14 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     options : cgltf.options;
     cgltf_data : ^cgltf.data;
     aresult := cgltf.parse_file(&options,file_path, &cgltf_data);    
-    assert(aresult == cgltf.result.result_success);
-    if cast(cgltf.result)aresult == cgltf.result.result_success
+    assert(aresult == cgltf.result.success);
+    if cast(cgltf.result)aresult == cgltf.result.success
     {
         for i := 0;i < cast(int)cgltf_data.buffers_count;i += 1{
-	        uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
+	        //uri := mem.ptr_offset(cgltf_data.buffers,i).uri;
+            uri := cgltf_data.buffers[i].uri
             rs := cgltf.load_buffers(&options, cgltf_data, uri);
-            assert(rs == cgltf.result.result_success);
+            assert(rs == cgltf.result.success);
         }
         //TODO(ray):If we didnt  get a mesh release any memory allocated.
         if cgltf_data.nodes_count > 0
@@ -248,16 +250,17 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
             model_root_so_.type = type;
             model_root_so_id := buf_push(&ctx.scene_objects,model_root_so_);
             assert(cgltf_data.scenes_count == 1);
-	        scenes_count := mem.ptr_offset(cgltf_data.scenes,0).nodes_count;	    
-
-		    root_scene := mem.ptr_offset(cgltf_data.scenes,0);
-            
+	        //scenes_count := mem.ptr_offset(cgltf_data.scenes,0).nodes_count;	    
+            scenes_count := cgltf_data.scenes[0].nodes_count
+		    //root_scene := mem.ptr_offset(cgltf_data.scenes,0);
+            root_scene := cgltf_data.scenes[0]
             for i := 0;i < cast(int)scenes_count;i+=1{
-                root_node : ^cgltf.node = mem.ptr_offset(root_scene.nodes,i)^;
-		        
+                //root_node : ^cgltf.node = mem.ptr_offset(root_scene.nodes,i)^;
+                root_node : ^cgltf.node = root_scene.nodes[i]
+                
                 trans := transform_init();
                 out_mat := la.MATRIX4F32_IDENTITY;
-                if root_node.has_matrix == 1
+                if root_node.has_matrix == true
                 {
                     out_mat = f4x4{{root_node.m[0],root_node.m[1],root_node.m[2],root_node.m[3]},
                                    {root_node.m[4],root_node.m[5],root_node.m[6],root_node.m[7]},
@@ -317,7 +320,8 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
 
     for j := 0;cast(uint)j < ma.primitives_count; j += 1{
         mesh := Mesh{};
-        prim := mem.ptr_offset(ma.primitives,j);
+        //prim := mem.ptr_offset(ma.primitives,j);
+        prim := ma.primitives[j]
         mat  := prim.material;
         if mat != nil
         {
@@ -336,7 +340,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 //            tv := mat.emissive_texture;
             }
 
-            if mat.has_pbr_metallic_roughness == 1
+            if mat.has_pbr_metallic_roughness == true
             {
                 if mat.pbr_metallic_roughness.base_color_texture.texture != nil
                 {
@@ -368,7 +372,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 //            cgltf_float* rf = &mat.pbr_metallic_roughness.roughness_factor;
             }
 
-            if mat.has_pbr_specular_glossiness == 1
+            if mat.has_pbr_specular_glossiness == true
             {
                 if mat.pbr_specular_glossiness.diffuse_texture.texture != nil
                 {
@@ -399,7 +403,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
         mesh.name = string(ma.name);
         mesh.material_id = 0;
 
-        if prim.type == cgltf.primitive_type.primitive_type_triangles
+        if prim.type == cgltf.primitive_type.triangles
         {
             has_got_first_uv_set := false;
 
@@ -407,7 +411,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
             {
                 istart_offset := prim.indices.offset + prim.indices.buffer_view.offset;
                 ibuf := prim.indices.buffer_view.buffer;                
-                if prim.indices.component_type == cgltf.component_type.component_type_r_16u
+                if prim.indices.component_type == cgltf.component_type.r_16u
                 {
                     indices_size :=  cast(u64)prim.indices.count * size_of(u16);
                     indices_buffer := cast(^u16)mem.ptr_offset(cast(^u8)ibuf.data,cast(int)istart_offset);
@@ -418,7 +422,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     mesh.index_16_data_size = size_of(u16) * cast(u64)prim.indices.count;
                     mesh.index16_count = cast(u64)prim.indices.count;                    
                 }
-                else if prim.indices.component_type == cgltf.component_type.component_type_r_32u
+                else if prim.indices.component_type == cgltf.component_type.r_32u
                 {
                     indices_size :=  cast(u64)prim.indices.count * size_of(u32);
                     indices_buffer := cast(^u32)(mem.ptr_offset(cast(^u8)ibuf.data,cast(int)istart_offset));
@@ -432,8 +436,8 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
             }
             
             for k := 0;k < cast(int)prim.attributes_count; k += 1{
-                ac := mem.ptr_offset(prim.attributes,k);
-
+                //ac := mem.ptr_offset(prim.attributes,k);
+                ac := prim.attributes[k]
                 acdata := ac.data;
                 count := acdata.count;
 		        bf := acdata.buffer_view;
@@ -443,7 +447,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     buf := bf.buffer;
                     buffer := (^f32)(mem.ptr_offset(cast(^u8)buf.data,cast(int)start_offset));
 
-                    if acdata.is_sparse == 1
+                    if acdata.is_sparse == true
                     {
                         assert(false);
                     }
@@ -454,25 +458,25 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                     csize := cgltf.accessor_unpack_floats(acdata,outf,num_floats);
 
                     //NOTE(Ray):only support two set of uv data for now.                        
-                    if ac.type == cgltf.attribute_type.attribute_type_position
+                    if ac.type == cgltf.attribute_type.position
                     {
                         mesh.vertex_data = outf;
                         mesh.vertex_data_size = cast(u64)num_bytes;
                         mesh.vertex_count = cast(u64)count;
                     }
-                    else if ac.type == cgltf.attribute_type.attribute_type_normal
+                    else if ac.type == cgltf.attribute_type.normal
                     {
                         mesh.normal_data = outf;
                         mesh.normal_data_size = cast(u64)num_bytes;
                         mesh.normal_count = cast(u64)count;
                     }
-                    else if ac.type == cgltf.attribute_type.attribute_type_tangent
+                    else if ac.type == cgltf.attribute_type.tangent
                     {
                         mesh.tangent_data = outf;
                         mesh.tangent_data_size = cast(u64)num_bytes;
                         mesh.tangent_count = cast(u64)count;
                     }
-                    else if ac.type == cgltf.attribute_type.attribute_type_texcoord && !has_got_first_uv_set
+                    else if ac.type == cgltf.attribute_type.texcoord && !has_got_first_uv_set
                     {
 
                         mesh.uv_data = outf;
@@ -480,7 +484,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                         mesh.uv_count = cast(u64)count;
                         has_got_first_uv_set = true;
                     }
-                    else if ac.type == cgltf.attribute_type.attribute_type_texcoord && has_got_first_uv_set
+                    else if ac.type == cgltf.attribute_type.texcoord && has_got_first_uv_set
                     {
                         mesh.uv2_data = outf;
                         mesh.uv2_data_size = cast(u64)num_bytes;
