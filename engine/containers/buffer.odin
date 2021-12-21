@@ -24,7 +24,8 @@ buf_push :: proc(buffer : ^Buffer($element_type),element : element_type) -> u64
     assert(buffer.borrow_count == 0);
     if buf_len(buffer^) <= buffer.current_id
     {
-	append_nothing(&buffer.buffer);
+	   append_nothing(&buffer.buffer);
+       //assert(false)
     }
     
     buffer.buffer[buffer.current_id] = element;

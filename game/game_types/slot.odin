@@ -78,52 +78,59 @@ PayLineResultEntry :: struct{
 	symbol_payout_id : int,
 }
 
-slot_sprites : con.Buffer(SlotSprite)
-payout_cache : con.AnyCache(u64,SymbolPayoutEntry)
+SlotMachineState :: struct{
+	slot_sprites : con.Buffer(SlotSprite),
+	payout_cache_count : u64,//also the  key
+	payout_cache : con.AnyCache(u64,SymbolPayoutEntry),
 
-//test machine
-machine : SlotMachine
-paytable : SlotMachinePayTable
+	//test machine
+	machine : SlotMachine,
+	paytable : SlotMachinePayTable,
 
-random_number_state : rand.Rand
-is_spinning := false
-is_spin_complete := true
-is_show_temp_ui := true
-is_results_counted := false
+	random_number_state : rand.Rand,
+	is_spinning : bool, //= false,
+	is_spin_complete : bool, //= true,
+	is_show_temp_ui : bool,// = true,
+	is_results_counted : bool , //= false,
 
-origin_left : f32
-origin_top  : f32//wrap around here
+	origin_left : f32,
+	origin_top  : f32,//wrap around here
 
-origin_top_playable_tile : f32
+	origin_top_playable_tile : f32,
 
-origin_wrap_bottom : f32
-width_of_columns,height_of_rows :f32 = 15.0,15.0
+	origin_wrap_bottom : f32,
+	width_of_columns,height_of_rows : f32,// = 15.0,15.0
 
-static_grid : SlotGrid
+	static_grid : SlotGrid,
 
-add_money : f32
-total_money : f32
-auto_spin : bool
-wait_before_next_spin : f32
-bet : f32
-bet_amount : f32
-spin_dir : f32 = -1
-stop_row_p :f32 = -30.05
+	add_money : f32,
+	total_money : f32,
+	auto_spin : bool,
+	wait_before_next_spin : f32,
+	bet : f32,
+	bet_amount : f32,
+	spin_dir : f32,// = -1
+	stop_row_p :f32,// = -30.05
 
-playable_grid : []SlotGridTile
-accum_time : f32
-show_hide_play_grid := false
-current_play_grid_rows_tile_ids : [5][5]u64
-pay_lines : [dynamic]con.Buffer(PayLineEntry)
+	playable_grid : []SlotGridTile,
+	accum_time : f32,
+	show_hide_play_grid : bool,//= false
+	current_play_grid_rows_tile_ids : [5][5]u64,
 
-@export update :: proc(){
+	tiles_layer : ^gfx.SpriteLayer,
+	bg_layer : ^gfx.SpriteLayer,
+	pay_lines : [dynamic]con.Buffer(PayLineEntry),
+}
+
+update :: proc(using state : ^SlotMachineState){
 	using platform.ps
-	show_temp_ui(&is_show_temp_ui)
+
+	show_temp_ui(state,&is_show_temp_ui)
 	for l,i in &machine.lines.buffer{
 		if l.accum_time < l.delay{
 			l.accum_time += platform.ps.time.delta_seconds
 			l.speed = 800
-			animate_slot(i, l.speed * time.delta_seconds)
+			animate_slot(state,i, l.speed * time.delta_seconds)
 
 		}else if l.is_spin_complete == false{
 			l.accum_time += platform.ps.time.delta_seconds
@@ -138,7 +145,7 @@ pay_lines : [dynamic]con.Buffer(PayLineEntry)
 				stop_tile := con.buf_ptr(&machine.grid.tile_grid,stop_tile_id)
 				stop_tile_y := stop_tile.t.p.y
 			}
-			if finish_slot_animation(i,zero_offset_y){//l.speed * time.delta_seconds){
+			if finish_slot_animation(state,i,zero_offset_y){//l.speed * time.delta_seconds){
 				finish_count += 1
 			}	
 
@@ -149,56 +156,63 @@ pay_lines : [dynamic]con.Buffer(PayLineEntry)
 	}
 }
 
-@export init :: proc(){
-	using con
-	using e_math
+state_init :: proc(using state : ^SlotMachineState){
 	using rand
+	using con
+	is_spinning = false
+	is_spin_complete = true
+	is_show_temp_ui  = true
+	is_results_counted = false
+	width_of_columns,height_of_rows = 15.0,15.0
 
+	spin_dir  = -1
+	stop_row_p  = -30.05
+
+	show_hide_play_grid = false
 	random_number_state = create(u64(10))
-
-//slot tiles
 	payout_cache = anycache_init(u64,SymbolPayoutEntry,false)
+	bg_layer = gfx.create_sprite_layer("",1)
+	tiles_layer = gfx.create_sprite_layer("",2)
+
+}
+
+add_payout_entry :: proc(using state : ^SlotMachineState,three : int,two : int , one : int , texture_path : string){
+	using con
 	new_payout_entry : SymbolPayoutEntry
 	new_payout_entry.amount[0] = 100
 	new_payout_entry.amount[1] = 200
 	new_payout_entry.amount[2] = 300
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/asteroid.png")
-	anycache_add(&payout_cache,0,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/bill.png")
-	anycache_add(&payout_cache,1,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/hen.png")
-	anycache_add(&payout_cache,2,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/watermelon.png")
-	anycache_add(&payout_cache,3,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/ruby.png")
-	anycache_add(&payout_cache,4,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/pear.png")
-	anycache_add(&payout_cache,5,new_payout_entry)
-	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap("data/apple.png")
+	new_payout_entry.texture_id = gfx.load_texture_from_path_to_default_heap(texture_path)
+	anycache_add(&payout_cache,payout_cache_count,new_payout_entry)
+	payout_cache_count += 1
 
-//slot background
-	tex_id_slot_bars := gfx.load_texture_from_path_to_default_heap("data/slots/table/reel/bars.png")
-	tex_id_backgound := gfx.load_texture_from_path_to_default_heap("data/slots/table/reel/bg.png")
-	
-	bg_layer : ^gfx.SpriteLayer = gfx.create_sprite_layer("",1)
-	tiles_layer : ^gfx.SpriteLayer = gfx.create_sprite_layer("",2)
-	
+}
 
+set_background_and_vertbars :: proc(using state : ^SlotMachineState, bg_dir : string,bar_dir : string){
+	using e_math
+	tex_id_slot_bars := gfx.load_texture_from_path_to_default_heap(bar_dir)
+	tex_id_backgound := gfx.load_texture_from_path_to_default_heap(bg_dir)
+
+	
 	bg_scale : f3 = f3{90,75,1}
 	bg_p :  f3 = f3{-6.5,0,0}
-	bg_sprite := add_slot_sprite(tex_id_backgound,gfx.add_sprite(bg_layer,bg_p,quat_identity,bg_scale),bg_layer)
-	bar_sprite := add_slot_sprite(tex_id_slot_bars,gfx.add_sprite(bg_layer,bg_p,quat_identity,bg_scale),bg_layer)
-		
+	bg_sprite := add_slot_sprite(state,tex_id_backgound,gfx.add_sprite(bg_layer,bg_p,quat_identity,bg_scale),bg_layer)
+	bar_sprite := add_slot_sprite(state,tex_id_slot_bars,gfx.add_sprite(bg_layer,bg_p,quat_identity,bg_scale),bg_layer)
+}
 
+create_grid :: proc(tile_size : e_math.f2,playable_size : e_math.f2) -> SlotGrid{
+	using e_math
 	grid : SlotGrid
 	grid.tile_size = f2{15,5}
 	grid.playable_size = f2{5,5}
-	grid.tile_grid = buf_init(1,SlotGridTile)
+	grid.tile_grid = con.buf_init(u64(grid.tile_size.x * grid.tile_size.y),SlotGridTile)
 	grid.stride = grid.tile_size.y
+	return grid
+}
 
-	symbol_entry_count := u64(grid.tile_size.x * grid.tile_size.y)
-	//Get these entries from disk or network
-
+init_lines :: proc(using state : ^SlotMachineState){
+	using machine
+	using con
 	total_lines := grid.tile_size.y
 	machine.lines = buf_init(5,SlotLine)
 	for i in 0..total_lines - 1{
@@ -206,7 +220,12 @@ pay_lines : [dynamic]con.Buffer(PayLineEntry)
 		new_line.is_spin_complete = true
 		buf_push(&machine.lines,new_line)
 	}
+}
 
+set_default_grid :: proc(using state : ^SlotMachineState){
+	using machine
+	using con
+	using e_math
 	column_padding : f32 = 1.0
 	vertical_stride := grid.tile_size.x
 	total_width_in_units := (width_of_columns * grid.stride)
@@ -237,7 +256,6 @@ pay_lines : [dynamic]con.Buffer(PayLineEntry)
 
 			tile.sprite_id = gfx.add_sprite(tiles_layer,t.p,t.r,t.s,"")
 
-
 			start_row += f32(width_of_columns + column_padding)
 			tile_id := buf_push(&grid.tile_grid,tile)
 			//slot line
@@ -250,40 +268,11 @@ pay_lines : [dynamic]con.Buffer(PayLineEntry)
 	machine.grid = grid
 	machine.grid.sprite_layer = tiles_layer
 	static_grid = grid
-	assign_random_symbol_to_grid()
 }
 
-get_playable_grid :: proc(){
-	using machine
+set_paylines :: proc(using state : ^SlotMachineState){
 	using con
-
-	tiles : []SlotGridTile = grid.tile_grid.buffer[:]
-	max_playable_tile_count := int(grid.playable_size.x * grid.playable_size.y)
-
-	vert_stride := grid.tile_size.x
-	stride : int = int(grid.stride)
-	
-
-	for row in 0..int(grid.playable_size.x) - 1{
-		for line , column in lines.buffer{
-			logger.print_log("pgrid ","idx ",(row*stride + column),playable_grid[(row * stride) + column:(row * stride)+ column + 1])
-			copy(playable_grid[(row * stride) + column:(row * stride)+ column + 1], tiles[(row * stride) + column:(row * stride)+ column + 1])
-			//lower_bound = (lower_bound + 1) % (int(vert_stride))
-		}
-	}
-}
-
-get_symbol_on_payline ::  proc(pay_line_results : ^[dynamic]con.Buffer(PayLineResultEntry)){
-	using machine
-	using con
-
-	assert(pay_line_results != nil)
-	tile_count :int = int(grid.playable_size.x) * int(grid.playable_size.y)
-	playable_grid = make([]SlotGridTile,tile_count)
-
-	get_playable_grid()
-
-	pay_lines : [dynamic]con.Buffer(PayLineEntry) = make([dynamic]con.Buffer(PayLineEntry))
+	pay_lines = make([dynamic]con.Buffer(PayLineEntry))
 	defer{
 		for payline,i  in &pay_lines{
 			//delete(payline.buffer)
@@ -357,6 +346,67 @@ get_symbol_on_payline ::  proc(pay_line_results : ^[dynamic]con.Buffer(PayLineRe
 	new_p_b_3 := buf_copy_slice(new_payline)
 	append(&pay_lines,new_p_b_3)
 
+}
+
+example_init :: proc(using state : ^SlotMachineState){
+	using con
+	using e_math
+	using rand
+
+	state_init(state)
+
+//slot tiles
+
+	add_payout_entry(state,300,200,100,"data/asteroid.png")
+	add_payout_entry(state,300,200,100,"data/bill.png")
+	add_payout_entry(state,300,200,100,"data/hen.png")
+	add_payout_entry(state,300,200,100,"data/watermelon.png")
+	add_payout_entry(state,300,200,100,"data/ruby.png")
+	add_payout_entry(state,300,200,100,"data/pear.png")
+	add_payout_entry(state,300,200,100,"data/apple.png")
+
+//slot background
+	
+	set_background_and_vertbars(state,"data/slots/table/reel/bg.png","data/slots/table/reel/bars.png")
+	
+	machine.grid = create_grid(f2{15,5},f2{5,5})
+	using machine
+
+	init_lines(state)
+	set_default_grid(state)
+	
+	assign_random_symbol_to_grid(state)
+}
+
+get_playable_grid :: proc(using state : ^SlotMachineState){
+	using con
+	using state.machine
+	tiles : []SlotGridTile = grid.tile_grid.buffer[:]
+	max_playable_tile_count := int(grid.playable_size.x * grid.playable_size.y)
+
+	vert_stride := grid.tile_size.x
+	stride : int = int(grid.stride)
+	
+
+	for row in 0..int(grid.playable_size.x) - 1{
+		for line , column in lines.buffer{
+			logger.print_log("pgrid ","idx ",(row*stride + column),playable_grid[(row * stride) + column:(row * stride)+ column + 1])
+			copy(playable_grid[(row * stride) + column:(row * stride)+ column + 1], tiles[(row * stride) + column:(row * stride)+ column + 1])
+			//lower_bound = (lower_bound + 1) % (int(vert_stride))
+		}
+	}
+}
+
+get_symbol_on_payline ::  proc(using state : ^SlotMachineState, pay_line_results : ^[dynamic]con.Buffer(PayLineResultEntry)){
+	using state.machine
+	using con
+
+	assert(pay_line_results != nil)
+	tile_count :int = int(grid.playable_size.x) * int(grid.playable_size.y)
+	playable_grid = make([]SlotGridTile,tile_count)
+
+	get_playable_grid(state)
+
 	for pay_line in &pay_lines{
 		payline_entry : con.Buffer(PayLineResultEntry) = buf_init(5,PayLineResultEntry)
 
@@ -373,7 +423,7 @@ get_symbol_on_payline ::  proc(pay_line_results : ^[dynamic]con.Buffer(PayLineRe
 }
 
 
-animate_slot :: proc(slot_idx : int,offset_y : f32) -> bool{
+animate_slot :: proc(using state : ^SlotMachineState,slot_idx : int,offset_y : f32) -> bool{
 	using con
 	using gfx.asset_ctx
 	using e_math
@@ -408,7 +458,7 @@ animate_slot :: proc(slot_idx : int,offset_y : f32) -> bool{
 	return false
 }
 
-finish_slot_animation :: proc(slot_idx : int,offset_y : f32) -> bool{
+finish_slot_animation :: proc(using state : ^SlotMachineState, slot_idx : int,offset_y : f32) -> bool{
 	using con
 	using gfx.asset_ctx
 	using e_math
@@ -486,7 +536,7 @@ finish_slot_animation :: proc(slot_idx : int,offset_y : f32) -> bool{
 }
 
 //first init
-assign_random_symbol_to_grid :: proc(){
+assign_random_symbol_to_grid :: proc(using state : ^SlotMachineState){
 	using con
 	using machine
 	using gfx.asset_ctx
@@ -512,7 +562,7 @@ assign_random_symbol_to_grid :: proc(){
 	}
 }
 
-calculate_results :: proc(){
+calculate_results :: proc(using state : ^SlotMachineState){
 	using machine
 	using con
 	pay_line_results : [dynamic]con.Buffer(PayLineResultEntry) = make([dynamic]con.Buffer(PayLineResultEntry),0,1)
@@ -523,7 +573,7 @@ calculate_results :: proc(){
 		delete(pay_line_results)
 	}
 
-	get_symbol_on_payline(&pay_line_results)
+	get_symbol_on_payline(state,&pay_line_results)
 	
 //we will compunt th ewinndings
 	total_won : int
@@ -561,7 +611,7 @@ calculate_results :: proc(){
 
 
 
-show_temp_ui :: proc(is_showing : ^bool){
+show_temp_ui :: proc(using state : ^SlotMachineState, is_showing : ^bool){
 	if !imgui.begin("Slot Temp UI",is_showing){
 		imgui.end()
 		return
@@ -597,9 +647,9 @@ show_temp_ui :: proc(is_showing : ^bool){
 		server.send_message(.RELIABLE,spin,size_of(server.Spin))
 
 		//start animation 
-		assign_random_symbol_to_grid()
+		assign_random_symbol_to_grid(state)
 
-		calculate_results()
+		calculate_results(state)
 
 		//request results from server
 
@@ -653,7 +703,7 @@ show_temp_ui :: proc(is_showing : ^bool){
 			is_results_counted = false
 			total_money -= bet_amount
 			is_spin_complete = false
-			assign_random_symbol_to_grid()
+			assign_random_symbol_to_grid(state)
 			for i in 0..4{
 				line := con.buf_ptr(&machine.lines,u64(i))
 				line.is_spin_complete = false
@@ -665,7 +715,7 @@ show_temp_ui :: proc(is_showing : ^bool){
 
 
 
-add_slot_sprite :: proc(texture_id : u64,sprite_id :u64,layer : ^gfx.SpriteLayer) -> ^SlotSprite{
+add_slot_sprite :: proc(using state : ^SlotMachineState, texture_id : u64,sprite_id :u64,layer : ^gfx.SpriteLayer) -> ^SlotSprite{
 	new_slot_sprite : SlotSprite
 	new_slot_sprite.texture_id = texture_id
 	new_slot_sprite.sprite_id = sprite_id

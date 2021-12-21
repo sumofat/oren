@@ -38,8 +38,8 @@ server_ : ^enet.Peer
 TIMEOUT_MS : u32 = 1000
 
 connect :: proc(host : cstring , port : u16) -> bool{
-using fmt
-using enet
+    using fmt
+    using enet
     if is_connected(){
         println("ENetClient is already connected to a server");
         return false

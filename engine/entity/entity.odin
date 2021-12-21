@@ -78,6 +78,8 @@ types_dyn : [dynamic]typeid
 init_ecs :: proc(){
 	systems = con.buf_init(1,EntitySystem)
 	component_set = con.buf_init(1,ComponentSet)
+	trs = con.anycache_init(Entity,TRS,false)
+	
 }
 
 update_ecs_entities :: proc(){

@@ -20,61 +20,103 @@ import enet "vendor:enet"
 import server "server"
 import systems "systems"
 import imgui  "../engine/external/odin-imgui";
+import game_types "game_types"
+import con "../engine/containers"
+
+import buf_slot "games/buffalo_slot"
 
 is_init : bool = false
 
 sub_game : systems.SubGame
 
-@export init :: proc(){
+SubGameProc :: struct{
+	name : string,
+	//type : typeid,
+	init_func : proc(),
+	update_func : proc(),
+}
+
+game_procs : con.Buffer(SubGameProc)
+
+current_game_proc : SubGameProc
+libs_is_showing : bool = true
+
+init :: proc(){
 	using e_math
 	using math
 	using logger
 	using gfx
 	using enet
 	using server
-	
 	network_init()
 
 	connect("localhost",3000)
-	systems.init_sub_games()
+	game_procs = con.buf_init(1,SubGameProc)
+	
+	new_sg_proc : SubGameProc = {"buf_slot",buf_slot.init,buf_slot.update}
 
+	con.buf_push(&game_procs,new_sg_proc)
 
-	if sub_game,ok := systems.load_sub_game("game/game_types/slot.dll");ok{
-		(proc())(sub_game.init_sym)()
-	}else{
-		//fail
-		assert(true)
+	//send network request to get user info
+
+	//and currently active games
+	if !imgui.begin("Playable Games",&libs_is_showing){
+			imgui.end()
+			return
 	}
 
+	//show user games to select and ui
+	for game_proc in game_procs.buffer{
+		imgui.text(game_proc.name)
+		if game_proc.name == "buf_slot"{
+			current_game_proc = game_proc
+		}
+	}
+	imgui.end();
+	
+	assert(current_game_proc.init_func != nil)
 
-
+	current_game_proc.init_func()
+	//update_proc = game_types.update
 	//init_basic_machine()
 
 	is_init = true
 }
 
-libs_is_showing : bool = true
 
-@export  update :: proc(dt : f32){
+update :: proc(dt : f32){
 	using systems
-
-	
-	if !imgui.begin("Loaded Libs",&libs_is_showing){
+	//and currently active games
+	libs_is_showing = true
+	if !imgui.begin("Playable Games",&libs_is_showing){
 			imgui.end()
 			return
 	}
-	//show all subgames in imgui in debugging.
-	for lib in systems.libraries.buffer{
-		imgui.text(lib.directory)	
+
+	//show user games to select and ui
+	for game_proc in game_procs.buffer{
+		imgui.text(game_proc.name)
+
+		if game_proc.name == "buf_slot"{
+			current_game_proc = game_proc
+		}
 	}
 	imgui.end();
+	/*
+	if !imgui.begin("Playable Games",&libs_is_showing){
+			imgui.end()
+			return
+	}
+
+
+	imgui.end();
+*/
 	//create a disk based descriptiono of the game
 	//load description, dll and images get dir to assets
 	//render game where appropiate in UI
-
+	current_game_proc.update_func()
 
 	//update_machine()
-	(proc())(sub_game.update_sym)()
 }
 
 /*

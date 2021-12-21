@@ -27,6 +27,7 @@ AssetTables :: struct
     textures : con.Buffer(Texture),
     vertex_buffers : con.Buffer(platform.D3D12_VERTEX_BUFFER_VIEW),
     index_buffers : con.Buffer(platform.D3D12_INDEX_BUFFER_VIEW),
+    max_mapped_matrices : int,
     matrix_buffer : con.Buffer(enginemath.f4x4),
     meshes : con.Buffer(Mesh),
 };
@@ -158,7 +159,8 @@ assetctx_init :: proc(ctx : ^AssetContext)
 
     asset_tables.vertex_buffers = buf_init(100,D3D12_VERTEX_BUFFER_VIEW);
     asset_tables.index_buffers = buf_init(100,D3D12_INDEX_BUFFER_VIEW);
-    asset_tables.matrix_buffer = buf_init(900,f4x4);
+    asset_tables.max_mapped_matrices = 9999   
+    asset_tables.matrix_buffer = buf_init(u64(asset_tables.max_mapped_matrices),f4x4);
 
     asset_tables.meshes = buf_init(100,Mesh);
 }

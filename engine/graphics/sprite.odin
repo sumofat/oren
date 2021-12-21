@@ -16,7 +16,6 @@ SpriteLayer :: struct{
 }
 
 Sprite :: struct{
-	
 	material : RenderMaterial,
 	m_id : u64,
 	proj_id : u64,
@@ -292,6 +291,5 @@ create_quad :: proc(width : f32 = 1, height : f32 = 1) -> Mesh{
 
     	return mesh;
 }
-
 
 

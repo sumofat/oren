@@ -684,6 +684,7 @@ init :: proc(ps: ^platform.PlatformState) -> CreateDeviceResult {
 	dx12_init(device);
 	result.is_init = true;
 
+	render_commands = con.buf_init(0,D12RenderCommand)
 	return result;
 }
 
