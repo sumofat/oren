@@ -15,6 +15,9 @@ import window32 "core:sys/win32"
 
 import con "../containers"
 import enginemath "../math"
+
+import hash "core:hash"
+
 //import sprite "sprite"
 
 asset_ctx : AssetContext
@@ -30,6 +33,7 @@ AssetTables :: struct
     max_mapped_matrices : int,
     matrix_buffer : con.Buffer(enginemath.f4x4),
     meshes : con.Buffer(Mesh),
+    texture_cache : con.AnyCache(u64,Texture),
 };
 
 AssetContext :: struct
@@ -41,8 +45,10 @@ AssetContext :: struct
     so_to_go : map[int]rawptr,//scene object to pointer of custom gameobject
 };
 
-Texture :: struct
-{
+Texture :: struct{
+    id : u64,
+    heap_id : u64,
+    heap : ^GPUHeap,
     texels : rawptr,
     dim : enginemath.f2,
     size : u32,
@@ -53,7 +59,8 @@ Texture :: struct
     //    Texture texture : Texture,
     state : rawptr,// NOTE(Ray Garner): temp addition
     slot : u32,
-};
+    borrowed : int,//Check this number when attempting to delete texture
+}
 /*
 Sprite :: struct
 {
@@ -163,7 +170,9 @@ assetctx_init :: proc(ctx : ^AssetContext)
     asset_tables.matrix_buffer = buf_init(u64(asset_tables.max_mapped_matrices),f4x4);
 
     asset_tables.meshes = buf_init(100,Mesh);
+    asset_tables.texture_cache =  anycache_init(u64,Texture,false)
 }
+
 
 load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64,type : SceneObjectType)
 {
@@ -614,12 +623,51 @@ texture_from_file :: proc(filename : cstring,desired_channels : i32) -> Texture{
     return tex
 }
 
-texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> u64
+get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
+    result : ^Texture
+    using con
+    using ctx.asset_tables
+    lookup_key := u64(hash.murmur32(transmute([]u8)path))
+    if anycache_exist(&texture_cache,lookup_key){
+        t := anycache_get_ptr(&texture_cache,lookup_key)
+        if t != nil{
+            t.id = lookup_key
+            return t,true
+        }else{
+            return nil,false
+        }
+
+    }else{
+            //TODO(Ray):This gets it from disk but we should be able to get it from anywhere .. network stream etc...
+            //We will add a facility for tagging assets and retrieving base on criteria and only the asset retriever
+            //(Serializer) like system will be the only one to deal with what we are getting it from.
+        heap_ := heap
+        if heap_ == nil{
+            heap_ = &default_srv_desc_heap
+        }
+        tex :=  texture_from_file(strings.clone_to_cstring(path,context.temp_allocator),4);   
+        texture_add(ctx,&tex,heap_)
+        anycache_add(&texture_cache,lookup_key,tex)
+        
+        t := anycache_get_ptr(&texture_cache,lookup_key)
+        if t != nil{
+            t.id = lookup_key
+            return t,true
+        }else{
+            return nil,false
+        }
+    }
+}
+
+texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
 {
     using con;
-    tex_id : u64 = u64(heap.count)
-    buf_push(&ctx.asset_tables.textures,texture^);
+    assert(heap != nil)
 
+    heap_index : u64 = u64(heap.count)
+    //buf_push(&ctx.asset_tables.textures,texture^);
+    texture.heap_id = heap_index
+    texture.heap = heap
     hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.heap.value);
@@ -674,9 +722,9 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> u
     
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
 
-    texture_2d(texture,cast(u32)tex_id,&tex_resource,heap.heap.value);
+    texture_2d(texture,cast(u32)heap_index,&tex_resource,heap.heap.value);
 
-    return tex_id;
+    return heap_index
 }
 
 load_texture_from_path_to_default_heap :: proc(path : string) -> u64{

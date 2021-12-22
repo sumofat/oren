@@ -84,8 +84,15 @@ add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math
 		result.texture_id = current_layer.texture_id
 	}else{
 		//TODO(Ray):ensure the same texture doesnt get loaded twice or the gpu references  the same  texture
-		tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
-		result.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+		//tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
+		//result.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+		ok : bool
+		tex : ^Texture
+		if tex,ok = get_texture_from_file(&asset_ctx,texture_name);ok{
+			result.texture_id = tex.heap_id 
+		}else{
+			assert(false)
+		}
 	}
 	sprite_buffer : ^con.Buffer(Sprite) = &sprite_buffers[current_layer.buffer_id]
 	return con.buf_push(sprite_buffer,result)
@@ -161,8 +168,15 @@ create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : Spr
 	pkg_entity.create_system(sprite_update,new_layer_arch_id)
 
 	if texture_name != ""{
-		tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
-		new_layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+		ok : bool
+		tex : ^Texture
+		if tex,ok = get_texture_from_file(&asset_ctx,texture_name);ok{
+			new_layer.texture_id = tex.heap_id 
+		}else{
+			assert(false)
+		}
+		//tex := texture_from_file(strings.clone_to_cstring(texture_name),4)
+		//new_layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
 	}
 
 	id := con.buf_push(&sprite_layers,new_layer)
@@ -204,8 +218,16 @@ init_sprite_render_system :: proc(){
 	layer.arch_id = sprite_arch_id
 	pkg_entity.create_system(sprite_update,sprite_arch_id)
 	//NOTE(Ray): will be default texture for this layer unless excplicitly set in add_sprite
-	tex := texture_from_file(strings.clone_to_cstring(default_sprite_path),4)
-	layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
+	
+
+	if tex,ok := get_texture_from_file(&asset_ctx,default_sprite_path);ok{
+		layer.texture_id = tex.heap_id
+	}else{
+		assert(false)
+	}
+
+	//tex := texture_from_file(strings.clone_to_cstring(default_sprite_path),4)
+	//layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
 	default_layer_id := con.buf_push(&sprite_layers,layer)
 
 }
