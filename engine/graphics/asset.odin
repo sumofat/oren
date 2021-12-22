@@ -210,7 +210,7 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         if child.mesh != nil
         {
 //            result.model.model_name = string(file_path);
-            mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,material);
+            mesh_range = create_mesh_from_cgltf_mesh(ctx,child.mesh,material,string(file_path));
             import_type = SceneObjectType.mesh;
             upload_meshes(mesh_range);            
         }
@@ -292,7 +292,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 mesh_range := f2{};
                 if root_node.mesh != nil
                 {
-                    mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material);
+                    mesh_range = create_mesh_from_cgltf_mesh(ctx,root_node.mesh,material,string(file_path));
                     import_type = SceneObjectType.mesh;
                     upload_meshes(mesh_range);
                 }
@@ -318,8 +318,8 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
 
     return result;        
 }
-
-create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial) -> enginemath.f2
+ a : int = 0
+create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial,path : string) -> enginemath.f2
 {
     using con;
     assert(ma != nil);
@@ -355,16 +355,32 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                 {
                     tv := mat.pbr_metallic_roughness.base_color_texture;
                     {
+                        using fmt
                         offset := cast(u64)tv.texture.image.buffer_view.offset;
                         tex_data := mem.ptr_offset(cast(^u8)tv.texture.image.buffer_view.buffer.data,cast(int)offset);
-
+                        println(offset)
 		                //TODO(Ray):This if statement is not good
                         if tex_data != nil
                         {
                             data_size := cast(u64)tv.texture.image.buffer_view.size;
-			                tex :=  texture_from_mem(tex_data,cast(i32)data_size,4);                
-                            id := texture_add(ctx,&tex,&default_srv_desc_heap);
-                            mesh.metallic_roughness_texture_id = id;                    
+                            to_image_path : string
+                            if tv.texture.image.uri != ""{
+                                to_image_path = string(tv.texture.image.uri)
+                            }else{
+                                to_image_path = fmt.tprintf("%d",offset + 1)
+                            }
+                            //fmt.printf("Image URI: %s",image_uri)
+                            //we will use the path to the mesh + the name of the texture to get lookup key using path.
+                            //this is ok but stil requires the namem to bbe unique inside the gltf file
+                            slice_path_name := []string{path,"::",to_image_path,}
+                            path_and_texture_name := strings.concatenate(slice_path_name,context.temp_allocator)
+                            fmt.println(path_and_texture_name)
+
+                            if t,ok := get_texture_from_mem(&asset_ctx,path_and_texture_name,tex_data,cast(i32)data_size,4);ok{
+                                mesh.metallic_roughness_texture_id = t.heap_id
+                            }else{
+                                assert(false)
+                            }
                         }                    
                     }
                 }
@@ -623,6 +639,39 @@ texture_from_file :: proc(filename : cstring,desired_channels : i32) -> Texture{
     return tex
 }
 
+get_texture_from_mem :: proc(ctx : ^AssetContext,uri : string,ptr : ^u8,size : i32,desired_channels : i32,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
+    result : ^Texture
+    using con
+    using ctx.asset_tables
+    lookup_key := u64(hash.murmur32(transmute([]u8)uri))
+    if anycache_exist(&texture_cache,lookup_key){
+        t := anycache_get_ptr(&texture_cache,lookup_key)
+        if t != nil{
+            return t,true
+        }else{
+            return nil,false
+        }
+    }else{
+        heap_ := heap
+        if heap_ == nil{
+            heap_ = &default_srv_desc_heap
+        }
+
+        tex :=  texture_from_mem(ptr,size,desired_channels);   
+        heap_id := texture_add(ctx,&tex,heap_)
+        tex.heap_id = heap_id
+        anycache_add(&texture_cache,lookup_key,tex)
+        
+        t := anycache_get_ptr(&texture_cache,lookup_key)
+        if t != nil{
+            t.id = lookup_key
+            return t,true
+        }else{
+            return nil,false
+        }
+    }
+}
+
 get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
     result : ^Texture
     using con
@@ -636,7 +685,6 @@ get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap 
         }else{
             return nil,false
         }
-
     }else{
             //TODO(Ray):This gets it from disk but we should be able to get it from anywhere .. network stream etc...
             //We will add a facility for tagging assets and retrieving base on criteria and only the asset retriever
@@ -645,8 +693,10 @@ get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap 
         if heap_ == nil{
             heap_ = &default_srv_desc_heap
         }
+
         tex :=  texture_from_file(strings.clone_to_cstring(path,context.temp_allocator),4);   
-        texture_add(ctx,&tex,heap_)
+        heap_id := texture_add(ctx,&tex,heap_)
+        tex.heap_id = heap_id
         anycache_add(&texture_cache,lookup_key,tex)
         
         t := anycache_get_ptr(&texture_cache,lookup_key)

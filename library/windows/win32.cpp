@@ -1813,7 +1813,7 @@ ID3D12PipelineState*  CreatePipelineState(ID3D12Device2* device,D3D12_PIPELINE_S
     ID3D12PipelineState* result;
     PipelineStateStream* psp = (PipelineStateStream*)pssd.pPipelineStateSubobjectStream;
     
-    printf("size of rasterizer %d \n",(u32)sizeof(psp->RasterizerState));
+    //printf("size of rasterizer %d \n",(u32)sizeof(psp->RasterizerState));
 
     CD3DX12_DEFAULT d = {};
     
@@ -2115,7 +2115,6 @@ D3D12_DESCRIPTOR_HEAP_DESC GetDesc(ID3D12DescriptorHeap* desc_heap)
 D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleForHeapStart(ID3D12DescriptorHeap* desc_heap)
 {
     D3D12_CPU_DESCRIPTOR_HANDLE result = desc_heap->GetCPUDescriptorHandleForHeapStart();
-    printf("ptr : %d \n",(u32)(result.ptr));
     fflush( stdout );
     return result;
 }

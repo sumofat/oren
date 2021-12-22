@@ -347,7 +347,7 @@ g_LastMouseCursor : imgui.Mouse_Cursor = imgui.Mouse_Cursor.Count;// ImGuiMouseC
 
 
 ImGui_ImplWin32_NewFrame :: proc(){
-    fmt.println("Start New Frame");
+    //fmt.println("Start New Frame");
     // /ImGuiIO& io = ImGui::GetIO();
     io := imgui.get_io();
     bd :=  ImGui_ImplWin32_GetBackendData();
