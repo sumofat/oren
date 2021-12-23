@@ -5,6 +5,72 @@ import la "core:math/linalg"
 
 import platform "../platform"
 import enginemath "../math"
+import con "../containers"
+
+
+RenderCameraProjectionType :: enum {
+    perspective,
+    orthographic,
+    screen_space,
+}
+
+RenderCamera :: struct {
+    ot:                                   Transform, //perspective and ortho only
+    m :                               enginemath.f4x4,
+    projection_matrix:                    enginemath.f4x4,
+    spot_light_shadow_projection_matrix:  enginemath.f4x4,
+    point_light_shadow_projection_matrix: enginemath.f4x4,
+    projection_type:                      RenderCameraProjectionType,
+    size:                                 f32, //ortho only
+    fov:                                  f32, //perspective only
+    near_far_planes:                      enginemath.f2,
+    matrix_id:                            u64,
+    projection_matrix_id:                 u64,
+    viewport : ^CameraViewport,
+}
+
+CameraViewport :: struct{
+
+}
+
+CameraSystem :: struct{
+    cameras : con.Buffer(RenderCamera),
+    viewports : con.Buffer(CameraViewport),
+}
+
+camera_system : CameraSystem
+
+game_camera : ^RenderCamera
+
+camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectionType){
+    using platform
+    
+    rc : RenderCamera
+    rc.ot = ot
+
+    //aspect_ratio := ps.window.dim.x / ps.window.dim.y;
+    //size := size * aspect_ratio;
+    //    rc.projection_matrix = init_ortho_proj_matrix(size,0.0f,1.0f);
+    rc.fov = 80;
+    rc.near_far_planes = f2{0.1, 1000};
+    if cam_type == .perspective{
+        rc.projection_matrix = init_pers_proj_matrix(ps.window.dim, rc.fov, rc.near_far_planes);
+    }else{
+        assert(false)
+    }
+    
+    rc.m = la.MATRIX4F32_IDENTITY;
+
+    matrix_buffer        := &asset_ctx.asset_tables.matrix_buffer;
+    rc.projection_matrix_id := buf_push(matrix_buffer, rc.projection_matrix);
+    rc.matrix_id         := buf_push(matrix_buffer, rc.m);
+}
+
+camera_system_init :: proc(){
+    camera_system.cameras = con.buf_init(0,RenderCamera)
+    camera_system.viewports = con.buf_init(0,CameraViewport)
+
+}
 
 init_pers_proj_matrix :: proc(buffer_dim : enginemath.f2,fov_y : f32,far_near : enginemath.f2) -> enginemath.f4x4
 {

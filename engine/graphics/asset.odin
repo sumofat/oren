@@ -49,6 +49,7 @@ Texture :: struct{
     id : u64,
     heap_id : u64,
     heap : ^GPUHeap,
+    gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE,
     texels : rawptr,
     dim : enginemath.f2,
     size : u32,
@@ -376,7 +377,7 @@ create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,materi
                             path_and_texture_name := strings.concatenate(slice_path_name,context.temp_allocator)
                             fmt.println(path_and_texture_name)
 
-                            if t,ok := get_texture_from_mem(&asset_ctx,path_and_texture_name,tex_data,cast(i32)data_size,4);ok{
+                            if t,ok := get_texture_from_mem(path_and_texture_name,tex_data,cast(i32)data_size,4);ok{
                                 mesh.metallic_roughness_texture_id = t.heap_id
                             }else{
                                 assert(false)
@@ -639,13 +640,13 @@ texture_from_file :: proc(filename : cstring,desired_channels : i32) -> Texture{
     return tex
 }
 
-get_texture_from_mem :: proc(ctx : ^AssetContext,uri : string,ptr : ^u8,size : i32,desired_channels : i32,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
+get_texture_from_mem :: proc(uri : string,ptr : ^u8,size : i32,desired_channels : i32,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
     result : ^Texture
     using con
-    using ctx.asset_tables
-    lookup_key := u64(hash.murmur32(transmute([]u8)uri))
-    if anycache_exist(&texture_cache,lookup_key){
-        t := anycache_get_ptr(&texture_cache,lookup_key)
+    using asset_ctx
+    lookup_key := u64(hash.murmur64(transmute([]u8)uri))
+    if anycache_exist(&asset_tables.texture_cache,lookup_key){
+        t := anycache_get_ptr(&asset_tables.texture_cache,lookup_key)
         if t != nil{
             return t,true
         }else{
@@ -658,11 +659,11 @@ get_texture_from_mem :: proc(ctx : ^AssetContext,uri : string,ptr : ^u8,size : i
         }
 
         tex :=  texture_from_mem(ptr,size,desired_channels);   
-        heap_id := texture_add(ctx,&tex,heap_)
+        heap_id := texture_add(&tex,heap_)
         tex.heap_id = heap_id
-        anycache_add(&texture_cache,lookup_key,tex)
+        anycache_add(&asset_tables.texture_cache,lookup_key,tex)
         
-        t := anycache_get_ptr(&texture_cache,lookup_key)
+        t := anycache_get_ptr(&asset_tables.texture_cache,lookup_key)
         if t != nil{
             t.id = lookup_key
             return t,true
@@ -672,13 +673,13 @@ get_texture_from_mem :: proc(ctx : ^AssetContext,uri : string,ptr : ^u8,size : i
     }
 }
 
-get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
+get_texture_from_file :: proc(path : string,heap : ^GPUHeap = nil) -> (texture : ^Texture,success : bool){
     result : ^Texture
     using con
-    using ctx.asset_tables
-    lookup_key := u64(hash.murmur32(transmute([]u8)path))
-    if anycache_exist(&texture_cache,lookup_key){
-        t := anycache_get_ptr(&texture_cache,lookup_key)
+    using asset_ctx
+    lookup_key := u64(hash.murmur64(transmute([]u8)path))
+    if anycache_exist(&asset_tables.texture_cache,lookup_key){
+        t := anycache_get_ptr(&asset_tables.texture_cache,lookup_key)
         if t != nil{
             t.id = lookup_key
             return t,true
@@ -695,11 +696,11 @@ get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap 
         }
 
         tex :=  texture_from_file(strings.clone_to_cstring(path,context.temp_allocator),4);   
-        heap_id := texture_add(ctx,&tex,heap_)
+        heap_id := texture_add(&tex,heap_)
         tex.heap_id = heap_id
-        anycache_add(&texture_cache,lookup_key,tex)
+        anycache_add(&asset_tables.texture_cache,lookup_key,tex)
         
-        t := anycache_get_ptr(&texture_cache,lookup_key)
+        t := anycache_get_ptr(&asset_tables.texture_cache,lookup_key)
         if t != nil{
             t.id = lookup_key
             return t,true
@@ -709,7 +710,7 @@ get_texture_from_file :: proc(ctx : ^AssetContext,path : string,heap : ^GPUHeap 
     }
 }
 
-texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
+texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
 {
     using con;
     assert(heap != nil)
@@ -723,6 +724,12 @@ texture_add :: proc(ctx : ^AssetContext,texture : ^Texture,heap : ^GPUHeap) -> (
     hmdh := platform.GetCPUDescriptorHandleForHeapStart(heap.heap.value);
     offset : u64 = cast(u64)hmdh_size * cast(u64)heap.count;
     hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset;
+
+    gpuhmdh := platform.GetGPUDescriptorHandleForHeapStart(heap.heap.value);
+    gpugoffset : u64 = cast(u64)hmdh_size * cast(u64)heap.count;
+    gpuhmdh.ptr = gpuhmdh.ptr + offset;
+
+    texture.gpu_handle = gpuhmdh
 
     heap.count += 1;
     
@@ -783,7 +790,7 @@ load_texture_from_path_to_default_heap :: proc(path : string) -> u64{
 
 load_texture_from_path :: proc(path : string,heap : ^GPUHeap) -> u64{
     tex := texture_from_file(strings.clone_to_cstring(path),4)
-    return texture_add(&asset_ctx,&tex,heap)
+    return texture_add(&tex,heap)
 }
 
 set_buffer :: proc(ctx : ^AssetContext,buff : ^platform.GPUArena,stride : u32,size : u64,data : ^f32) -> u64

@@ -88,7 +88,7 @@ add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math
 		//result.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
 		ok : bool
 		tex : ^Texture
-		if tex,ok = get_texture_from_file(&asset_ctx,texture_name);ok{
+		if tex,ok = get_texture_from_file(texture_name);ok{
 			result.texture_id = tex.heap_id 
 		}else{
 			assert(false)
@@ -170,7 +170,7 @@ create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : Spr
 	if texture_name != ""{
 		ok : bool
 		tex : ^Texture
-		if tex,ok = get_texture_from_file(&asset_ctx,texture_name);ok{
+		if tex,ok = get_texture_from_file(texture_name);ok{
 			new_layer.texture_id = tex.heap_id 
 		}else{
 			assert(false)
@@ -220,7 +220,7 @@ init_sprite_render_system :: proc(){
 	//NOTE(Ray): will be default texture for this layer unless excplicitly set in add_sprite
 	
 
-	if tex,ok := get_texture_from_file(&asset_ctx,default_sprite_path);ok{
+	if tex,ok := get_texture_from_file(default_sprite_path);ok{
 		layer.texture_id = tex.heap_id
 	}else{
 		assert(false)

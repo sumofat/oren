@@ -165,26 +165,6 @@ RenderDevice :: struct {
 	max_argument_buffer_sampler_count: u32,
 }
 
-RenderCameraProjectionType :: enum {
-	perspective,
-	orthographic,
-	screen_space,
-}
-
-RenderCamera :: struct {
-	ot:                                   Transform, //perspective and ortho only
-	m :                               enginemath.f4x4,
-	projection_matrix:                    enginemath.f4x4,
-	spot_light_shadow_projection_matrix:  enginemath.f4x4,
-	point_light_shadow_projection_matrix: enginemath.f4x4,
-	projection_type:                      RenderCameraProjectionType,
-	size:                                 f32, //ortho only
-	fov:                                  f32, //perspective only
-	near_far_planes:                      enginemath.f2,
-	matrix_id:                            u64,
-	projection_matrix_id:                 u64,
-}
-
 GPUMeshResource :: struct {
 	vertex_buff:  platform.GPUArena,
 	normal_buff:  platform.GPUArena,
@@ -818,13 +798,13 @@ create_render_texture :: proc(ctx: ^AssetContext, dim: enginemath.f2, heap: plat
 }
 
 texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Resource, heap: rawptr, /*ID3D12DescriptorHeap* */ is_render_target: bool = false) {
-	                   using platform;
-	                   using enginemath;
-	                   using math;
-	                   free_ca: ^platform.D12CommandAllocatorEntry = get_free_command_allocator_entry(platform.D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_COPY);
-	                   resource_ca = free_ca.allocator;
+   using platform;
+   using enginemath;
+   using math;
+   free_ca: ^platform.D12CommandAllocatorEntry = get_free_command_allocator_entry(platform.D3D12_COMMAND_LIST_TYPE.D3D12_COMMAND_LIST_TYPE_COPY);
+   resource_ca = free_ca.allocator;
 
-	                   if !is_resource_cl_recording {
+   if !is_resource_cl_recording {
 		ResetCommandAllocator(resource_ca);
 		ResetCommandList(resource_cl, resource_ca, nil);
 		is_resource_cl_recording = true;
@@ -1114,6 +1094,18 @@ get_cpu_handle_srv :: proc(device: RenderDevice, heap: rawptr, heap_index: u32) 
 	result.ptr = result.ptr + cast(windows.SIZE_T)offset;
 	return result;
 }
+
+
+get_gpu_handle_srv :: proc(device: RenderDevice, heap: rawptr, heap_index: u32) -> platform.D3D12_GPU_DESCRIPTOR_HANDLE {
+	using platform;
+	result:    platform.D3D12_GPU_DESCRIPTOR_HANDLE = platform.GetGPUDescriptorHandleForHeapStart(heap);
+	hmdh_size: u32                                  = GetDescriptorHandleIncrementSize(device.device, platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	offset: u64 = cast(u64)hmdh_size * cast(u64)heap_index;
+	result.ptr = result.ptr + offset;
+	return result;
+}
+
 
 get_first_associated_list :: proc(allocator: ^platform.D12CommandAllocatorEntry) -> CommandAllocToListResult {
 	using con;
@@ -1614,7 +1606,6 @@ WaitForFenceValue(fence, allocator_entry.fence_value, fence_event,max(f64));
 
 			case D12CommandGraphicsRootDescTable:{
 					command := com.(D12CommandGraphicsRootDescTable);
-
 					descriptorHeaps: []rawptr = {command.heap};
 					SetDescriptorHeaps(current_cl.list, 1, mem.raw_slice_data(descriptorHeaps[:]));
 					SetGraphicsRootDescriptorTable(current_cl.list, cast(u32)command.index, command.gpu_handle);
@@ -1669,6 +1660,10 @@ WaitForFenceValue(fence, allocator_entry.fence_value, fence_event,max(f64));
 	//for back buffer.
 	final_allocator_entry.fence_value = Signal(graphics_command_queue, fence, &fence_value);
 	WaitForFenceValue(fence, final_allocator_entry.fence_value, fence_event, max(f64));
+
+	src : D3D12_TEXTURE_COPY_LOCATION
+	dst : D3D12_TEXTURE_COPY_LOCATION
+	
 
 	//execute the present flip
 	sync_interval: windows.UINT;
