@@ -1,6 +1,6 @@
 #include "win32.h"
 using namespace Microsoft::WRL;
-#define USE_DEBUG_LAYER 0
+#define USE_DEBUG_LAYER 1
 //WINDOWS SETUP FUNCTIONS
 f2 GetWin32WindowDim(PlatformState* ps)
 {

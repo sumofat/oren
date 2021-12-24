@@ -6,7 +6,7 @@ import la "core:math/linalg"
 import platform "../platform"
 import enginemath "../math"
 import con "../containers"
-
+import fmt "core:fmt"
 
 RenderCameraProjectionType :: enum {
     perspective,
@@ -30,7 +30,9 @@ RenderCamera :: struct {
 }
 
 CameraViewport :: struct{
-
+    rt_cpu_handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE,
+    srv_gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE,
+    resource_id : u64,
 }
 
 CameraSystem :: struct{
@@ -42,10 +44,13 @@ camera_system : CameraSystem
 
 game_camera : ^RenderCamera
 
-camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectionType){
+camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectionType) -> ^RenderCamera{
     using platform
-    
+    using enginemath
+    using con
+
     rc : RenderCamera
+
     rc.ot = ot
 
     //aspect_ratio := ps.window.dim.x / ps.window.dim.y;
@@ -58,12 +63,31 @@ camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectio
     }else{
         assert(false)
     }
-    
+
     rc.m = la.MATRIX4F32_IDENTITY;
 
     matrix_buffer        := &asset_ctx.asset_tables.matrix_buffer;
-    rc.projection_matrix_id := buf_push(matrix_buffer, rc.projection_matrix);
-    rc.matrix_id         := buf_push(matrix_buffer, rc.m);
+    rc.projection_matrix_id = buf_push(matrix_buffer, rc.projection_matrix);
+    rc.matrix_id         = buf_push(matrix_buffer, rc.m);
+    idx := buf_push(&camera_system.cameras,rc)
+    return buf_ptr(&camera_system.cameras,idx)
+}
+
+camera_add_viewport :: proc(cam : ^RenderCamera){
+    using platform
+    using con
+
+    rt_gpu_heap_idx,srv_heap_idx,resource_id := create_render_texture(&asset_ctx,ps.window.dim,render_texture_heap)
+    rt_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_render_target(device,render_texture_heap.value,rt_gpu_heap_idx)
+    srv_gpu_handle : D3D12_GPU_DESCRIPTOR_HANDLE = get_gpu_handle_srv(device,default_srv_desc_heap.heap.value,2)
+
+    new_viewport : CameraViewport
+    new_viewport.rt_cpu_handle = rt_cpu_handle
+    new_viewport.srv_gpu_handle = srv_gpu_handle
+    fmt.tprintf("cpu handle : %v , gpu handle %v ",rt_cpu_handle,srv_gpu_handle)
+    new_viewport.resource_id = resource_id
+    idx := buf_push(&camera_system.viewports,new_viewport)
+    cam.viewport = buf_ptr(&camera_system.viewports,idx)
 }
 
 camera_system_init :: proc(){

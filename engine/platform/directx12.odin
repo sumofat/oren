@@ -1471,6 +1471,7 @@ D12Resource :: struct
 {
     id : u32,
     state : rawptr,
+    rt_state : rawptr,
     format_support : D3D12_FEATURE_DATA_FORMAT_SUPPORT,
     thread_id : u32,
     resource_state : D3D12_RESOURCE_STATES,
