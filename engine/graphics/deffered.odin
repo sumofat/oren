@@ -640,7 +640,6 @@ execute_custom_pass :: proc(pass : RenderPass(CustomPass,CustomRenderCommandList
         //add_start_command_list_with_render_targets(3,rt_mem);
 
         if vp != nil{
-            global_vp = vp
             add_start_command_list_with_render_targets(1,&vp.rt_cpu_handle);
         }else{
             add_start_command_list_command();
@@ -719,9 +718,22 @@ execute_custom_pass :: proc(pass : RenderPass(CustomPass,CustomRenderCommandList
 
 //
 setup_imgui_pass :: proc(){
+    using platform
+    using enginemath
 
+    current_backbuffer_index := GetCurrentBackBufferIndex(swap_chain);    
+    rtv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,rtv_descriptor_heap,u64(current_backbuffer_index));
+
+    color := f4{0,0,0,1};
+
+    back_buffer_resource_id := get_current_back_buffer_resource_view_id();    
+    add_clear_command(color,rtv_cpu_handle,back_buffer_resource_id);
+ 
+    dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
+
+    add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);
 }
-global_vp : ^CameraViewport
+
 draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
     barrier : platform.D3D12_RESOURCE_BARRIER = {};
     barrier.Type                   = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -741,18 +753,15 @@ draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
     //add_graphics_root_desc_table(1,default_srv_desc_heap.heap.value,gpu_handle_default_srv_desc_heap);
 
     ResourceBarrier(command_list,1, &barrier);
-    vp := global_vp
-    vp_barrier :=  barrier
-    if vp != nil{
-        //barrier : platform.D3D12_RESOURCE_BARRIER = {};
-
+    for vp in &camera_system.viewports.buffer{
+        vp_barrier :=  barrier
         vp_barrier.barrier_union.Transition.pResource   = con.buf_get(&resourceviews,vp.resource_id).state
         vp_barrier.barrier_union.Transition.Subresource = platform.D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         vp_barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
         vp_barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
-
         ResourceBarrier(command_list,1, &vp_barrier);
     }
+    
     
     desc_heaps : []rawptr = {imgui_heap};
     SetDescriptorHeaps(command_list,1, mem.raw_slice_data(desc_heaps[:]));
@@ -760,12 +769,14 @@ draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
     barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_RENDER_TARGET;
     barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_PRESENT;
     ResourceBarrier(command_list,1, &barrier);
- 
-    if vp != nil{   
+    for vp in &camera_system.viewports.buffer{
+        vp_barrier :=  barrier
+        vp_barrier.barrier_union.Transition.pResource   = con.buf_get(&resourceviews,vp.resource_id).state
+        vp_barrier.barrier_union.Transition.Subresource = platform.D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
         vp_barrier.barrier_union.Transition.StateBefore = .D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
         vp_barrier.barrier_union.Transition.StateAfter  = .D3D12_RESOURCE_STATE_RENDER_TARGET;
         ResourceBarrier(command_list,1, &vp_barrier);
-    }
+    }    
 }
 
 execute_imgui_pass :: proc(imgui_heap : rawptr){

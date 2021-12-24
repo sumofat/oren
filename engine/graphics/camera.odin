@@ -27,24 +27,50 @@ RenderCamera :: struct {
     matrix_id:                            u64,
     projection_matrix_id:                 u64,
     viewport : ^CameraViewport,
+    used : bool,
 }
 
 CameraViewport :: struct{
     rt_cpu_handle : platform.D3D12_CPU_DESCRIPTOR_HANDLE,
     srv_gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE,
     resource_id : u64,
+    used : bool,
+}
+
+CameraFreeList :: struct{
+    cam : con.Buffer(u64),
+    vp : con.Buffer(u64),
 }
 
 CameraSystem :: struct{
     cameras : con.Buffer(RenderCamera),
     viewports : con.Buffer(CameraViewport),
+    free_list : CameraFreeList,
+    next_free_id : int,
 }
-
+@private
 camera_system : CameraSystem
 
-game_camera : ^RenderCamera
+get_camera :: proc(cam_id : u64)-> RenderCamera{
+    using con
+    assert(buf_len(camera_system.cameras) > 0)
+    return buf_get(&camera_system.cameras,cam_id)
+}
 
-camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectionType) -> ^RenderCamera{
+chk_out_camera :: proc(cam_id : u64)-> ^RenderCamera{
+    using con
+    assert(buf_len(camera_system.cameras) > 0)
+    return buf_chk_out(&camera_system.cameras,cam_id)
+}
+
+chk_in_camera :: proc(){
+    using con
+    buf_chk_in(&camera_system.cameras)
+}
+
+get_cameras :: proc()-> con.Buffer(RenderCamera){return camera_system.cameras}
+
+camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectionType) -> u64{
     using platform
     using enginemath
     using con
@@ -70,12 +96,15 @@ camera_system_add_camera :: proc(ot : Transform,cam_type : RenderCameraProjectio
     rc.projection_matrix_id = buf_push(matrix_buffer, rc.projection_matrix);
     rc.matrix_id         = buf_push(matrix_buffer, rc.m);
     idx := buf_push(&camera_system.cameras,rc)
-    return buf_ptr(&camera_system.cameras,idx)
+    return idx//buf_ptr(&camera_system.cameras,idx)
 }
 
-camera_add_viewport :: proc(cam : ^RenderCamera){
+camera_add_viewport :: proc(cam_id : u64){
     using platform
     using con
+
+    cam := buf_ptr(&camera_system.cameras,cam_id)
+    assert(cam.viewport == nil)
 
     rt_gpu_heap_idx,srv_heap_idx,resource_id := create_render_texture(&asset_ctx,ps.window.dim,render_texture_heap)
     rt_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_render_target(device,render_texture_heap.value,rt_gpu_heap_idx)
@@ -90,10 +119,32 @@ camera_add_viewport :: proc(cam : ^RenderCamera){
     cam.viewport = buf_ptr(&camera_system.viewports,idx)
 }
 
-camera_system_init :: proc(){
-    camera_system.cameras = con.buf_init(0,RenderCamera)
-    camera_system.viewports = con.buf_init(0,CameraViewport)
+camera_system_init :: proc(start_cap : u64){
+    camera_system.cameras = con.buf_init(start_cap,RenderCamera)
+    camera_system.viewports = con.buf_init(start_cap,CameraViewport)
 
+    camera_system.free_list.cam = con.buf_init(start_cap,u64)
+    camera_system.free_list.vp = con.buf_init(start_cap,u64)
+}
+
+remove_camera :: proc(id : u64){
+    using camera_system
+    using con
+    c := buf_ptr(&cameras,id)
+    c.viewport.used = false
+    c.used = false
+
+    buf_push(&free_list.cam,id)
+    buf_push(&free_list.vp,id)
+
+    buf_pop(&cameras)
+
+    for cam,i in cameras.buffer{
+        if cam.used == false{
+            next_free_id = i
+            break
+        }
+    }
 }
 
 init_pers_proj_matrix :: proc(buffer_dim : enginemath.f2,fov_y : f32,far_near : enginemath.f2) -> enginemath.f4x4
