@@ -80,6 +80,7 @@ set_camera_view_pos_forward_up :: proc(p : enginemath.f3,d : enginemath.f3,u : e
     cam_up := cross(d, cam_right);
     d := normalize(d);
     m : f4x4 = f4x4{}
+
     m[0][0] = cam_right.x
     m[0][1] = cam_up.x
     m[0][2] = d.x
@@ -97,7 +98,6 @@ set_camera_view_pos_forward_up :: proc(p : enginemath.f3,d : enginemath.f3,u : e
     m[3][2] = -dot(d,p)
     m[3][3] = 1
 
-
     //result.c0 = f4{cam_right.x,cam_up.x,d.x,0.0}
     //result.c1 = f4_create(cam_right.y,cam_up.y,d.y,0.0);
     //result.c2 = f4_create(cam_right.z,cam_up.z,d.z,0.0);
@@ -112,3 +112,6 @@ set_camera_view_ot :: proc(ot : ^Transform) -> enginemath.f4x4{
 }
 
 set_camera_view :: proc{set_camera_view_ot,set_camera_view_pos_forward_up}
+
+
+

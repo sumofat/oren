@@ -184,10 +184,55 @@ camera_free :: proc(cam_id : u64,input : platform.Input,delta_seconds : f32){
     turn_qt := pitch * yaw
     rc.ot.r = turn_qt
 
-    //rc.matrix = set_cam_view(&rc.ot)
+    rc.matrix = set_camera_view(&rc.ot)
+    rc_mat := buf_chk_out(&asset_ctx.asset_tables.matrix_buffer,rc.matrix_id)
+    rc_mat^ = rc.matrix
+    buf_chk_in(&asset_ctx.asset_tables.matrix_buffer)
     //rc_mat : ^f4x4 = fmj_stretch_buffer_check_out(f4x4,&ctx->asset_tables->matrix_buffer,rc->matrix_id);
     //rc_mat^ = rc.matrix
     //fmj_stretch_buffer_check_in(&ctx->asset_tables->matrix_buffer);
+}
+
+
+camera_chase :: proc(rc : ^RenderCamera,input : Input ,delta_seconds : f32 ,target : Transform ,offset : f3 )
+{
+    transform_update(&target);
+    transform_update(&rc.ot);
+    t_p := target.p;
+    n_f := -(target.forward);
+    
+    target_f := (n_f * 3);
+    target_f = (target_f + offset);
+    p := (t_p + target_f);
+    f := target.forward;
+    look_point_world := (t_p + f);
+    cam_dir := (p - look_point_world);
+
+    
+    rc.ot.p = p;
+    rc.ot.r = quaternion_look(cam_dir,f3{0,1,0});
+    
+    rc.matrix = set_cam_view(&rc.ot);
+    rc_mat := buf_chk_out(f4x4,&ctx.asset_tables.matrix_buffer,rc.matrix_id);
+    *rc_mat = rc->matrix;
+    buf_chk_in(&ctx.asset_tables.matrix_buffer);    
+}
+
+fmj_camera_orbit :: proc(rc : ^RenderCamera,input : Input,delta_seconds : f32 ,target : Transform,radius : f32)
+{
+    transform_update(&rc.ot);
+    cam_pitch_yaw := (cam_pitch_yaw + input.mouse.delta_p);
+    quaternion pitch = axis_angle(f3{1, 0, 0}, cam_pitch_yaw.y);
+    quaternion yaw   = axis_angle(f3{0, 1, 0}, cam_pitch_yaw.x * -1);
+    quaternion turn_qt = (pitch * yaw);        
+    
+    rc->ot.p = (target.p + (quaternion_forward(turn_qt) * radius));
+    rc->ot.r = turn_qt;
+    
+    rc->matrix = set_cam_view(&rc.ot);
+    f4x4* rc_mat = buf_chk_out(f4x4,&ctx.asset_tables.matrix_buffer,rc.matrix_id);
+    *rc_mat = rc.matrix;
+    buf_chk_in(&ctx.asset_tables.matrix_buffer);
 }
 
 init_pers_proj_matrix :: proc(buffer_dim : enginemath.f2,fov_y : f32,far_near : enginemath.f2) -> enginemath.f4x4
