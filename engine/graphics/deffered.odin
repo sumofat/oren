@@ -187,7 +187,7 @@ setup_gbuffer_pass :: proc(list : ^RenderCommandList(GeometryRenderCommandList),
     add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);    
 }
 
-execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass,GeometryRenderCommandList))
+execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass,GeometryRenderCommandList),cam_id : int = -1)
 {
     using con;
     using la;
@@ -203,13 +203,20 @@ execute_gbuffer_pass :: proc(pass : RenderPass(GbufferPass,GeometryRenderCommand
 	    rt_mem := mem.raw_dynamic_array_data(pass.data.render_targets.buffer);
 	    add_start_command_list_with_render_targets(3,rt_mem);
 	    
-        
 	    for command in list.list.command_buffer.buffer{
             m_mat := buf_get(matrix_buffer,command.model_matrix_id);
 
 //            model_matrix := transpose(m_mat);
-            
-            c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
+            camera_id : u64
+            c_mat : f4x4
+            if cam_id > -1{
+                camera_id = u64(cam_id)
+                cam := get_camera(camera_id)
+                c_mat = buf_get(matrix_buffer,cam.matrix_id)
+            }else{
+                camera_id = command.camera_matrix_id
+                c_mat = buf_get(matrix_buffer,command.camera_matrix_id)
+            }
             proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
             world_mat := mul(c_mat,m_mat);
 

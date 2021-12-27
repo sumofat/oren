@@ -111,7 +111,7 @@ camera_add_viewport :: proc(cam_id : u64){
 
     rt_gpu_heap_idx,srv_heap_idx,resource_id := create_render_texture(&asset_ctx,ps.window.dim,render_texture_heap)
     rt_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_render_target(device,render_texture_heap.value,rt_gpu_heap_idx)
-    srv_gpu_handle : D3D12_GPU_DESCRIPTOR_HANDLE = get_gpu_handle_srv(device,default_srv_desc_heap.heap.value,2)
+    srv_gpu_handle : D3D12_GPU_DESCRIPTOR_HANDLE = get_gpu_handle_srv(device,default_srv_desc_heap.heap.value,srv_heap_idx)
 
     new_viewport : CameraViewport
     new_viewport.rt_cpu_handle = rt_cpu_handle
