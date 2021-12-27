@@ -514,7 +514,8 @@ setup_lighting_pass2 :: proc(list : ^RenderCommandList(LightRenderCommandList), 
     using platform;
     using con;
     using enginemath;
-    light_accum_rtv_cpu_handle1 : D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,3);
+
+    light_accum_rtv_cpu_handle1 := con.buf_get(&light_accum_pass2.data.render_targets,0) //D3D12_CPU_DESCRIPTOR_HANDLE = get_cpu_handle_srv(device,render_texture_heap.value,3);
 
     color := f4{0,0,0,1};
 
@@ -625,10 +626,17 @@ init_custom_pass :: proc(){
 }
 
 setup_custom_pass :: proc(list : ^RenderCommandList(CustomRenderCommandList), matrix_buffer : ^con.Buffer(enginemath.f4x4),matrix_quad_buffer : ^con.Buffer(enginemath.f4x4),vp : ^CameraViewport){
+    using enginemath
+    using platform
     custom_pass.data.matrix_buffer = matrix_buffer;
     custom_pass.data.matrix_quad_buffer = matrix_quad_buffer;
     custom_pass.list = list;
-
+    if vp != nil{
+        color := f4{0,0,0,1};
+        add_clear_command(color,vp.rt_cpu_handle,vp.resource_id);
+        dsv_cpu_handle : D3D12_CPU_DESCRIPTOR_HANDLE = GetCPUDescriptorHandleForHeapStart(depth_heap.value);
+        add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);
+    }
 }
 
 execute_custom_pass :: proc(pass : RenderPass(CustomPass,CustomRenderCommandList),vp : ^CameraViewport){
