@@ -647,14 +647,12 @@ execute_custom_pass :: proc(pass : RenderPass(CustomPass,CustomRenderCommandList
         
         for command in list.list.command_buffer.buffer{
             mat := buf_get(matrix_buffer,command.matrix_id);
-
-//            model_matrix := transpose(m_mat);
             
-            //c_mat := buf_get(matrix_buffer,command.camera_matrix_id);
-            // /proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id);
-            //world_mat := mul(c_mat,m_mat);
+            c_mat := buf_get(matrix_buffer,command.camera_matrix_id)
+            proj_mat := buf_get(matrix_buffer,command.perspective_matrix_id)
+            world_mat := mul(c_mat,mat)
 
-            finalmat := mat//mul(proj_mat,world_mat);
+            finalmat := mul(proj_mat,world_mat);
             mat[0].x = cast(f32)buf_len(matrix_quad_buffer^) * size_of(f4x4);
 
             base_color := command.geometry.base_color;

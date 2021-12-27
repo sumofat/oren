@@ -20,10 +20,14 @@ RenderCommand :: struct {
 	material_name:         string,
 }
 
+
 CustomRenderCommand :: struct {
 	geometry:              RenderGeometry,
 	material_id:           u64,
 	matrix_id:       u64,
+	camera_matrix_id:      u64,
+	perspective_matrix_id: u64,
+
 	texture_id:            u64,
 	is_indexed:            bool,
 	material_name:         string,

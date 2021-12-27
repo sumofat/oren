@@ -62,6 +62,9 @@ get_sprite :: proc(layer : ^SpriteLayer,sprite_id : u64) -> ^Sprite{
 
 add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math.f3,texture_name : string = "") -> u64{
 	using e_math
+	new_p := p
+	
+	new_p.z = -20
 	result : Sprite
 	result.visible = true
 	result.material = asset_ctx.asset_tables.materials["mesh_alpha"]
@@ -74,7 +77,7 @@ add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math
 	new_e := pkg_entity.create_entity(current_layer.arch_id)
 	m : f4x4
 	mat := con.buf_get(&asset_ctx.asset_tables.matrix_buffer,u64(current_layer.projection_m_id))
-	trs_mat := linalg.matrix4_from_trs_f32(p,r,s)
+	trs_mat := linalg.matrix4_from_trs_f32(new_p,r,s)
 	m = linalg.matrix_mul(mat,trs_mat)
 	result.m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,m)
 	result.proj_id = current_layer.projection_m_id
@@ -125,19 +128,21 @@ sprite_update :: proc(entity_bucket : ^pkg_entity.EntityBucket,data : rawptr){
 			com.material_name = "mesh_alpha"
 			com.texture_id = sprite.texture_id
 			com.matrix_id = sprite.m_id//child_so.m_id
-			///com.camera_matrix_id = sprite_group.camera_m_id
-			//com.perspective_matrix_id = sprite_group.projection_m_id//p_mat
+			com.camera_matrix_id = cam_m_id//sprite_group.camera_m_id
+			com.perspective_matrix_id = cam_persp_m_id//sprite_group.projection_m_id//p_mat
 			con.buf_push(&custom_render.list.command_buffer, com)
 		}
 	}
 }
 
+/*
 SpriteCameraSettings :: struct{
 	projection_m_id : u64,
 	camera_m_id : u64,
 }
 
 default_camera_settings : SpriteCameraSettings
+*/
 
 SpriteLayerDescriptor :: struct{
 	texture_name : string,
@@ -146,7 +151,7 @@ SpriteLayerDescriptor :: struct{
 
 }
 
-create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : SpriteCameraSettings = default_camera_settings) -> ^SpriteLayer{
+create_sprite_layer :: proc(texture_name : string,tag : u64) -> ^SpriteLayer{
 	assert(MAX_LAYERS != len(sprite_buffers))
 	using platform.ps
 	using e_math
@@ -182,23 +187,34 @@ create_sprite_layer :: proc(texture_name : string,tag : u64,camera_settins : Spr
 	id := con.buf_push(&sprite_layers,new_layer)
 	return con.buf_ptr(&sprite_layers,id)
 }
+@private
+cam_persp_m_id : u64
 
-init_sprite_render_system :: proc(){
+@private
+cam_m_id : u64
+
+init_sprite_render_system :: proc(cam_id : u64){
 	using e_math
 	using platform.ps
+
+	rc := get_camera(cam_id)
+
 	layer : SpriteLayer
 	//this layer is the default layer
 	//when setting up a sprite if no layer is sspecified this is the layer that will be used.
 	create_quad(1,1)
 	sprite_layers = con.buf_init(MAX_LAYERS,SpriteLayer)
-	projection_m := init_ortho_proj_matrix(window.dim * 0.1,0.0,1.0);
-	camera_m := f4x4_identity
-	layer.camera_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,camera_m)
-	layer.projection_m_id = con.buf_push(&asset_ctx.asset_tables.matrix_buffer,projection_m)
+	//projection_m := init_ortho_proj_matrix(window.dim * 0.1,0.0,1.0);
+	//camera_m := f4x4_identity
+	
+	cam_m_id = rc.matrix_id
+	cam_persp_m_id = rc.projection_matrix_id
+	layer.camera_m_id = rc.matrix_id//con.buf_push(&asset_ctx.asset_tables.matrix_buffer,camera_m)
+	layer.projection_m_id = rc.projection_matrix_id//con.buf_push(&asset_ctx.asset_tables.matrix_buffer,projection_m)
 	layer.buffer_id = 0
 
-	default_camera_settings.projection_m_id = layer.projection_m_id
-	default_camera_settings.camera_m_id = layer.camera_m_id
+	//default_camera_settings.projection_m_id = layer.projection_m_id
+	//default_camera_settings.camera_m_id = layer.camera_m_id
 
 
 	//sprite_buffers = con.buf_init(1,con.Buffer(Sprite))

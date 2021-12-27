@@ -150,7 +150,6 @@ remove_camera :: proc(id : u64){
     }
 }
 
-
 camera_free :: proc(cam_id : u64,input : platform.Input,delta_seconds : f32){
     using enginemath
     using platform
@@ -189,14 +188,15 @@ camera_free :: proc(cam_id : u64,input : platform.Input,delta_seconds : f32){
     rc_mat := buf_chk_out(&asset_ctx.asset_tables.matrix_buffer,rc.matrix_id)
     rc_mat^ = rc.m
     buf_chk_in(&asset_ctx.asset_tables.matrix_buffer)
+    chk_in_camera()
 }
 
 
-camera_chase :: proc(rc : ^RenderCamera,input : platform.Input ,delta_seconds : f32 ,target_ : Transform ,offset : enginemath.f3 )
+camera_chase :: proc(cam_id : u64,input : platform.Input ,delta_seconds : f32 ,target_ : Transform ,offset : enginemath.f3 )
 {
     using enginemath
     using con
-
+    rc := chk_out_camera(cam_id)
     target := target_
     transform_update(&target);
     transform_update(&rc.ot);
@@ -217,26 +217,30 @@ camera_chase :: proc(rc : ^RenderCamera,input : platform.Input ,delta_seconds : 
     rc.m = set_camera_view(&rc.ot);
     rc_mat := buf_chk_out(&asset_ctx.asset_tables.matrix_buffer,rc.matrix_id);
     rc_mat^ = rc.m
-    buf_chk_in(&asset_ctx.asset_tables.matrix_buffer);    
+    chk_in_camera()
 }
 
-fmj_camera_orbit :: proc(rc : ^RenderCamera,input : platform.Input,delta_seconds : f32 ,target : Transform,radius : f32)
-{
+camera_orbit :: proc(cam_id : u64,input : platform.Input,delta_seconds : f32 ,target : Transform,radius : f32){
     using enginemath
     using con
+    using la
+
+    rc := chk_out_camera(cam_id)
     transform_update(&rc.ot);
-    rc.cam_pitch_yaw_radians = (rc.cam_pitch_yaw_radians + input.mouse.delta_p)
-    pitch := la.quaternion_angle_axis(rc.cam_pitch_yaw_radians.y,f3{1, 0, 0})
-    yaw   := la.quaternion_angle_axis(rc.cam_pitch_yaw_radians.x * -1,f3{0, 1, 0} )
+    rc.cam_pitch_yaw_radians.x += radians(input.mouse.delta_p.x) * 0.5
+    rc.cam_pitch_yaw_radians.y += radians(input.mouse.delta_p.y) * 0.5
+    pitch := quaternion_angle_axis(rc.cam_pitch_yaw_radians.y * -1,f3{1, 0, 0})
+    yaw   := quaternion_angle_axis(rc.cam_pitch_yaw_radians.x * -1,f3{0, 1, 0})
     turn_qt := (pitch * yaw);        
-    
+
     rc.ot.p = (target.p + (quaternion_forward(turn_qt) * radius));
     rc.ot.r = turn_qt;
     
     rc.m = set_camera_view(&rc.ot)
     rc_mat := buf_chk_out(&asset_ctx.asset_tables.matrix_buffer,rc.matrix_id);
     rc_mat^ = rc.m
-    buf_chk_in(&asset_ctx.asset_tables.matrix_buffer);
+    buf_chk_in(&asset_ctx.asset_tables.matrix_buffer)
+    chk_in_camera()
 }
 
 init_pers_proj_matrix :: proc(buffer_dim : enginemath.f2,fov_y : f32,far_near : enginemath.f2) -> enginemath.f4x4
