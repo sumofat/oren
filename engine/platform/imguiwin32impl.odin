@@ -426,9 +426,9 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             bd.MouseTracked = false;
             break;
         }
-        case win32.WM_LBUTTONDOWN: case win32.WM_LBUTTONDBLCLK:{}
-        case win32.WM_RBUTTONDOWN: case win32.WM_RBUTTONDBLCLK:{}
-        case win32.WM_MBUTTONDOWN: case win32.WM_MBUTTONDBLCLK:{
+        case win32.WM_LBUTTONDOWN:{fallthrough} case win32.WM_LBUTTONDBLCLK:{fallthrough}
+        case win32.WM_RBUTTONDOWN:{fallthrough} case win32.WM_RBUTTONDBLCLK:{fallthrough}
+        case win32.WM_MBUTTONDOWN:{fallthrough} case win32.WM_MBUTTONDBLCLK:{
         //case win32.WM_XBUTTONDOWN: case win32.WM_XBUTTONDBLCLK:{
         
             button : int = 0;
@@ -438,12 +438,12 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             //if (msg == win32.WM_XBUTTONDOWN || msg == WM_XBUTTONDBLCLK) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             //if (!ImGui::IsAnyMouseDown() && ::GetCapture() == NULL)
             //    ::SetCapture(hwnd);
-            //io.mouse_down[button] = true;
+            io.mouse_down[button] = true
             return 0;
         }
         
-        case win32.WM_LBUTTONUP:{}
-        case win32.WM_RBUTTONUP:{}
+        case win32.WM_LBUTTONUP:{fallthrough}
+        case win32.WM_RBUTTONUP:{fallthrough}
         case win32.WM_MBUTTONUP:{
         //case win32.WM_XBUTTONUP:{
 
@@ -454,7 +454,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             //if (msg == win32.WM_XBUTTONUP) { button = (GET_XBUTTON_WPARAM(wParam) == XBUTTON1) ? 3 : 4; }
             //io.MouseDown[button] = false;
 
-            io.mouse_down[button] = false;
+            io.mouse_down[button] = false
             //if (!ImGui::IsAnyMouseDown() && ::GetCapture() == hwnd)
             //    ::ReleaseCapture();
             return 0;
@@ -469,9 +469,9 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             //io.mouse_wheel_h += (float)GET_WHEEL_DELTA_WPARAM(wParam) / (float)WHEEL_DELTA;
            // return 0;
         //}  
-        case win32.WM_KEYDOWN:{}
-        case win32.WM_KEYUP:{}
-        case win32.WM_SYSKEYDOWN:{}
+        case win32.WM_KEYDOWN:{fallthrough}
+        case win32.WM_KEYUP:{fallthrough}
+        case win32.WM_SYSKEYDOWN:{fallthrough}
         case win32.WM_SYSKEYUP:{
             down : bool = (msg == win32.WM_KEYDOWN || msg == win32.WM_SYSKEYDOWN);
             if wParam < 256{
@@ -488,7 +488,7 @@ ImGui_ImplWin32_WndProcHandler :: proc(hwnd : win32.Hwnd, msg : c.uint, wParam :
             }
             return 0;
         }
-        case win32.WM_SETFOCUS:{}
+        case win32.WM_SETFOCUS:{fallthrough}
         case win32.WM_KILLFOCUS:{
             //io.AddFocusEvent(msg == WM_SETFOCUS);
             //fmt.println("TODO Fix WM_KILLFOCUS to work with this version of imgui. or upgrade imgui on kill focus.")
