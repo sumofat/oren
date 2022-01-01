@@ -188,27 +188,30 @@ show_sprite_createor :: proc(){
 
 	grid_step += io.mouse_wheel
 
-	stride := current_layer.size.x
-	x : int
-	y : int
-	idx : int
-	test_red : f32
-	for zoxel,i in current_layer.grid{
-		sel_origin : Vec2
-		sel_origin.x = origin.x + f32(x * int(grid_step))
-		sel_origin.y = origin.y + f32(y * int(grid_step))
-		selected_p := sel_origin 
+	for layer in layers.buffer{
+		if layer.is_show == false{continue}
 
-		selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-		pix_col : Vec4
-		color_convert_u32to_float4(&pix_col,zoxel.color/*Vec4{test_red,0,1,1}*/)
-		draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
-		if x == int(stride - 1){
-			y = (y + 1) % int(stride)
-		}
-		x = (x + 1) % int(stride)
-		test_red += 0.0007
+		stride := layer.size.x
+		x : int
+		y : int
+		idx : int
+		for zoxel,i in layer.grid{
+			sel_origin : Vec2
+			sel_origin.x = origin.x + f32(x * int(grid_step))
+			sel_origin.y = origin.y + f32(y * int(grid_step))
+			selected_p := sel_origin 
+
+			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
+			pix_col : Vec4
+			color_convert_u32to_float4(&pix_col,zoxel.color)
+			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
+			if x == int(stride - 1){
+				y = (y + 1) % int(stride)
+			}
+			x = (x + 1) % int(stride)
+		}	
 	}
+	
 	
 	start : Vec2 = origin
 	total_size_of_graph_x := grid_step * current_layer.size.x + start.x
