@@ -34,7 +34,26 @@ is_show_grid : bool = true
 grid_color := imgui.Vec4{50, 500, 50, 40}
 
 input_layer_name : string
-//TODO(Ray):Allow for painting multiple texels at onece with a brush
+//TODO(Ray): Sprite Editor
+/*
+1. Allow for painting multiple texels at onece with a brush
+	a. show texel selection with pink outlines
+2. solo 
+3. blending
+4. fix skipping whem  moving mouse fast.
+5. List all sprites created and switch at will
+
+*/
+
+//TODO(Ray):Animation Editor
+/*
+1. show all sprite available
+2. can scale rotate any way 
+3. attach origin points.
+4. create key frames
+5. looping animation or frame by frame
+6. create sprite sheet animations.
+*/
 	layers_names : con.Buffer(string)
 
 init_sprite_creator :: proc(){
@@ -161,9 +180,6 @@ show_sprite_createor :: proc(){
 	
 	draw_list_add_rect_filled(draw_list,selected_p,selectd_size,color_convert_float4to_u32(Vec4{1,0,1,1}))
 
-	//prepare color circle
-	//create and show grid lines
-	//fill pixel in grid with current color
 	if is_mouse_down(Mouse_Button.Left){
 		//grid_step += 0.11
 		size_x := int(clamp(grid_offset.x,0,current_layer.size.x))
@@ -226,8 +242,6 @@ show_sprite_createor :: proc(){
 	for y := start.y; y < total_size_of_graph_y; y += grid_step{
 		draw_list_add_line(draw_list,Vec2{origin.x, y}, Vec2{origin.x + draw_line_distance_y, y}, color_convert_float4to_u32(grid_color))
 	}
-	//show layers
-	//show visual choices //visible / solo / (hide|show)
 	//output button 
 	/*writes to disk in a mega texture with referencing info for the engine
 		outputs all layers on texture with animation data
