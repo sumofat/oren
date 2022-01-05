@@ -55,3 +55,13 @@ orensublime.sublime-project
 orensublime.sublime-workspace
 
 imgui.ini
+game/server/node_modules
+*.exp
+*.exe
+game/game.dll
+game/game.lib
+game/game.pdb
+main.lib
+oren.dll
+oren.pdb
+ptr

@@ -138,10 +138,10 @@ remove_layer :: proc(layer_id : int){
 unpack_color_32 :: proc(color : u32)-> [4]u8{
 
 	result : [4]u8
-	result[0] = u8(color) 		//a
-	result[1] = u8(color >> 8)	//b
-	result[2] = u8(color >> 16)	//g
-	result[3] = u8(color >> 24)	//r
+	result[0] = u8(color) 		//r
+	result[1] = u8(color >> 8)	//g
+	result[2] = u8(color >> 16)	//b
+	result[3] = u8(color >> 24)	//a
 	return result
 }
 
@@ -149,34 +149,7 @@ pack_color_32 :: proc(colors : [4]u8) -> u32{
 	return u32((colors[0]) | (colors[1] << 8) | (colors[2] << 16) | (colors[3] << 24) )
 }
 
-blend_op_normal :: proc(base : u32,blend : u32) -> u32{
-	result_unpacked : [4]u8
-	blend_channels := unpack_color_32(blend)
-	base_channels :=  unpack_color_32(base)
-	//if blend_channels[3] < 1.0{
-		a2 := f32(blend_channels[0]) / 255.0
-		a1 := f32(base_channels[0])
-		for i in 1..3{
-			bl := f32(blend_channels[i]) / 255.0
-			ba := f32(base_channels[i]) / 255.0
 
-			result_unpacked[i] = clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
-		}		
-		result_unpacked[0] = clamp(u8(((a1 + a2 * (1 - a2)) * 255)),0,255)//blend_channels[0]
-		/*
-	}else{
-		for i in 0..3{
-			bl := blend_channels[i]
-			ba := base_channels[i]
-
-			result_unpacked[i] = bl
-		}
-	}
-*/
-
-	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
-	return final_color
-}
 
 blend_op_add :: proc(source : u32,destination : u32) -> u32{
 	result_unpacked : [4]u8
@@ -221,6 +194,24 @@ blend_op_mul :: proc(source : u32,destination : u32) -> u32{
 	return final_color
 }
 
+blend_op_normal :: proc(base : u32,blend : u32) -> u32{
+	result_unpacked : [4]u8
+	blend_channels := unpack_color_32(blend)
+	base_channels :=  unpack_color_32(base)
+	a2 := f32(blend_channels[3]) / 255.0
+	a1 := f32(base_channels[3])  / 255.0
+	for i in 0..2{
+		bl := f32(blend_channels[i]) / 255.0
+		ba := f32(base_channels[i]) / 255.0
+
+		result_unpacked[i] = clamp(u8((ba * (1-a2) + bl * (a2)) * 255),0,255)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
+	}		
+	result_unpacked[3] = base_channels[3]
+	
+	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
+	return final_color
+}
+
 flatten_group :: proc(group : ^LayerGroup){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
@@ -229,19 +220,19 @@ flatten_group :: proc(group : ^LayerGroup){
 	for layer,i in group.layers.buffer{
 		//nothing to blend to
 		if i == 0{
-			copy(temp[:],group.grid[:])
+			copy(group.grid[:],layer.grid[:])
 			continue
 		}
 		for texel,j in layer.grid{
 
-			base : u32 = temp[j].color
-			blend : u32 = texel.color
+			base : u32 = group.grid[j].color
+			blend : u32 = layer.grid[j].color
 
 			result_color := blend_op_normal(base,blend)
-			temp[j].color = result_color
+			group.grid[j].color = result_color
 		}
 	}
-	copy(group.grid[:],temp[:])
+	//copy(group.grid[:],temp[:])
 }
 
 show_sprite_createor :: proc(){
