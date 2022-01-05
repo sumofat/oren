@@ -9,6 +9,8 @@ import con "../containers"
 import libc "core:c/libc"
 import fmt "core:fmt"
 import strings "core:strings"
+import reflect "core:reflect"
+
 
 BlendType :: enum{
 	Normal,
@@ -29,6 +31,7 @@ Layer :: struct{
 	is_solo : bool,	
 	size : eng_m.f2,
 	blend_mode : BlendType,
+	selected_blend_mode : i32,
 }
 
 LayerGroup :: struct{
@@ -44,6 +47,7 @@ LayerGroup :: struct{
 layer_groups : con.Buffer(LayerGroup)
 
 group_names : con.Buffer(string)
+blend_mode_names : []string
 
 grid_step : f32 = 17.0
 
@@ -86,6 +90,8 @@ init_sprite_creator :: proc(){
 	layer_groups = con.buf_init(0,LayerGroup)
 	input_group_name = "MAXGROUPNAME"
 	add_layer_group("Default")
+	blend_mode_names = reflect.enum_field_names(BlendType)
+
 }
 
 
@@ -149,47 +155,20 @@ pack_color_32 :: proc(colors : [4]u8) -> u32{
 	return u32((colors[0]) | (colors[1] << 8) | (colors[2] << 16) | (colors[3] << 24) )
 }
 
-
-
-blend_op_add :: proc(source : u32,destination : u32) -> u32{
+blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
 	result_unpacked : [4]u8
-	s_channels := unpack_color_32(source)
-	d_channels :=  unpack_color_32(destination)
-	for i in 0..3{
-		//make larger than u8 so we can avoid wrapping at addition values of 255
-		s : i32 = i32(s_channels[i])
-		d : i32 = i32(d_channels[i])
-		assert(s >= 0 && s <= 255)
-		assert(d >= 0 && s <= 255)
-		result_unpacked[i] = u8(clamp(s + d,0 , 255))
-	}
-	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
-	return final_color
-}
-
-/*
-blend_op_mul_byte :: proc(source : u32,destination : u32) -> u32{
-	result_unpacked : [4]u8
-	s_channels := unpack_color_32(source)
-	d_channels :=  unpack_color_32(destination)
-	for i in 0..3{
-		s := s_channels[i]
-		d := d_channels[i]
-		result_unpacked[i] = u8(clamp(u32(d) * u32(s),0,254))
-	}
-	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
-	return final_color
-}*/
-
-blend_op_mul :: proc(source : u32,destination : u32) -> u32{
-	result_unpacked : [4]u8
-	s_channels := unpack_color_32(source)
-	d_channels :=  unpack_color_32(destination)
-	for i in 0..3{
-		s := f32(s_channels[i]) / 255.0
-		d := f32(d_channels[i]) / 255.0
-		result_unpacked[i] = u8(clamp(d * s,0.0,1.0) * 255)
-	}
+	blend_channels := unpack_color_32(blend)
+	base_channels :=  unpack_color_32(base)
+	a2 := f32(blend_channels[3]) / 255.0
+	a1 := f32(base_channels[3])  / 255.0
+	for i in 0..2{
+		bl := f32(blend_channels[i]) / 255.0
+		ba := f32(base_channels[i]) / 255.0
+		bl = clamp(bl * ba,0.0,1.0)
+		result_unpacked[i] = clamp(u8((ba * (1-a2) + bl * (a2)) * 255),0,255)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
+	}		
+	result_unpacked[3] = 255//blend_channels[3]
+	
 	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return final_color
 }
@@ -203,10 +182,9 @@ blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	for i in 0..2{
 		bl := f32(blend_channels[i]) / 255.0
 		ba := f32(base_channels[i]) / 255.0
-
 		result_unpacked[i] = clamp(u8((ba * (1-a2) + bl * (a2)) * 255),0,255)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
 	}		
-	result_unpacked[3] = base_channels[3]
+	result_unpacked[3] = 255//blend_channels[3]
 	
 	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return final_color
@@ -220,16 +198,20 @@ flatten_group :: proc(group : ^LayerGroup){
 	for layer,i in group.layers.buffer{
 		//nothing to blend to
 		if i == 0{
-			copy(group.grid[:],layer.grid[:])
+			//copy(group.grid[:],layer.grid[:])
 			continue
 		}
 		for texel,j in layer.grid{
 
 			base : u32 = group.grid[j].color
 			blend : u32 = layer.grid[j].color
-
-			result_color := blend_op_normal(base,blend)
-			group.grid[j].color = result_color
+			if layer.blend_mode == .Normal{
+				result_color := blend_op_normal(base,blend)
+				group.grid[j].color = result_color
+			}else if layer.blend_mode == .Multiply{
+				result_color := blend_op_multiply(base,blend)
+				group.grid[j].color = result_color
+			}
 		}
 	}
 	//copy(group.grid[:],temp[:])
@@ -321,9 +303,12 @@ show_sprite_createor :: proc(){
 			if button(fmt.tprintf("solo %d",i)){
 				layer.is_solo = ~layer.is_solo
 			}
-			//same_line()
+			same_line()
+			push_id(i32(i))
+			combo("BlendType",&layer.selected_blend_mode,blend_mode_names)
+			layer.blend_mode = BlendType(layer.selected_blend_mode)
+			pop_id()
 
-			//combo("BlendType",)
 		}
 	}
 	end_list_box()

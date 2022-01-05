@@ -65,3 +65,5 @@ main.lib
 oren.dll
 oren.pdb
 ptr
+*.rdbg
+*.pdb
