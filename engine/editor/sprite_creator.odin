@@ -10,6 +10,12 @@ import libc "core:c/libc"
 import fmt "core:fmt"
 import strings "core:strings"
 
+BlendType :: enum{
+	Normal,
+	Multiply,
+	Add,
+}
+
 Zoxel :: struct{
 	id : u64,
 	ref : u64,
@@ -22,6 +28,7 @@ Layer :: struct{
 	is_show : bool,
 	is_solo : bool,	
 	size : eng_m.f2,
+	blend_mode : BlendType,
 }
 
 LayerGroup :: struct{
@@ -86,17 +93,24 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 	result : LayerGroup
 
 	default_layer : Layer
-	default_layer.name = "default"
+	default_layer.name = "background"
 	default_layer.size = eng_m.f2{64,64}
 
 	result.name = strings.clone(name)
 	result.layers_names = con.buf_init(0,string)
-	result.grid = make([dynamic]Zoxel,u64(default_layer.size.x * default_layer.size.y))
+	result.grid = make([dynamic]Zoxel,int(default_layer.size.x * default_layer.size.y),int(default_layer.size.x * default_layer.size.y))
 	result.layers = con.buf_init(0,Layer)
 	result.size = default_layer.size
 	result.size_in_bytes = int(default_layer.size.x * default_layer.size.y)
 	layer_id := add_layer(&result,default_layer)
 	input_layer_name = "MAXIMUMLAYERNAME"
+	default_layer_ptr := con.buf_ptr(&result.layers,0)
+	for zoxel in &default_layer_ptr.grid{
+		color :u32 = 0xFFFFFFFF
+		zoxel.color = color
+	}
+	default_layer.name = "draw layer 1"
+	layer_id = add_layer(&result,default_layer)
 
 	return result
 }
@@ -135,20 +149,53 @@ pack_color_32 :: proc(colors : [4]u8) -> u32{
 	return u32((colors[0]) | (colors[1] << 8) | (colors[2] << 16) | (colors[3] << 24) )
 }
 
-blend_op_normal :: proc(source : u32,destination : u32) -> u32{
+blend_op_normal :: proc(base : u32,blend : u32) -> u32{
+	result_unpacked : [4]u8
+	blend_channels := unpack_color_32(blend)
+	base_channels :=  unpack_color_32(base)
+	//if blend_channels[3] < 1.0{
+		a2 := f32(blend_channels[0]) / 255.0
+		a1 := f32(base_channels[0])
+		for i in 1..3{
+			bl := f32(blend_channels[i]) / 255.0
+			ba := f32(base_channels[i]) / 255.0
+
+			result_unpacked[i] = clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
+		}		
+		result_unpacked[0] = clamp(u8(((a1 + a2 * (1 - a2)) * 255)),0,255)//blend_channels[0]
+		/*
+	}else{
+		for i in 0..3{
+			bl := blend_channels[i]
+			ba := base_channels[i]
+
+			result_unpacked[i] = bl
+		}
+	}
+*/
+
+	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
+	return final_color
+}
+
+blend_op_add :: proc(source : u32,destination : u32) -> u32{
 	result_unpacked : [4]u8
 	s_channels := unpack_color_32(source)
 	d_channels :=  unpack_color_32(destination)
-	for i in 0..4{
-		s := s_channels[i]
-		d := d_channels[i]
-		result_unpacked[i] = d + s
+	for i in 0..3{
+		//make larger than u8 so we can avoid wrapping at addition values of 255
+		s : i32 = i32(s_channels[i])
+		d : i32 = i32(d_channels[i])
+		assert(s >= 0 && s <= 255)
+		assert(d >= 0 && s <= 255)
+		result_unpacked[i] = u8(clamp(s + d,0 , 255))
 	}
 	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return final_color
 }
 
-blend_op_mul :: proc(source : u32,destination : u32) -> u32{
+/*
+blend_op_mul_byte :: proc(source : u32,destination : u32) -> u32{
 	result_unpacked : [4]u8
 	s_channels := unpack_color_32(source)
 	d_channels :=  unpack_color_32(destination)
@@ -159,29 +206,40 @@ blend_op_mul :: proc(source : u32,destination : u32) -> u32{
 	}
 	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return final_color
+}*/
+
+blend_op_mul :: proc(source : u32,destination : u32) -> u32{
+	result_unpacked : [4]u8
+	s_channels := unpack_color_32(source)
+	d_channels :=  unpack_color_32(destination)
+	for i in 0..3{
+		s := f32(s_channels[i]) / 255.0
+		d := f32(d_channels[i]) / 255.0
+		result_unpacked[i] = u8(clamp(d * s,0.0,1.0) * 255)
+	}
+	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
+	return final_color
 }
 
 flatten_group :: proc(group : ^LayerGroup){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
-	temp : [dynamic]Zoxel = make([dynamic]Zoxel,group.size_in_bytes)
-	prev_layer : Layer
+	temp : [dynamic]Zoxel = make([dynamic]Zoxel,int(group.size.x * group.size.y),int(group.size.x * group.size.y))
+	defer{delete(temp)}
 	for layer,i in group.layers.buffer{
 		//nothing to blend to
 		if i == 0{
-			prev_layer = layer
+			copy(temp[:],group.grid[:])
 			continue
 		}
 		for texel,j in layer.grid{
 
-			base : u32 = prev_layer.grid[j].color
+			base : u32 = temp[j].color
 			blend : u32 = texel.color
 
-
-			result_color := blend_op_mul(base,blend)
+			result_color := blend_op_normal(base,blend)
 			temp[j].color = result_color
 		}
-		prev_layer = layer
 	}
 	copy(group.grid[:],temp[:])
 }
@@ -199,7 +257,7 @@ show_sprite_createor :: proc(){
 
 	color : Vec4 
 	@static colora : [4]f32
-	@static current_layer_id : i32 = 0
+	@static current_layer_id : i32 = 1
 	@static current_group_id : i32 = 0
 	@static prev_group_id  : i32 = 0
 
@@ -272,6 +330,9 @@ show_sprite_createor :: proc(){
 			if button(fmt.tprintf("solo %d",i)){
 				layer.is_solo = ~layer.is_solo
 			}
+			//same_line()
+
+			//combo("BlendType",)
 		}
 	}
 	end_list_box()
@@ -336,6 +397,31 @@ show_sprite_createor :: proc(){
 
 	grid_step += io.mouse_wheel
 
+//if show_output{
+	/*
+	if true{
+		stride := current_group.size.x
+		x : int
+		y : int
+		idx : int
+		flatten_group(current_group)
+		for zoxel in current_group.grid{
+			sel_origin : Vec2
+			sel_origin.x = origin.x + f32(x * int(grid_step))
+			sel_origin.y = origin.y + f32(y * int(grid_step))
+			selected_p := sel_origin 
+
+			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
+			color :u32= 0xFFFFFFFF
+			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,color)
+			if x == int(stride - 1){
+				y = (y + 1) % int(stride)
+			}
+			x = (x + 1) % int(stride)
+		}
+	}
+	*/
+
 	for layer in current_group.layers.buffer{
 		if layer.is_show == false{continue}
 
@@ -359,31 +445,6 @@ show_sprite_createor :: proc(){
 			x = (x + 1) % int(stride)
 		}	
 	}
-
-	//if show_output{
-	if true{
-		stride := current_group.size.x
-		x : int
-		y : int
-		idx : int
-		flatten_group(current_group)
-		for zoxel in current_group.grid{
-			sel_origin : Vec2
-			sel_origin.x = origin.x + f32(x * int(grid_step))
-			sel_origin.y = origin.y + f32(y * int(grid_step))
-			selected_p := sel_origin 
-
-			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-			pix_col : Vec4
-			color_convert_u32to_float4(&pix_col,zoxel.color)
-			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
-			if x == int(stride - 1){
-				y = (y + 1) % int(stride)
-			}
-			x = (x + 1) % int(stride)
-		}
-	}
-	
 	
 	start : Vec2 = origin
 	total_size_of_graph_x := grid_step * current_layer.size.x + start.x
@@ -401,8 +462,39 @@ show_sprite_createor :: proc(){
 	end()
 
 
+
+	if !begin("TEST WINDOW"){
+	}
+
+	//if show_output{
+	if true{
+		get_cursor_screen_pos(&canvas_p0)
+		canvas_size : Vec2
+		get_content_region_avail(&canvas_size)
+		canvas_p1 := Vec2{canvas_p0.x + canvas_size.x,canvas_p0.y + canvas_size.y}
+		origin : Vec2 = {canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y}
+		stride := current_group.size.x
+		x : int
+		y : int
+		idx : int
+		flatten_group(current_group)
+		for zoxel in current_group.grid{
+			sel_origin : Vec2
+			sel_origin.x = origin.x + f32(x * int(grid_step))
+			sel_origin.y = origin.y + f32(y * int(grid_step))
+			selected_p := sel_origin 
+
+			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
+			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
+			if x == int(stride - 1){
+				y = (y + 1) % int(stride)
+			}
+			x = (x + 1) % int(stride)
+		}
+	}
+	end()
+
 	if !begin("Animator Editor"){
-		end()
 	}
 
 	//list all the sprites
