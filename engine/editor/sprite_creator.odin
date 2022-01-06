@@ -11,7 +11,7 @@ import fmt "core:fmt"
 import strings "core:strings"
 import reflect "core:reflect"
 import runtime "core:runtime"
-
+import mem "core:mem"
 BlendType :: enum{
 	Normal,
 	Multiply,
@@ -63,6 +63,8 @@ input_group_name : string
 
 //TODO(Ray): Sprite Editor
 /*
+Simple one created can switch layer rows but cannot move to a specific
+row can emulate this in imgui with a dummylayer inbetween each layer?
 1. Allow for painting multiple texels at onece with a brush
 	a. show texel selection with pink outlines
 2. solo 
@@ -286,11 +288,27 @@ show_sprite_createor :: proc(){
 	}
 	//Load any saved sprites to the board
 	//ask if you want to save current before loading if modified from last save.
-
+	remove_id : int = -1
+	swap_id_a : int = -1
+	swap_id_b : int = -1
+	pay_load : int
 	if begin_list_box("Layers"){
 		for layer,i in &current_group.layers.buffer{
-			
+			push_id(i32(i))
 			text(layer.name)
+			if begin_drag_drop_source(Drag_Drop_Flags.SourceAllowNullId){
+				pay_load = i
+				set_drag_drop_payload("LAYERS_DND_ROW",rawptr(&pay_load),size_of(int))
+				text(layer.name)
+				end_drag_drop_source()
+			}
+			if begin_drag_drop_target(){
+				if payload := accept_drag_drop_payload("LAYERS_DND_ROW");payload != nil{
+					swap_id_a = (^int)(payload.data)^
+					swap_id_b = i
+				}
+			}
+			pop_id()
 
 			same_line()
 			if button(fmt.tprintf("select %d",i)){
@@ -312,16 +330,26 @@ show_sprite_createor :: proc(){
 			pop_id()
 
 			same_line()
+			
+			same_line()
 			if button(fmt.tprintf("remove %d",i)){
 				if i != 0{
 					if i <= int(current_layer_id){
 						current_layer_id -= 1
 					} 
-					remove_layer(current_group,u64(i))
+					remove_id = i
+					//remove_layer(current_group,u64(i))
 				}
 			}
 		}
+		if remove_id >= 0{
+			remove_layer(current_group,u64(remove_id))
+		}
+		if  swap_id_a >= 0 && swap_id_b >= 0{
+			buf_swap(&current_group.layers,u64(swap_id_a),u64(swap_id_b))
+		}
 	}
+
 	end_list_box()
 
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])

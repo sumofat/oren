@@ -94,9 +94,37 @@ buf_chk_in :: proc(buffer : ^Buffer($element_type))
     }
 }
 
-buf_del :: proc(buffer : ^Buffer($element_type),idx : u64){
+buf_swap :: proc(buffer : ^Buffer($element_type), a_idx : u64,b_idx : u64)-> bool{
+    assert(buffer != nil)
+    assert(buffer.borrow_count == 0);
+
+    if (len(buffer.buffer) == 0){ 
+        return false
+    }else if buf_len(buffer^) <= a_idx || buf_len(buffer^) <= b_idx{
+        return false
+    }
+
+    a := buf_ptr(buffer,a_idx)
+    b := buf_ptr(buffer,b_idx)
+    c := a^
+    a^ = b^
+    b^ = c
+
+    return true
+}
+
+buf_del :: proc(buffer : ^Buffer($element_type),idx : u64) -> bool{
+    assert(buffer != nil)
+    assert(buffer.borrow_count == 0)
+
+    if (len(buffer.buffer) == 0){ 
+        return false
+    }else if buf_len(buffer^) <= idx{
+        return false
+    }
     runtime.unordered_remove(&buffer.buffer,int(idx))
     buffer.current_id -= 1
+    return true
 }
 
 buf_clear :: proc(b : ^Buffer($element_type))
