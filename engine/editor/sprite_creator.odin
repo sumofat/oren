@@ -10,7 +10,7 @@ import libc "core:c/libc"
 import fmt "core:fmt"
 import strings "core:strings"
 import reflect "core:reflect"
-
+import runtime "core:runtime"
 
 BlendType :: enum{
 	Normal,
@@ -131,14 +131,15 @@ get_layer :: proc(group : ^LayerGroup,layer_id : int) -> Layer{
 	return layer
 }
 
-add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : int){
+add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	new_layer : Layer = layer_desc
 	new_layer.grid = make([dynamic]Zoxel,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
-	return int(con.buf_push(&group.layers,new_layer))
+	return i32(con.buf_push(&group.layers,new_layer))
 }
 
-remove_layer :: proc(layer_id : int){
-
+remove_layer :: proc(group : ^LayerGroup,id : u64){
+	//runtime.unordered_remove(&group.layers.buffer,int(id))
+	con.buf_del(&group.layers,id)
 }
 
 unpack_color_32 :: proc(color : u32)-> [4]u8{
@@ -197,24 +198,24 @@ flatten_group :: proc(group : ^LayerGroup){
 	defer{delete(temp)}
 	for layer,i in group.layers.buffer{
 		//nothing to blend to
-		if i == 0{
+		if layer.is_show == false{
 			//copy(group.grid[:],layer.grid[:])
 			continue
 		}
 		for texel,j in layer.grid{
 
-			base : u32 = group.grid[j].color
+			base : u32 = temp[j].color
 			blend : u32 = layer.grid[j].color
 			if layer.blend_mode == .Normal{
 				result_color := blend_op_normal(base,blend)
-				group.grid[j].color = result_color
+				temp[j].color = result_color
 			}else if layer.blend_mode == .Multiply{
 				result_color := blend_op_multiply(base,blend)
-				group.grid[j].color = result_color
+				temp[j].color = result_color
 			}
 		}
 	}
-	//copy(group.grid[:],temp[:])
+	copy(group.grid[:],temp[:])
 }
 
 show_sprite_createor :: proc(){
@@ -276,7 +277,7 @@ show_sprite_createor :: proc(){
 		new_layer.size = {64,64}
 		new_layer.name = strings.clone(input_layer_name)
 
-		add_layer(current_group,new_layer)
+		current_layer_id = add_layer(current_group,new_layer)
 		current_layer = buf_ptr(&current_group.layers,u64(current_layer_id))
 	}
 	if button("Save"){
@@ -304,11 +305,21 @@ show_sprite_createor :: proc(){
 				layer.is_solo = ~layer.is_solo
 			}
 			same_line()
+			push_item_width(40)
 			push_id(i32(i))
 			combo("BlendType",&layer.selected_blend_mode,blend_mode_names)
 			layer.blend_mode = BlendType(layer.selected_blend_mode)
 			pop_id()
 
+			same_line()
+			if button(fmt.tprintf("remove %d",i)){
+				if i != 0{
+					if i <= int(current_layer_id){
+						current_layer_id -= 1
+					} 
+					remove_layer(current_group,u64(i))
+				}
+			}
 		}
 	}
 	end_list_box()
@@ -354,16 +365,23 @@ show_sprite_createor :: proc(){
 		size_x := int(clamp(grid_offset.x,0,current_layer.size.x))
 		size_y := int(clamp(grid_offset.y,0,current_layer.size.y))
 		mul_sizes := int(current_layer.size.x) * size_y
+//		painting_idx := clamp(int( size_x + mul_sizes),0,int(current_layer.size.x * current_layer.size.y) - 1 )
 		painting_idx := int( size_x + mul_sizes)
-		current_layer.grid[painting_idx].color = selected_color//0xFFFFFFFF
+		if painting_idx >= 0 && painting_idx < int(current_layer.size.x * current_layer.size.y) - 1{
+			current_layer.grid[painting_idx].color = selected_color//0xFFFFFFFF
+		}
 	}
 
 	if is_mouse_down(Mouse_Button.Right){
+		//TODO(Ray):Stop clamping here and use negative as a way to determine if we are off the canvas?
 		size_x := int(clamp(grid_offset.x,0,current_layer.size.x))
 		size_y := int(clamp(grid_offset.y,0,current_layer.size.y))
 		mul_sizes := int(current_layer.size.x) * size_y
+//		painting_idx := clamp(int( size_x + mul_sizes),0,int(current_layer.size.x * current_layer.size.y) - 1)
 		painting_idx := int( size_x + mul_sizes)
-		current_layer.grid[painting_idx].color = 0x00000000
+		if painting_idx >= 0 && painting_idx < int(current_layer.size.x * current_layer.size.y) - 1{
+			current_layer.grid[painting_idx].color = 0x00000000
+		}
 	}
 
 	if is_mouse_down(Mouse_Button.Middle){

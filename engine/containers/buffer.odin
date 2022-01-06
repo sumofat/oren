@@ -3,6 +3,7 @@ package containers;
 import "core:fmt"
 import "core:c"
 import "core:mem"
+import "core:runtime"
 
 Buffer :: struct (type : typeid)
 {
@@ -89,8 +90,13 @@ buf_chk_in :: proc(buffer : ^Buffer($element_type))
 {
     if buffer.borrow_count > 0
     {
-	buffer.borrow_count -= 1;	
+	   buffer.borrow_count -= 1;	
     }
+}
+
+buf_del :: proc(buffer : ^Buffer($element_type),idx : u64){
+    runtime.unordered_remove(&buffer.buffer,int(idx))
+    buffer.current_id -= 1
 }
 
 buf_clear :: proc(b : ^Buffer($element_type))
