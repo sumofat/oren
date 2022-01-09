@@ -12,37 +12,6 @@ import strings "core:strings"
 import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
-BlendType :: enum{
-	Normal,
-	Multiply,
-	Add,
-}
-
-Zoxel :: struct{
-	id : u64,
-	ref : u64,
-	color : u32,//for now 32 bit color could be other bit size
-}
-
-Layer :: struct{
-	name : string,
-	grid : [dynamic]Zoxel,
-	is_show : bool,
-	is_solo : bool,	
-	size : eng_m.f2,
-	blend_mode : BlendType,
-	selected_blend_mode : i32,
-}
-
-LayerGroup :: struct{
-	name : string,
-	layers : con.Buffer(Layer),
-	layers_names : con.Buffer(string),
-	gpu_image_id : u64,
-	grid : [dynamic]Zoxel,
-	size : eng_m.f2,
-	size_in_bytes : int,
-}
 
 layer_groups : con.Buffer(LayerGroup)
 
@@ -50,6 +19,7 @@ group_names : con.Buffer(string)
 blend_mode_names : []string
 
 grid_step : f32 = 17.0
+preview_grid_step : f32 = 6
 
 current_group : ^LayerGroup
 current_layer : ^Layer
@@ -61,17 +31,37 @@ grid_color := imgui.Vec4{50, 500, 50, 40}
 input_layer_name : string
 input_group_name : string
 
+//undo ops
+urdo : UndoRedo
+current_undo_id : u64
+stroke : con.Buffer(ActionPaintPixelDiffData)
+
+is_started_paint : bool
+current_layer_id : i32 = 1
+
+holding_layers : con.Buffer(Layers)
+
 //TODO(Ray): Sprite Editor
 /*
-Simple one created can switch layer rows but cannot move to a specific
-row can emulate this in imgui with a dummylayer inbetween each layer?
-1. Allow for painting multiple texels at onece with a brush
+# undo / redo
+	| record changes / delete / add layers
+	| Have to implent all valid changes first before it can be called decent
+	| record layer renames 
+	| record layer blending changes
+	| has to work for all layer groups / sprites active in memory
+# brushes
 	a. show texel selection with pink outlines
+# Swatches
+# fill
+# eyepicker
 2. solo 
-3. blending
-4. fix skipping whem  moving mouse fast.
-5. List all sprites created and switch at will
+3. blending started but only mul implemented now
+4. fix skipping whem  moving mouse fast.(may not be neccessary for a while)
 6. output button : creates sprites in memory 
+# layer moving 
+	a. Simple one created can switch layer rows but cannot move to a specific
+	   row can emulate this in imgui with a dummylayer inbetween each layer?
+
 7. final output writes to disk in a mega texture with referencing info for the engine
 		outputs all layers on texture with animation data
 */
@@ -86,16 +76,16 @@ row can emulate this in imgui with a dummylayer inbetween each layer?
 6. create sprite sheet animations.
 */
 
-
 init_sprite_creator :: proc(){
 	group_names = con.buf_init(0,string)
 	layer_groups = con.buf_init(0,LayerGroup)
 	input_group_name = "MAXGROUPNAME"
 	add_layer_group("Default")
 	blend_mode_names = reflect.enum_field_names(BlendType)
-
+	urdo.actions = con.buf_init(0,ActionsTypes)
+	stroke =  con.buf_init(0,ActionPaintPixelDiffData)
+	holding_layers = con.buf_init(0,Layer)
 }
-
 
 init_layer_group :: proc(name : string) -> LayerGroup{
 	result : LayerGroup
@@ -123,6 +113,39 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 	return result
 }
 
+//painting ops 
+start_stroke_idx : u64
+end_stroke_idx : u64
+paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32){
+	if grid_p.x <  0 || grid_p.y < 0{
+		return
+	}
+	size_x := int(clamp(grid_p.x,0,layer.size.x))
+	size_y := int(clamp(grid_p.y,0,layer.size.y))
+	mul_sizes := int(layer.size.x) * size_y
+	painting_idx := int( size_x + mul_sizes)
+	if painting_idx >= 0 && painting_idx < int(layer.size.x * layer.size.y) - 1{
+		prev_color := layer.grid[painting_idx].color
+		if prev_color != color{
+			layer.grid[painting_idx].color = color
+			pixel_diff : ActionPaintPixelDiffData
+			pixel_diff.idx = i32(painting_idx)
+			pixel_diff.color = color
+			pixel_diff.prev_color = prev_color
+			pixel_diff.layer_id = layer.id
+			if is_started_paint == false {
+				is_started_paint = true
+				start_stroke_idx = con.buf_push(&urdo.pixel_diffs,pixel_diff)
+				end_stroke_idx = start_stroke_idx
+			}else{
+				end_stroke_idx = con.buf_push(&urdo.pixel_diffs,pixel_diff)
+			}	
+		}
+		
+	}
+}
+
+
 add_layer_group :: proc(name : string) -> int{
 	new_group : LayerGroup = init_layer_group(name)
 	return int(con.buf_push(&layer_groups,new_group))
@@ -135,7 +158,14 @@ get_layer :: proc(group : ^LayerGroup,layer_id : int) -> Layer{
 
 add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	new_layer : Layer = layer_desc
+	new_layer.id = group.current_layer_id
+	group.current_layer_id += 1
 	new_layer.grid = make([dynamic]Zoxel,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+
+	la : LayerAdd
+	la.group_id = group.id
+	la.layer_id = new_layer.id
+	la.holding_idx = con.buf_push(&holding_layers,)
 	return i32(con.buf_push(&group.layers,new_layer))
 }
 
@@ -232,8 +262,7 @@ show_sprite_createor :: proc(){
 	}
 
 	color : Vec4 
-	@static colora : [4]f32
-	@static current_layer_id : i32 = 1
+	@static colora : [4]f32 = {0,0,0,1}
 	@static current_group_id : i32 = 0
 	@static prev_group_id  : i32 = 0
 
@@ -306,6 +335,7 @@ show_sprite_createor :: proc(){
 				if payload := accept_drag_drop_payload("LAYERS_DND_ROW");payload != nil{
 					swap_id_a = (^int)(payload.data)^
 					swap_id_b = i
+					
 				}
 			}
 			pop_id()
@@ -346,6 +376,10 @@ show_sprite_createor :: proc(){
 			remove_layer(current_group,u64(remove_id))
 		}
 		if  swap_id_a >= 0 && swap_id_b >= 0{
+			ls : LayerSwap
+			ls.prev_layer_id = swap_id_a
+			ls.layer_id = swap_id_b
+			current_undo_id = buf_push(&urdo.actions,ls)
 			buf_swap(&current_group.layers,u64(swap_id_a),u64(swap_id_b))
 		}
 	}
@@ -387,62 +421,35 @@ show_sprite_createor :: proc(){
 	selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
 	
 	draw_list_add_rect_filled(draw_list,selected_p,selectd_size,color_convert_float4to_u32(Vec4{1,0,1,1}))
-
-	if is_mouse_down(Mouse_Button.Left){
-		//grid_step += 0.11
-		size_x := int(clamp(grid_offset.x,0,current_layer.size.x))
-		size_y := int(clamp(grid_offset.y,0,current_layer.size.y))
-		mul_sizes := int(current_layer.size.x) * size_y
-//		painting_idx := clamp(int( size_x + mul_sizes),0,int(current_layer.size.x * current_layer.size.y) - 1 )
-		painting_idx := int( size_x + mul_sizes)
-		if painting_idx >= 0 && painting_idx < int(current_layer.size.x * current_layer.size.y) - 1{
-			current_layer.grid[painting_idx].color = selected_color//0xFFFFFFFF
+	if is_window_focused(Focused_Flags.None){
+		if is_mouse_down(Mouse_Button.Left){
+			paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color)
 		}
-	}
 
-	if is_mouse_down(Mouse_Button.Right){
-		//TODO(Ray):Stop clamping here and use negative as a way to determine if we are off the canvas?
-		size_x := int(clamp(grid_offset.x,0,current_layer.size.x))
-		size_y := int(clamp(grid_offset.y,0,current_layer.size.y))
-		mul_sizes := int(current_layer.size.x) * size_y
-//		painting_idx := clamp(int( size_x + mul_sizes),0,int(current_layer.size.x * current_layer.size.y) - 1)
-		painting_idx := int( size_x + mul_sizes)
-		if painting_idx >= 0 && painting_idx < int(current_layer.size.x * current_layer.size.y) - 1{
-			current_layer.grid[painting_idx].color = 0x00000000
+		if is_mouse_down(Mouse_Button.Right){
+			paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,0x00000000)
 		}
-	}
 
-	if is_mouse_down(Mouse_Button.Middle){
-		scrolling.x += io.mouse_delta.x
-		scrolling.y += io.mouse_delta.y
-	}
-
-	grid_step += io.mouse_wheel
-
-//if show_output{
-	/*
-	if true{
-		stride := current_group.size.x
-		x : int
-		y : int
-		idx : int
-		flatten_group(current_group)
-		for zoxel in current_group.grid{
-			sel_origin : Vec2
-			sel_origin.x = origin.x + f32(x * int(grid_step))
-			sel_origin.y = origin.y + f32(y * int(grid_step))
-			selected_p := sel_origin 
-
-			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-			color :u32= 0xFFFFFFFF
-			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,color)
-			if x == int(stride - 1){
-				y = (y + 1) % int(stride)
-			}
-			x = (x + 1) % int(stride)
+		if is_mouse_down(Mouse_Button.Middle){
+			scrolling.x += io.mouse_delta.x
+			scrolling.y += io.mouse_delta.y
 		}
+
+		if is_mouse_released(Mouse_Button.Left){
+			is_started_paint = false
+			pa : PaintAdd
+			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
+			current_undo_id = buf_push(&urdo.actions,pa)
+		}
+		if is_mouse_released(Mouse_Button.Right){
+			is_started_paint = false
+			pa : PaintAdd
+			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
+			current_undo_id = buf_push(&urdo.actions,pa)
+		}
+
+		grid_step += io.mouse_wheel
 	}
-	*/
 
 	for layer in current_group.layers.buffer{
 		if layer.is_show == false{continue}
@@ -467,7 +474,28 @@ show_sprite_createor :: proc(){
 			x = (x + 1) % int(stride)
 		}	
 	}
-	
+	//if show_output{
+	if true{
+		stride := current_group.size.x
+		x : int
+		y : int
+		idx : int
+		flatten_group(current_group)
+		for zoxel in current_group.grid{
+			sel_origin : Vec2
+			sel_origin.x = origin.x + f32(x * int(grid_step))
+			sel_origin.y = origin.y + f32(y * int(grid_step))
+			selected_p := sel_origin 
+
+			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
+			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
+			if x == int(stride - 1){
+				y = (y + 1) % int(stride)
+			}
+			x = (x + 1) % int(stride)
+		}
+	}
+
 	start : Vec2 = origin
 	total_size_of_graph_x := grid_step * current_layer.size.x + start.x
 	total_size_of_graph_y := grid_step * current_layer.size.y + start.y
@@ -494,7 +522,7 @@ show_sprite_createor :: proc(){
 		canvas_size : Vec2
 		get_content_region_avail(&canvas_size)
 		canvas_p1 := Vec2{canvas_p0.x + canvas_size.x,canvas_p0.y + canvas_size.y}
-		origin : Vec2 = {canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y}
+		origin : Vec2 = {canvas_p0.x, canvas_p0.y}
 		stride := current_group.size.x
 		x : int
 		y : int
@@ -502,11 +530,11 @@ show_sprite_createor :: proc(){
 		flatten_group(current_group)
 		for zoxel in current_group.grid{
 			sel_origin : Vec2
-			sel_origin.x = origin.x + f32(x * int(grid_step))
-			sel_origin.y = origin.y + f32(y * int(grid_step))
+			sel_origin.x = origin.x + f32(x * int(preview_grid_step))
+			sel_origin.y = origin.y + f32(y * int(preview_grid_step))
 			selected_p := sel_origin 
 
-			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
+			selectd_size := Vec2{sel_origin.x + preview_grid_step,sel_origin.y + preview_grid_step}
 			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
 			if x == int(stride - 1){
 				y = (y + 1) % int(stride)
@@ -535,4 +563,69 @@ show_sprite_createor :: proc(){
 
 	buf_clear(&current_group.layers_names)
 	buf_clear(&group_names)
+
+
+	//Action HIstory
+	if !begin("History Viewer"){
+
+	}
+	
+	if button("UNDO"){
+			undo_action := buf_get(&urdo.actions,current_undo_id)
+			switch a in undo_action {
+				case PaintAdd:{
+					//restore prev pixel
+					stroke := a.stroke
+					pixels := urdo.pixel_diffs.buffer[stroke.start_idx:stroke.end_idx + 1]
+					for pixel in pixels{
+						if layer_idx,ok := get_layer_idx_with_id(current_group^,u64(pixel.layer_id));ok{
+							layer := &current_group.layers.buffer[layer_idx]
+							layer.grid[pixel.idx].color = pixel.prev_color
+						}else{
+							assert(false)
+						}
+					}
+					if current_undo_id > 0{
+						current_undo_id -= 1			
+					}
+				}
+				case LayerSwap:{
+					buf_swap(&current_group.layers,u64(a.layer_id),u64(a.prev_layer_id))
+					if current_undo_id > 0{
+						current_undo_id -= 1			
+					}
+				}
+				case LayerAdd:{
+
+				}
+				case LayerDelete:{
+
+				}
+			}
+	}
+
+	for action,i in urdo.actions.buffer{
+		if i == int(current_undo_id){
+			text("<<<<----->>>>")
+		}
+		switch a in action{
+			case  PaintAdd : {
+				text("Brush Stroke")
+			}
+			case LayerSwap : {
+				text("Layer Move")
+			}
+		}
+	}
+
+	end()
+}
+
+get_layer_idx_with_id :: proc(group : LayerGroup,id : u64)-> (u64,bool){
+	for layer,i in group.layers.buffer{
+		if layer.id == i32(id){
+			return u64(i),true
+		}
+	}
+	return 0,false
 }
