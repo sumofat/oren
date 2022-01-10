@@ -41,11 +41,18 @@ LayerAdd :: struct{
 	insert_idx : i32,
 }
 
+LayerRemove :: struct{
+	group_id : i32,
+	layer_id : i32,
+	holding_idx : i32,
+	insert_idx : i32,
+}
+
 ActionsTypes :: union{
 	PaintAdd,
 	LayerSwap,
 	LayerAdd,
-	//LayerDelete,
+	LayerRemove,
 //	LayerModeChange,
 //	EditoColorChange,
 }

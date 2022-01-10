@@ -156,16 +156,22 @@ add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 }
 
 remove_layer :: proc(group : ^LayerGroup,id : u64){
-	//runtime.unordered_remove(&group.layers.buffer,int(id))
-	//con.buf_del(&group.layers,id)
-	//TODO(Ray): NO longer remove layers we just remove them from their groups but 
-	//remains in the master list.
+	holding_idx := con.buf_get(&group.layer_ids,id)
 	con.buf_del(&group.layer_ids,id)
+	lr : LayerRemove
+	lr.group_id = group.id
+	//lr.layer_id = i32(id)
+	lr.holding_idx = holding_idx	
+	lr.insert_idx = i32(id)
+	insert_undo(lr)
 }
 
 insert_undo :: proc(action : ActionsTypes){
 	insert_id := current_undo_id
 	con.buf_insert(&urdo.actions,insert_id,action)
+	if con.buf_len(urdo.actions) > 1{
+		current_undo_id += 1
+	}
 }
 
 unpack_color_32 :: proc(color : u32)-> [4]u8{
@@ -571,8 +577,13 @@ show_sprite_createor :: proc(){
 	if !begin("History Viewer"){
 
 	}
-	
+
+	no_undo : 
 	if button("UNDO"){
+			if current_undo_id >= buf_len(urdo.actions){
+				current_undo_id = buf_len(urdo.actions) - 1
+				break no_undo
+			}
 			undo_action := buf_get(&urdo.actions,current_undo_id)
 			switch a in undo_action {
 				case PaintAdd:{
@@ -585,7 +596,7 @@ show_sprite_createor :: proc(){
 							layer := buf_ptr(&layer_master_list,u64(layer_id))
 							layer.grid[pixel.idx].color = pixel.prev_color
 						}else{
-							assert(false)
+							tprintf("Todo failed to find layerid %d not applying undo operation \n",pixel.layer_id)
 						}
 					}
 					if current_undo_id > 0{
@@ -607,11 +618,70 @@ show_sprite_createor :: proc(){
 						current_undo_id -= 1			
 					}
 				}
-				//case LayerDelete:{
-
-				//}
+				case LayerRemove:{
+					buf_insert(&current_group.layer_ids,u64(a.insert_idx),i32(a.holding_idx))
+					if current_layer_id == a.insert_idx{
+						current_layer_id = 0
+					}
+					if current_undo_id > 0{
+						current_undo_id -= 1			
+					}
+				}
 			}
 	}
+
+	no_redo :  
+	if button("REDO"){
+			if current_undo_id >= buf_len(urdo.actions){
+				break no_redo
+			}
+			undo_action := buf_get(&urdo.actions,current_undo_id)
+			switch a in undo_action {
+				case PaintAdd:{
+					//restore prev pixel
+					stroke := a.stroke
+					pixels := urdo.pixel_diffs.buffer[stroke.start_idx:stroke.end_idx + 1]
+					for pixel in pixels{
+						if layer_idx,ok := get_layer_idx_with_id(current_group^,u64(pixel.layer_id));ok{
+							layer_id := current_group.layer_ids.buffer[layer_idx]
+							layer := buf_ptr(&layer_master_list,u64(layer_id))
+							layer.grid[pixel.idx].color = pixel.color
+						}else{
+							tprintf("Todo failed to find layerid %d not applying redo operation \n",pixel.layer_id)
+						}
+					}
+					if current_undo_id >= 0{
+						current_undo_id += 1			
+					}
+				}
+				case LayerSwap:{
+					buf_swap(&current_group.layer_ids,u64(a.prev_layer_id),u64(a.layer_id))
+					if current_undo_id >= 0{
+						current_undo_id += 1			
+					}
+				}
+				case LayerAdd:{
+					buf_insert(&current_group.layer_ids,u64(a.insert_idx),i32(a.holding_idx))
+					if current_layer_id == a.insert_idx{
+						current_layer_id = 0
+					}
+					if current_undo_id >= 0{
+						current_undo_id += 1			
+					}
+				}
+				case LayerRemove:{
+					buf_del(&current_group.layer_ids,u64(a.insert_idx))
+					if current_layer_id == a.insert_idx{
+						current_layer_id = 0
+					}
+					if current_undo_id >= 0{
+						current_undo_id += 1			
+					}
+				}
+			}
+	}
+
+	
 
 	for action,i in urdo.actions.buffer{
 		if i == int(current_undo_id){
@@ -626,6 +696,9 @@ show_sprite_createor :: proc(){
 			}
 			case LayerAdd : {
 				text("Layer Add")
+			}
+			case LayerRemove : {
+				text("Layer Remove")
 			}
 		}
 	}
