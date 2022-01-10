@@ -13,37 +13,11 @@ import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
 
-layer_groups : con.Buffer(LayerGroup)
-
-group_names : con.Buffer(string)
-blend_mode_names : []string
-
-grid_step : f32 = 17.0
-preview_grid_step : f32 = 6
-
-current_group : ^LayerGroup
-current_layer : ^Layer
-
-selected_color : u32
-is_show_grid : bool = true
-grid_color := imgui.Vec4{50, 500, 50, 40}
-
-input_layer_name : string
-input_group_name : string
-
-//undo ops
-urdo : UndoRedo
-current_undo_id : u64
-stroke : con.Buffer(ActionPaintPixelDiffData)
-
-is_started_paint : bool
-current_layer_id : i32 = 1
-
-holding_layers : con.Buffer(Layers)
-
 //TODO(Ray): Sprite Editor
 /*
 # undo / redo
+	| In order for Undo Redo to be sensical we need to insert at the current undone layer
+	| so we can redo and undo properly and not lose history.
 	| record changes / delete / add layers
 	| Have to implent all valid changes first before it can be called decent
 	| record layer renames 
@@ -79,12 +53,13 @@ holding_layers : con.Buffer(Layers)
 init_sprite_creator :: proc(){
 	group_names = con.buf_init(0,string)
 	layer_groups = con.buf_init(0,LayerGroup)
-	input_group_name = "MAXGROUPNAME"
-	add_layer_group("Default")
-	blend_mode_names = reflect.enum_field_names(BlendType)
+	layer_master_list = con.buf_init(0,Layer)
 	urdo.actions = con.buf_init(0,ActionsTypes)
 	stroke =  con.buf_init(0,ActionPaintPixelDiffData)
-	holding_layers = con.buf_init(0,Layer)
+	blend_mode_names = reflect.enum_field_names(BlendType)
+
+	input_group_name = "MAXGROUPNAME"
+	add_layer_group("Default")
 }
 
 init_layer_group :: proc(name : string) -> LayerGroup{
@@ -97,12 +72,16 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 	result.name = strings.clone(name)
 	result.layers_names = con.buf_init(0,string)
 	result.grid = make([dynamic]Zoxel,int(default_layer.size.x * default_layer.size.y),int(default_layer.size.x * default_layer.size.y))
-	result.layers = con.buf_init(0,Layer)
+	//result.layers = con.buf_init(0,Layer)
 	result.size = default_layer.size
 	result.size_in_bytes = int(default_layer.size.x * default_layer.size.y)
+	result.layer_ids = con.buf_init(0,i32)
 	layer_id := add_layer(&result,default_layer)
 	input_layer_name = "MAXIMUMLAYERNAME"
-	default_layer_ptr := con.buf_ptr(&result.layers,0)
+
+	master_layer_id := con.buf_get(&result.layer_ids,u64(layer_id))
+
+	default_layer_ptr := con.buf_ptr(&layer_master_list,u64(master_layer_id))
 	for zoxel in &default_layer_ptr.grid{
 		color :u32 = 0xFFFFFFFF
 		zoxel.color = color
@@ -152,8 +131,8 @@ add_layer_group :: proc(name : string) -> int{
 }
 
 get_layer :: proc(group : ^LayerGroup,layer_id : int) -> Layer{
-	layer := con.buf_get(&group.layers,u64(layer_id))
-	return layer
+	master_layer_id := con.buf_get(&group.layer_ids,u64(layer_id))
+	return con.buf_get(&layer_master_list,u64(master_layer_id))
 }
 
 add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
@@ -161,17 +140,32 @@ add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	new_layer.id = group.current_layer_id
 	group.current_layer_id += 1
 	new_layer.grid = make([dynamic]Zoxel,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
-
+	master_layer_id := con.buf_push(&layer_master_list,new_layer)
+ 	group_layer_id := i32(con.buf_push(&group.layer_ids,i32(master_layer_id)))
+	if group_layer_id == 0 || group_layer_id == 1{
+		return group_layer_id	
+	}
 	la : LayerAdd
 	la.group_id = group.id
 	la.layer_id = new_layer.id
-	la.holding_idx = con.buf_push(&holding_layers,)
-	return i32(con.buf_push(&group.layers,new_layer))
+	la.holding_idx = i32(master_layer_id)
+	la.insert_idx = group_layer_id
+	//con.buf_push(&urdo.actions,la)
+	insert_undo(la)
+	return group_layer_id	
 }
 
 remove_layer :: proc(group : ^LayerGroup,id : u64){
 	//runtime.unordered_remove(&group.layers.buffer,int(id))
-	con.buf_del(&group.layers,id)
+	//con.buf_del(&group.layers,id)
+	//TODO(Ray): NO longer remove layers we just remove them from their groups but 
+	//remains in the master list.
+	con.buf_del(&group.layer_ids,id)
+}
+
+insert_undo :: proc(action : ActionsTypes){
+	insert_id := current_undo_id
+	con.buf_insert(&urdo.actions,insert_id,action)
 }
 
 unpack_color_32 :: proc(color : u32)-> [4]u8{
@@ -228,8 +222,9 @@ flatten_group :: proc(group : ^LayerGroup){
 	//pixel color and filtering to image
 	temp : [dynamic]Zoxel = make([dynamic]Zoxel,int(group.size.x * group.size.y),int(group.size.x * group.size.y))
 	defer{delete(temp)}
-	for layer,i in group.layers.buffer{
+	for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
+		layer := con.buf_get(&layer_master_list,u64(layer_id))
 		if layer.is_show == false{
 			//copy(group.grid[:],layer.grid[:])
 			continue
@@ -270,14 +265,15 @@ show_sprite_createor :: proc(){
 	
 	for group in &layer_groups.buffer{
 		buf_push(&group_names,group.name)
-		for layer in group.layers.buffer{
+		for layer_id in group.layer_ids.buffer{
+			layer := con.buf_get(&layer_master_list,u64(layer_id))
 			buf_push(&group.layers_names,layer.name)
 		}
 	}
 
 	current_group = buf_ptr(&layer_groups,u64(current_group_id))
-	current_layer = buf_ptr(&current_group.layers,u64(current_layer_id))
-
+	_layer_id := buf_get(&current_group.layer_ids,u64(current_layer_id))
+	current_layer = buf_ptr(&layer_master_list,u64(_layer_id))
 	input_text("Layer Group Name",transmute([]u8)input_group_name)
 	same_line()
 	if button("AddLayerGroup"){
@@ -309,7 +305,8 @@ show_sprite_createor :: proc(){
 		new_layer.name = strings.clone(input_layer_name)
 
 		current_layer_id = add_layer(current_group,new_layer)
-		current_layer = buf_ptr(&current_group.layers,u64(current_layer_id))
+		current_layer_id := buf_get(&current_group.layer_ids,u64(current_layer_id))
+		current_layer = buf_ptr(&layer_master_list,u64(current_layer_id))
 	}
 	if button("Save"){
 		//save sprite with name
@@ -322,7 +319,8 @@ show_sprite_createor :: proc(){
 	swap_id_b : int = -1
 	pay_load : int
 	if begin_list_box("Layers"){
-		for layer,i in &current_group.layers.buffer{
+		for layer_id,i in &current_group.layer_ids.buffer{
+			layer := con.buf_ptr(&layer_master_list,u64(layer_id))
 			push_id(i32(i))
 			text(layer.name)
 			if begin_drag_drop_source(Drag_Drop_Flags.SourceAllowNullId){
@@ -379,8 +377,9 @@ show_sprite_createor :: proc(){
 			ls : LayerSwap
 			ls.prev_layer_id = swap_id_a
 			ls.layer_id = swap_id_b
-			current_undo_id = buf_push(&urdo.actions,ls)
-			buf_swap(&current_group.layers,u64(swap_id_a),u64(swap_id_b))
+			//current_undo_id = buf_push(&urdo.actions,ls)
+			insert_undo(ls)
+			buf_swap(&current_group.layer_ids,u64(swap_id_a),u64(swap_id_b))
 		}
 	}
 
@@ -439,19 +438,22 @@ show_sprite_createor :: proc(){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
-			current_undo_id = buf_push(&urdo.actions,pa)
+			//current_undo_id = buf_push(&urdo.actions,pa)
+			insert_undo(pa)
 		}
 		if is_mouse_released(Mouse_Button.Right){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
-			current_undo_id = buf_push(&urdo.actions,pa)
+			//current_undo_id = buf_push(&urdo.actions,pa)
+			insert_undo(pa)
 		}
 
 		grid_step += io.mouse_wheel
 	}
 
-	for layer in current_group.layers.buffer{
+	for layer_id in current_group.layer_ids.buffer{
+		layer := con.buf_get(&layer_master_list,u64(layer_id))
 		if layer.is_show == false{continue}
 
 		stride := layer.size.x
@@ -579,7 +581,8 @@ show_sprite_createor :: proc(){
 					pixels := urdo.pixel_diffs.buffer[stroke.start_idx:stroke.end_idx + 1]
 					for pixel in pixels{
 						if layer_idx,ok := get_layer_idx_with_id(current_group^,u64(pixel.layer_id));ok{
-							layer := &current_group.layers.buffer[layer_idx]
+							layer_id := current_group.layer_ids.buffer[layer_idx]
+							layer := buf_ptr(&layer_master_list,u64(layer_id))
 							layer.grid[pixel.idx].color = pixel.prev_color
 						}else{
 							assert(false)
@@ -590,17 +593,23 @@ show_sprite_createor :: proc(){
 					}
 				}
 				case LayerSwap:{
-					buf_swap(&current_group.layers,u64(a.layer_id),u64(a.prev_layer_id))
+					buf_swap(&current_group.layer_ids,u64(a.layer_id),u64(a.prev_layer_id))
 					if current_undo_id > 0{
 						current_undo_id -= 1			
 					}
 				}
 				case LayerAdd:{
-
+					buf_del(&current_group.layer_ids,u64(a.insert_idx))
+					if current_layer_id == a.insert_idx{
+						current_layer_id = 0
+					}
+					if current_undo_id > 0{
+						current_undo_id -= 1			
+					}
 				}
-				case LayerDelete:{
+				//case LayerDelete:{
 
-				}
+				//}
 			}
 	}
 
@@ -615,6 +624,9 @@ show_sprite_createor :: proc(){
 			case LayerSwap : {
 				text("Layer Move")
 			}
+			case LayerAdd : {
+				text("Layer Add")
+			}
 		}
 	}
 
@@ -622,7 +634,8 @@ show_sprite_createor :: proc(){
 }
 
 get_layer_idx_with_id :: proc(group : LayerGroup,id : u64)-> (u64,bool){
-	for layer,i in group.layers.buffer{
+	for layer_id,i in group.layer_ids.buffer{
+		layer := con.buf_get(&layer_master_list,u64(layer_id))
 		if layer.id == i32(id){
 			return u64(i),true
 		}

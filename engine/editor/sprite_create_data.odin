@@ -35,16 +35,17 @@ LayerSwap ::  struct{
 }
 
 LayerAdd :: struct{
-	group_id : int,
-	layer_id : int,
-	holding_idx : int,
+	group_id : i32,
+	layer_id : i32,
+	holding_idx : i32,
+	insert_idx : i32,
 }
 
 ActionsTypes :: union{
 	PaintAdd,
 	LayerSwap,
 	LayerAdd,
-	LayerDelete,
+	//LayerDelete,
 //	LayerModeChange,
 //	EditoColorChange,
 }
@@ -81,7 +82,8 @@ Layer :: struct{
 LayerGroup :: struct{
 	id : i32,
 	name : string,
-	layers : con.Buffer(Layer),
+	//layers : con.Buffer(Layer),
+	layer_ids : con.Buffer(i32),
 	layers_names : con.Buffer(string),
 	gpu_image_id : u64,
 	grid : [dynamic]Zoxel,
@@ -89,3 +91,31 @@ LayerGroup :: struct{
 	size_in_bytes : int,
 	current_layer_id : i32,
 }
+
+layer_groups : con.Buffer(LayerGroup)
+
+group_names : con.Buffer(string)
+blend_mode_names : []string
+
+grid_step : f32 = 17.0
+preview_grid_step : f32 = 6
+
+current_group : ^LayerGroup
+current_layer : ^Layer
+
+selected_color : u32
+is_show_grid : bool = true
+grid_color := imgui.Vec4{50, 500, 50, 40}
+
+input_layer_name : string
+input_group_name : string
+
+//undo ops
+urdo : UndoRedo
+current_undo_id : u64
+stroke : con.Buffer(ActionPaintPixelDiffData)
+
+is_started_paint : bool
+current_layer_id : i32 = 1
+
+layer_master_list : con.Buffer(Layer)

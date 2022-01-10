@@ -35,6 +35,16 @@ buf_push :: proc(buffer : ^Buffer($element_type),element : element_type) -> u64
     return index;
 }
 
+buf_insert :: proc(buffer : ^Buffer($element_type),at : u64,element : element_type) -> bool{
+    assert(buffer != nil)
+    assert(buffer.borrow_count == 0)
+    ok : bool
+    if ok = insert_at(&buffer.buffer,int(at),element);ok{
+        buffer.current_id += 1
+    }
+    return ok
+}
+
 buf_get :: proc(buffer : ^Buffer($element_type),index : u64) -> (element_type)
 {
     assert(buffer != nil);
