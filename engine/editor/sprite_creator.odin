@@ -15,19 +15,35 @@ import mem "core:mem"
 
 //TODO(Ray): Sprite Editor
 /*
-# undo / redo
-	| In order for Undo Redo to be sensical we need to insert at the current undone layer
-	| so we can redo and undo properly and not lose history.
-	| record changes / delete / add layers
-	| Have to implent all valid changes first before it can be called decent
-	| record layer renames 
-	| record layer blending changes
-	| has to work for all layer groups / sprites active in memory
+# move layers
+	| Have to be able to move layer contents
+	| Rotate layer contents
+	| Scale layer contents
+# filters 
+	| bicubic
+	| nearest neighbor
+#selection 
+	| make selections
+	| delete selections
+	| fill selections
+	| Move / Rotate and scale selections
+	| magic wand selections 
+	| selections based on pixel perfect rules or solid boundary rules
 # brushes
-	a. show texel selection with pink outlines
+	| allow brush size change
+	| show texel selection with pink outlines
+	| line tool allow for setting width specifically 2x1 line tool (Requestd by Timothy)
 # Swatches
+# ramps 
+# pallete creation 
+	| allow associating a swatch to a layer 
+	| easily allow gradients to be created
+	| easily create palletes based on an HSV curve that the user can create and adjust 
+	| at any time.
+	| 
 # fill
 # eyepicker
+//after we got these basic implemented move to the animation editor
 2. solo 
 3. blending started but only mul implemented now
 4. fix skipping whem  moving mouse fast.(may not be neccessary for a while)
@@ -38,6 +54,13 @@ import mem "core:mem"
 
 7. final output writes to disk in a mega texture with referencing info for the engine
 		outputs all layers on texture with animation data
+
+# undo / redo
+//TODO(Ray):More todo as we go along
+	| Have to implent all valid changes first before it can be called decent
+	| record layer renames 
+	| record layer blending changes
+	| has to work for all layer groups / sprites active in memory
 */
 
 //TODO(Ray):Animation Editor
@@ -67,7 +90,7 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 
 	default_layer : Layer
 	default_layer.name = "background"
-	default_layer.size = eng_m.f2{64,64}
+	default_layer.size = eng_m.f2{1024,1024}
 
 	result.name = strings.clone(name)
 	result.layers_names = con.buf_init(0,string)
@@ -123,7 +146,6 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32){
 		
 	}
 }
-
 
 add_layer_group :: proc(name : string) -> int{
 	new_group : LayerGroup = init_layer_group(name)
@@ -307,7 +329,7 @@ show_sprite_createor :: proc(){
 	same_line()
 	if button("AddLayer"){
 		new_layer : Layer
-		new_layer.size = {64,64}
+		new_layer.size = {1024,1024}
 		new_layer.name = strings.clone(input_layer_name)
 
 		current_layer_id = add_layer(current_group,new_layer)
@@ -519,6 +541,55 @@ show_sprite_createor :: proc(){
 	}
 	end()
 
+/*
+	//calculate bounding rects
+	//top is highest row in grid
+	//right is highest col 
+	//lef is low col
+	//bot is low row in grid
+	for layer_id in current_group.layer_ids.buffer{
+		layer := buf_get(&layer_master_list,u64(layer_id))
+		stride := current_group.size.x
+		t : i32 = 0
+		r : i32 = max(i32)
+		l : i32 = 0
+		b : i32 = max(i32)
+		for row := 0;row < int(current_group.size.y);row+=1{
+			for col := 0;col < int(current_group.size.x);col+= 1{
+				index := (row * int(stride)) + col
+				texel := layer.grid[index].color
+				if texel != 0{
+					if t < row{
+						t = index
+					}else if l < col{
+						l = index
+					}else if r > col{
+						r = index
+					}else if b > row{
+						b = index
+					} 
+				}
+			}
+		}
+
+		draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
+		///layer.bounding_rect = {0,0,0,0}
+	}
+	//if move tool is active show bounds and controls
+	//buttons for scale move and rotate
+	/*
+	r = rotate
+	s = scale
+	m = move
+	r...s...r
+	.		.
+	.		.
+	s   m   s
+	.		.
+	.		.
+	r   s...r
+	*/
+*/
 
 
 	if !begin("TEST WINDOW"){

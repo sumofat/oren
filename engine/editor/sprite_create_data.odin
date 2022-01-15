@@ -13,6 +13,16 @@ import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
 
+BoundingRect :: struct{
+	points : eng_m.f4,
+}
+
+/*
+Selection :: union{
+
+}
+*/
+
 ActionPaintPixelDiffData :: struct{
 	idx : i32,
 	layer_id : i32,
@@ -84,6 +94,7 @@ Layer :: struct{
 	size : eng_m.f2,
 	blend_mode : BlendType,
 	selected_blend_mode : i32,
+	bounding_rect : BoundingRect,
 }
 
 LayerGroup :: struct{
