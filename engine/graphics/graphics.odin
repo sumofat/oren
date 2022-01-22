@@ -136,7 +136,7 @@ foreign gfx
 	OMSetStencilRef  :: proc "c" (list: rawptr, ref: u32) ---
 	OMSetBlendFactor :: proc "c" (list: rawptr, BlendFactor: [4]f32) ---
 	ResourceBarrier  :: proc "c" (list: rawptr, NumBarriers: c.uint, pBarriers: ^platform.D3D12_RESOURCE_BARRIER) ---
-	CreateGraphicsPipelineState :: proc(device : rawptr/* ID3D12Device2* */,pDesc : ^platform.D3D12_GRAPHICS_PIPELINE_STATE_DESC) -> rawptr /*ID3D12PipelineState* */---;
+	CreateGraphicsPipelineState :: proc "c"(device : rawptr/* ID3D12Device2* */,pDesc : ^platform.D3D12_GRAPHICS_PIPELINE_STATE_DESC) -> rawptr /*ID3D12PipelineState* */---;
 }
 
 CommandAllocToListResult :: struct {
@@ -217,14 +217,6 @@ CompileShader :: proc(shader_text : cstring,version : cstring) -> rawptr{
 	return result;
 }
 
-
-/*
-	RenderState :: struct
-	{
-	command_buffer : [dynamic]RenderCommand,//FMJStretchBuffer,
-	};
-*/
-
 SwapChain :: struct {
 	value: rawptr,
 }
@@ -242,13 +234,8 @@ DefferedLighting1PipelineStateStream :: struct {
 	input_layout:        platform.PipelineStateSubObject(platform.D3D12_INPUT_LAYOUT_DESC),
 	topology_type:       platform.PipelineStateSubObject(platform.D3D12_PRIMITIVE_TOPOLOGY_TYPE),
 	vertex_shader:       platform.PipelineStateSubObject(platform.D3D12_SHADER_BYTECODE),
-	//    fragment_shader : PipelineStateSubObject(D3D12_SHADER_BYTECODE),
 	dsv_format:          platform.PipelineStateSubObject(platform.DXGI_FORMAT),
-	//    rtv_formats : PipelineStateSubObject(D3D12_RT_FORMAT_ARRAY),
-
 	rasterizer_state:    platform.PipelineStateSubObject(platform.D3D12_RASTERIZER_DESC),
-
-	//    blend_state : PipelineStateSubObject(D3D12_BLEND_DESC),    
 	depth_stencil_state: platform.PipelineStateSubObject(platform.D3D12_DEPTH_STENCIL_DESC1),
 }
 
@@ -261,8 +248,6 @@ create_pipeline_state :: proc(pss: PipelineStateStreamDescriptor) -> rawptr /*ID
                               {
 	result: rawptr;
 	using platform;
-	//    psslocal_copy := pss;
-	//    pipeline_state_stream_desc : D3D12_PIPELINE_STATE_STREAM_DESC = {size_of(PipelineStateStream), &psslocal_copy};
 	pipeline_state_stream_desc: D3D12_PIPELINE_STATE_STREAM_DESC = {cast(u64)pss.size, pss.ptr};
 
 	result = CreatePipelineState(device.device, pipeline_state_stream_desc);
@@ -271,17 +256,12 @@ create_pipeline_state :: proc(pss: PipelineStateStreamDescriptor) -> rawptr /*ID
 
 //TODO(Ray):Ensure thread safety
 asset_material_store :: proc(ctx: ^AssetContext, name: string, material: RenderMaterial) {
-	//u64 result = ctx->asset_tables->material_count;
-	//    material.id = ctx->asset_tables->material_count;
-	//    fmj_anycache_add_to_free_list(&ctx->asset_tables->materials,(void*)&ctx->asset_tables->material_count,&material);
-	//    ++ctx->asset_tables->material_count;
 	ctx.asset_tables.materials[name] = material;
 	ctx.asset_tables.material_count = ctx.asset_tables.material_count + 1;
 }
 
 set_arena_constant_buffer :: proc(device: rawptr, arena: ^platform.GPUArena, heap_index: u32, heap: platform.ID3D12DescriptorHeap) {
 	srvDesc2 := platform.D3D12_SHADER_RESOURCE_VIEW_DESC{};
-	//    srvDesc2.Shader4ComponentMapping = platform.D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
 	srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0, 1, 2, 3);
 	srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R32_TYPELESS;
 	srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_BUFFER; //D3D12_SRV_DIMENSION_TEXTURE2D;

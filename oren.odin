@@ -163,7 +163,7 @@ game_bridge : [dynamic]EngineCalls
 is_game_bridge_running : bool = true
 set_time_seconds : f32 = 0
 
-
+matrix_gpu_arena : platform.GPUArena
 
 init_called : bool
 window_data : WindowData
@@ -207,6 +207,23 @@ engine_init :: proc(dim : enginemath.f2){
 			device = init_result.device;
 			//Do some setup if needed
 			fmt.println("Graphics are initialized...");
+			
+			desc_heap_desc: D3D12_DESCRIPTOR_HEAP_DESC;
+			MAX_SRV_DESC_HEAP_COUNT: u32 = 512; // NOTE(Ray Garner): totally arbiturary number
+			desc_heap_desc.NumDescriptors = MAX_SRV_DESC_HEAP_COUNT;
+			desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+			desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+			default_srv_desc_heap.heap = platform.create_descriptor_heap(device.device, desc_heap_desc);
+
+			//NOTE(RAY):This must always be the first thing we do as our shaders that rely on matrix buffer expect this to be
+			//the first entry in the shader resouce heap
+			matrix_mem_size: u64 = (size_of(f4x4)) * u64(asset_ctx.asset_tables.max_mapped_matrices);
+			matrix_gpu_arena = AllocateGPUArena(device.device, matrix_mem_size);
+
+			set_arena_constant_buffer(device.device, &matrix_gpu_arena, default_srv_desc_heap.count, default_srv_desc_heap.heap);
+			default_srv_desc_heap.count += 1;
+
+
 			engine_init_success = true
 		} else {
 			//Could not initialize graphics device.
@@ -227,28 +244,13 @@ engine_start :: proc(dim : enginemath.f2) {
    using la;
    using gfx;
    using con;
-   using platform;
+   	using platform;
 	using enginemath;
 
 	if !engine_init_success{
 		assert(false)
 		return
 	}
-	
-	desc_heap_desc: D3D12_DESCRIPTOR_HEAP_DESC;
-	MAX_SRV_DESC_HEAP_COUNT: u32 = 512; // NOTE(Ray Garner): totally arbiturary number
-	desc_heap_desc.NumDescriptors = MAX_SRV_DESC_HEAP_COUNT;
-	desc_heap_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc_heap_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	default_srv_desc_heap.heap = platform.create_descriptor_heap(device.device, desc_heap_desc);
-
-	//NOTE(RAY):This must always be the first thing we do as our shaders that rely on matrix buffer expect this to be
-	//the first entry in the shader resouce heap
-	matrix_mem_size: u64 = (size_of(f4x4)) * u64(asset_ctx.asset_tables.max_mapped_matrices);
-	matrix_gpu_arena := AllocateGPUArena(device.device, matrix_mem_size);
-
-	set_arena_constant_buffer(device.device, &matrix_gpu_arena, default_srv_desc_heap.count, default_srv_desc_heap.heap);
-	default_srv_desc_heap.count += 1;
 
 	version := imgui.get_version();
 	imgui.create_context();
@@ -274,11 +276,11 @@ engine_start :: proc(dim : enginemath.f2) {
 	hmdh_size : u32 = GetDescriptorHandleIncrementSize(device.device,platform.D3D12_DESCRIPTOR_HEAP_TYPE.D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	gpuhmdh := platform.GetGPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
-	gpugoffset : u64 = cast(u64)hmdh_size * cast(u64)1
+	gpugoffset : u64 = cast(u64)hmdh_size * cast(u64)default_srv_desc_heap.count
 	gpuhmdh.ptr = gpuhmdh.ptr + gpugoffset
 
 	hmdh := platform.GetCPUDescriptorHandleForHeapStart(default_srv_desc_heap.heap.value);
-	offset : u64 = cast(u64)hmdh_size * cast(u64)1
+	offset : u64 = cast(u64)hmdh_size * cast(u64)default_srv_desc_heap.count
 	hmdh.ptr = hmdh.ptr + cast(windows.SIZE_T)offset
 	default_srv_desc_heap.count += 1
 

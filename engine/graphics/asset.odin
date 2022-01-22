@@ -17,7 +17,7 @@ import con "../containers"
 import enginemath "../math"
 
 import hash "core:hash"
-
+import runtime "core:runtime"
 //import sprite "sprite"
 
 asset_ctx : AssetContext
@@ -623,6 +623,31 @@ image_from_file :: proc(filename : cstring,texture : ^Texture ,desired_channels 
     texture.align_percentage = enginemath.f2{0.5,0.5};
     texture.channel_count = cast(u32)desired_channels;
     texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
+}
+
+image_blank :: proc(texture : ^Texture,dim : enginemath.f2,desired_channels : i32,bytes_per_pixel : i32){
+    dimx : i32 = i32(dim.x)
+    dimy : i32 = i32(dim.y)
+    texture.bytes_per_pixel = u32(bytes_per_pixel)
+    texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
+
+    texture.texels = mem.alloc(int(texture.size))
+    texture.dim = enginemath.f2{cast(f32)dimx,cast(f32)dimy};
+    texture.width_over_height = cast(f32)(dimx / dimy);
+    stride := dimx
+    for row := 0;row < int(texture.dim.x); row +=1{
+        for col := 0;col < int(texture.dim.y); col += 1{
+            texel := mem.ptr_offset(cast(^u32)texture.texels,(i32(row) * stride) + i32(col))
+            texel^ = 0xFF0000FF
+        }
+    }
+
+    // NOTE(Ray Garner):stbi_info always returns 8bits/1byte per channels if we want to load 16bit or float need to use a 
+    //a different api. for now we go with this. 
+    //Will probaby need a different path for HDR textures etc..
+    texture.bytes_per_pixel = cast(u32)desired_channels;
+    texture.align_percentage = enginemath.f2{0.5,0.5};
+    texture.channel_count = cast(u32)desired_channels;
 }
 
 texture_from_mem :: proc(ptr : ^u8,size : i32,desired_channels : i32) -> Texture

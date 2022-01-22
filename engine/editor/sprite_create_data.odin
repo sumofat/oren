@@ -17,11 +17,10 @@ BoundingRect :: struct{
 	points : eng_m.f4,
 }
 
-/*
-Selection :: union{
-
+Selection :: struct{
+	layer_id : i32,
+	texels : [dynamic]u32,
 }
-*/
 
 ActionPaintPixelDiffData :: struct{
 	idx : i32,
@@ -95,20 +94,42 @@ Layer :: struct{
 	blend_mode : BlendType,
 	selected_blend_mode : i32,
 	bounding_rect : BoundingRect,
+	cache : LayerCache,
+}
+
+/*
+name -> layer_id
+all_white scratch_layer -> x -|__cache_layer0
+base_layer -> 0              _|
+
+cachl0 -> c0    -|__cache_layer1
+layer1 -> 1 	_|
+
+cachl1 -> c1    -|__cache_layer2
+layer2 -> 2 	_|
+
+cachl2 -> c2    -|__cache_layer3
+layer3 -> 3 	_|
+*/
+
+LayerCache :: struct{
+	id : i32,
+	layer_id : i32,
+	size : eng_m.f2,
+	grid : [dynamic]u32,
 }
 
 LayerGroup :: struct{
 	id : i32,
 	name : string,
-	//layers : con.Buffer(Layer),
 	layer_ids : con.Buffer(i32),
 	layers_names : con.Buffer(string),
 	gpu_image_id : u64,
-	grid : [dynamic]Zoxel,
+	grid : [dynamic]u32,
 	size : eng_m.f2,
 	size_in_bytes : int,
 	current_layer_id : i32,
-}
+}   
 
 layer_groups : con.Buffer(LayerGroup)
 
@@ -137,3 +158,17 @@ is_started_paint : bool
 current_layer_id : i32 = 1
 
 layer_master_list : con.Buffer(Layer)
+layer_cache_list : con.Buffer(LayerCache)
+
+
+has_painted := false
+
+buffer_gpu_arena : platform.GPUArena
+texture : gfx.Texture
+default_size : eng_m.f2 = {512,512}
+blank_image_gpu_handle : platform.D3D12_GPU_DESCRIPTOR_HANDLE
+mapped_buffer_data : rawptr;
+current_brush_size : i32 = 4
+
+current_selection : Selection
+//temp : [dynamic]u32// = make([dynamic]u32,int(group.size.x * group.size.y),int(group.size.x * group.size.y))

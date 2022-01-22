@@ -747,10 +747,43 @@ setup_imgui_pass :: proc(){
     add_clear_depth_stencil_command(true,1.0,true,1,&dsv_cpu_handle,depth_buffer);
 }
 
+
+dest_texture_resource : rawptr
+src_buffer_resource : rawptr
+current_image_size : enginemath.f2
 draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
     barrier : platform.D3D12_RESOURCE_BARRIER = {};
     barrier.Type                   = .D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags                  = .D3D12_RESOURCE_BARRIER_FLAG_NONE;
+    using platform
+
+    dst_union : D3D12_TEXTURE_COPY_UNION
+    dst_union.SubresourceIndex = 0
+
+    dst_loc : D3D12_TEXTURE_COPY_LOCATION = {dest_texture_resource,
+        .D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX,
+        dst_union}
+
+    buffer_footprint : D3D12_SUBRESOURCE_FOOTPRINT = {
+       .DXGI_FORMAT_R8G8B8A8_UNORM,
+        u32(current_image_size.x),//Width  : c.uint,
+        u32(current_image_size.y),
+        1,
+        u32(current_image_size.x) * size_of(u32),//must be aligned to 256 byte boundary
+    }
+
+    src_union : D3D12_TEXTURE_COPY_UNION
+    src_union.PlacedFootprint.Offset = 0
+    src_union.PlacedFootprint.Footprint = buffer_footprint
+    
+
+    src_loc : D3D12_TEXTURE_COPY_LOCATION = {
+            src_buffer_resource,
+            .D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT,
+            src_union,
+    }
+
+    CopyTextureRegion(command_list,&dst_loc,0,0,0,&src_loc,nil)
 
 
     current_backbuffer_index := platform.GetCurrentBackBufferIndex(swap_chain);    
