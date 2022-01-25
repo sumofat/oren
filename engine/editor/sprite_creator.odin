@@ -256,14 +256,12 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection){
 	}
 	bounds_size_y := layer.bounds.right - layer.bounds.left
 	bounds_size_x := layer.bounds.bottom - layer.bounds.top
-	for row := int(layer.bounds.top);row < int(layer.bounds.top + bounds_size_x - 1);row += 1{
-		for col := int(layer.bounds.left);col < int(layer.bounds.left + bounds_size_y - 1);col += 1{
-		//src_start := &layer.grid[]
-//			size_x := int(clamp(thex,0,layer.size.x - 1))
-//			size_y := int(clamp(they,0,layer.size.y - 1))
-			
+	for row := int(layer.bounds.top);row < int(layer.bounds.bottom);row += 1{
+		x = start_x
+		for col := int(layer.bounds.left);col < int(layer.bounds.right);col += 1{
 			src_index := int((row * int(stride)) + col)
 			src_texel := layer.grid[src_index]
+			//layer.grid[src_index] = 0x00000000
 			dest_row := y
 			dest_column := x
 
@@ -271,12 +269,14 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection){
 
 			current_selection.grid[int(dest_index)] = src_texel
 			x += 1
-			if x > bounds_size_x - 1{
-				x = start_x
-			}
 		}
 		y += 1
 	}
+	//also reset bounds to offset from  the new  p.x
+	layer.bounds.left = p.x
+	layer.bounds.right =  p.x + bounds_size_x
+	layer.bounds.top = p.y
+	layer.bounds.bottom = p.y + bounds_size_y
 }
 
 move_origin :: proc(layer : ^Layer,offset : eng_m.f2,selection : Selection){
@@ -668,15 +668,10 @@ show_sprite_createor :: proc(){
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])
 
 	if button("Move tool"){
-		if is_move_mode{
-			copy(current_layer.grid[:],current_selection.grid[:])
-			flatten_group_init(current_group)
-			push_to_gpu()
-		}
-		
-		is_move_mode = !is_move_mode
 		//copy bounds rect from layer to selection
 		
+
+		is_move_mode = !is_move_mode
 	}
 
 	//prepare drawing surface
@@ -720,6 +715,11 @@ show_sprite_createor :: proc(){
 //for now the selection is the whole layer.
 
 			move_selection(current_layer,grid_offset,current_selection)
+			if is_move_mode{
+				copy(current_layer.grid[:],current_selection.grid[:])
+				flatten_group_init(current_group)
+				push_to_gpu()
+			}
 		}else if is_mouse_down(Mouse_Button.Left){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 			has_painted = true
