@@ -14,13 +14,12 @@ import runtime "core:runtime"
 import mem "core:mem"
 
 BoundingRect :: struct{
-	points : eng_m.f4,
+	left : f32,
+	top : f32,
+	right : f32,
+	bottom : f32,	
 }
-
-Selection :: struct{
-	layer_id : i32,
-	texels : [dynamic]u32,
-}
+	
 
 ActionPaintPixelDiffData :: struct{
 	idx : i32,
@@ -78,39 +77,69 @@ BlendType :: enum{
 	Add,
 }
 
+/*
 Zoxel :: struct{
-	id : u64,
-	ref : u64,
+	//id : u64,
+	//ref : u64,
 	color : u32,//for now 32 bit color could be other bit size
 }
+*/
 
 Layer :: struct{
 	id : i32,
 	name : string,
-	grid : [dynamic]Zoxel,
+	grid : [dynamic]u32,
 	is_show : bool,
 	is_solo : bool,	
 	size : eng_m.f2,
 	blend_mode : BlendType,
 	selected_blend_mode : i32,
-	bounding_rect : BoundingRect,
+	bounds : BoundingRect,
 	cache : LayerCache,
 }
 
-/*
-name -> layer_id
-all_white scratch_layer -> x -|__cache_layer0
-base_layer -> 0              _|
+Brush :: struct{
 
-cachl0 -> c0    -|__cache_layer1
-layer1 -> 1 	_|
+}
 
-cachl1 -> c1    -|__cache_layer2
-layer2 -> 2 	_|
+Line :: struct{
 
-cachl2 -> c2    -|__cache_layer3
-layer3 -> 3 	_|
-*/
+}
+
+TransformTool :: struct{
+	is_selection : bool,
+	selection : Selection,
+	origin : eng_m.f2,//layermode this is middle of canvas
+}
+	
+ToolMode :: 	union{
+	Brush,	
+	Line	,
+	TransformTool,
+}	
+	
+		
+Selection ::	 struct{
+	layer_id : i32,
+	size : eng_m.f2,//always the same size as the current layer
+	bounds : BoundingRect,
+	grid : [dynamic]u32,
+}	
+
+/*		
+name -> laye		r_id
+all_whit		e scratch_layer -> x -|__cache_layer0
+base		_layer -> 0              _|
+		
+cachl0 -		> c0    -|__cache_layer1
+laye		r1 -> 1 	_|
+		
+cachl1 -		> c1    -|__cache_layer2
+laye		r2 -> 2 	_|
+		
+cachl2 -		> c2    -|__cache_layer3
+laye		r3 -> 3 	_|
+*/		
 
 LayerCache :: struct{
 	id : i32,
@@ -136,7 +165,7 @@ layer_groups : con.Buffer(LayerGroup)
 group_names : con.Buffer(string)
 blend_mode_names : []string
 
-grid_step : f32 = 17.0
+grid_step : f32 = 1.0
 preview_grid_step : f32 = 6
 
 current_group : ^LayerGroup
@@ -158,8 +187,7 @@ is_started_paint : bool
 current_layer_id : i32 = 1
 
 layer_master_list : con.Buffer(Layer)
-layer_cache_list : con.Buffer(LayerCache)
-
+//layer_cache_list : con.Buffer(LayerCache)
 
 has_painted := false
 
@@ -172,3 +200,8 @@ current_brush_size : i32 = 4
 
 current_selection : Selection
 //temp : [dynamic]u32// = make([dynamic]u32,int(group.size.x * group.size.y),int(group.size.x * group.size.y))
+
+current_tool_mode : ToolMode
+transform_scratch_grid : [dynamic]u32
+
+is_move_mode : bool

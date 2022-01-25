@@ -16,12 +16,11 @@ import mem "core:mem"
 //TODO(Ray): Sprite Editor
 /*
 # move layers
+	| calculate bounds rect while drawing on layer
+	| when move/rotate without selecting anything whole layer is always auto selected
 	| Have to be able to move layer contents
 	| Rotate layer contents
 	| Scale layer contents
-# filters 
-	| bicubic
-	| nearest neighbor
 #selection 
 	| make selections
 	| delete selections
@@ -29,8 +28,11 @@ import mem "core:mem"
 	| Move / Rotate and scale selections
 	| magic wand selections 
 	| selections based on pixel perfect rules or solid boundary rules
+# filters 
+	| bicubic
+	| nearest neighbor
 # brushes
-	| allow brush size change
+	| allow brush size change(basics done but not centered around selected pixel)
 	| show texel selection with pink outlines
 	| line tool allow for setting width specifically 2x1 line tool (Requestd by Timothy)
 # Swatches
@@ -51,6 +53,9 @@ import mem "core:mem"
 	| when we brush we flatten only those layers annd push the result.
 	| SimD the pixel writes and reads to do 4 at a time
 	| write brush strokes on a seperate thread
+	| for operations on large canvas we are slow but 
+	| will speed things up when we do GPU based optimizations for now we get correctness done on the 
+	| CPU
 
 //Done but needs reviewing
 # better canvas
@@ -92,7 +97,9 @@ init_sprite_creator :: proc(){
 	group_names = con.buf_init(0,string)
 	layer_groups = con.buf_init(0,LayerGroup)
 	layer_master_list = con.buf_init(0,Layer)
-	layer_cache_list = con.buf_init(0,LayerCache)
+	
+	current_selection.grid = make([dynamic]u32,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
+	
 	urdo.actions = con.buf_init(0,ActionsTypes)
 	stroke =  con.buf_init(0,ActionPaintPixelDiffData)
 	blend_mode_names = reflect.enum_field_names(BlendType)
@@ -122,8 +129,8 @@ init_sprite_creator :: proc(){
 	
 	//TODO(Ray):Wont work if we change groups need to change this testingn for now
 	//temp = make([dynamic]u32,int(current_group.size.x * current_group.size.y),int(current_group.size.x * current_group.size.y))
-	flatten_group(current_group,{0,0,current_group.size.x,current_group.size.y})
-	//flatten_group_init(current_group)
+	//flatten_group(current_group,{0,0,current_group.size.x,current_group.size.y})
+	flatten_group_init(current_group)
 	has_painted = true
 }
 
@@ -149,25 +156,12 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 	default_layer_ptr := con.buf_ptr(&layer_master_list,u64(master_layer_id))
 	for zoxel in &default_layer_ptr.grid{
 		color :u32 = 0xFFFFFFFF
-		zoxel.color = color
+		zoxel = color
 	}
 	
-	lc : LayerCache
-	lc.id = i32(con.buf_len(layer_cache_list))
-	lc.layer_id = layer_id
-	lc.size = result.size
-	lc.grid = make([dynamic]u32,result.size_in_bytes,result.size_in_bytes)
-	con.buf_push(&layer_cache_list,lc)
-
 	default_layer.name = "draw layer 1"
 	layer_id = add_layer(&result,default_layer)
 
-	//lc : LayerCache// = {buf_len(layer_cache_list),}
-	lc.id = i32(con.buf_len(layer_cache_list))
-	lc.layer_id = layer_id
-	lc.size = result.size
-	lc.grid = make([dynamic]u32,result.size_in_bytes,result.size_in_bytes)
-	con.buf_push(&layer_cache_list,lc)
 	return result
 }
 
@@ -184,44 +178,117 @@ get_layer :: proc(group : ^LayerGroup,layer_id : int) -> Layer{
 add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	new_layer : Layer = layer_desc
 	new_layer.id = group.current_layer_id
+	new_layer.bounds.top = max(f32)
+	new_layer.bounds.left = max(f32)
 	group.current_layer_id += 1
-	new_layer.grid = make([dynamic]Zoxel,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+	new_layer.grid = make([dynamic]u32,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+	
+	lc : LayerCache
+	//lc.id = i32(con.buf_len(layer_cache_list))
+	lc.layer_id = layer_id
+	lc.size = layer_desc.size
+	lc.grid = make([dynamic]u32,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+	
+	/*
+	for c in &lc.grid{
+		c = 0xFFFFFFFF
+	}
+	*/
+
+	new_layer.cache = lc
+
 	master_layer_id := con.buf_push(&layer_master_list,new_layer)
  	group_layer_id := i32(con.buf_push(&group.layer_ids,i32(master_layer_id)))
+	
 	if group_layer_id == 0 || group_layer_id == 1{
 		return group_layer_id	
 	}
+
+	rect : eng_m.f4 = {0,0,group.size.x - 1,group.size.y - 1}
+	
+	flatten_group_init(group)
+	push_to_gpu()
+	//TODO(Ray):Reinstate this later.
+/*
 	la : LayerAdd
 	la.group_id = group.id
 	la.layer_id = new_layer.id
 	la.holding_idx = i32(master_layer_id)
 	la.insert_idx = group_layer_id
-
-	lc : LayerCache
-	lc.id = i32(con.buf_len(layer_cache_list))
-	lc.layer_id = layer_id
-	lc.size = layer_desc.size
-	lc.grid = make([dynamic]u32,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
-	con.buf_push(&layer_cache_list,lc)
-
-	rect : eng_m.f4 = {0,0,group.size.x,group.size.y}
-	flatten_group(group,rect)
-	//flatten_group_init(group)
-	//TODO(Ray):Reinstate this later.
 	//con.buf_push(&urdo.actions,la)
 	insert_undo(la)
+*/
 	return group_layer_id	
 }
 
 remove_layer :: proc(group : ^LayerGroup,id : u64){
 	holding_idx := con.buf_get(&group.layer_ids,id)
 	con.buf_del(&group.layer_ids,id)
+
+	flatten_group_init(group)	
+	push_to_gpu()
+/*
 	lr : LayerRemove
 	lr.group_id = group.id
 	//lr.layer_id = i32(id)
 	lr.holding_idx = holding_idx	
 	lr.insert_idx = i32(id)
 	insert_undo(lr)
+*/
+}
+
+move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection){
+	if p.x <  0 || p.y < 0{
+		return
+	}
+
+	//copy the layer to the selection grid
+	//replace the current layer grid with the selection grid temporarily
+	stride := layer.size.x
+
+	x := p.x//selection.bounds.left
+	start_x := x
+	y := p.y//selection.bounds.top
+	//dest_start := &selection.grid[0]//&selection.grid[int((y * stride) + x)]
+	row_size := layer.size.x * size_of(u32)//(layer.bounds.right - layer.bounds.left) * size_of(u32)
+	if row_size > layer.size.x * size_of(u32){
+		return
+	}
+	bounds_size_y := layer.bounds.right - layer.bounds.left
+	bounds_size_x := layer.bounds.bottom - layer.bounds.top
+	for row := int(layer.bounds.top);row < int(layer.bounds.top + bounds_size_x - 1);row += 1{
+		for col := int(layer.bounds.left);col < int(layer.bounds.left + bounds_size_y - 1);col += 1{
+		//src_start := &layer.grid[]
+//			size_x := int(clamp(thex,0,layer.size.x - 1))
+//			size_y := int(clamp(they,0,layer.size.y - 1))
+			
+			src_index := int((row * int(stride)) + col)
+			src_texel := layer.grid[src_index]
+			dest_row := y
+			dest_column := x
+
+			dest_index := int((y *  stride) + x)
+
+			current_selection.grid[int(dest_index)] = src_texel
+			x += 1
+			if x > bounds_size_x - 1{
+				x = start_x
+			}
+		}
+		y += 1
+	}
+}
+
+move_origin :: proc(layer : ^Layer,offset : eng_m.f2,selection : Selection){
+
+}
+
+rotate_selection :: proc(layer : ^Layer,degrees : f32,selection : Selection){
+	//get the origin of selection or layer
+}
+
+scale_selection :: proc(layer : ^Layer,amount : i32,selection : Selection){
+
 }
 
 insert_undo :: proc(action : ActionsTypes){
@@ -233,7 +300,6 @@ insert_undo :: proc(action : ActionsTypes){
 }
 
 unpack_color_32 :: proc(color : u32)-> [4]u8{
-
 	result : [4]u8
 	result[0] = u8(color) 		//r
 	result[1] = u8(color >> 8)	//g
@@ -288,28 +354,47 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size
 	if grid_p.x <  0 || grid_p.y < 0{
 		return
 	}
+
+	if layer.bounds.top > (grid_p.y){
+		layer.bounds.top = (grid_p.y)
+	}
+	if layer.bounds.left > (grid_p.x){
+		layer.bounds.left = (grid_p.x)
+	}
+	brush_max_y := (grid_p.y) + f32(brush_size)
+	if layer.bounds.bottom < brush_max_y{
+		layer.bounds.bottom = brush_max_y
+	}
+	brush_max_x := (grid_p.x) + f32(brush_size)
+	if layer.bounds.right < brush_max_x{
+		layer.bounds.right = brush_max_x
+	}
+
 	//TODO(Ray): Later on we will need support for negative indices as the brush
 	//should go left and up of the pointer as well for intuitive drawing
 	drawn_rect : eng_m.f4
 	drawn_rect.x = grid_p.x
 	drawn_rect.y = grid_p.y
 
-	half_dim := brush_size / 2
+	//half_dim := brush_size
 
-	for row : i32 = 0;row < half_dim;row +=1{
-		for col : i32 = 0;col < half_dim;col += 1{
+	for row : i32 = 0;row < brush_size;row +=1{
+		for col : i32 = 0;col < brush_size;col += 1{
 			x := grid_p.x + f32(col)
 			y := grid_p.y + f32(row)
-			drawn_rect.z = x
-			drawn_rect.w = y
-			size_x := int(clamp(x,0,layer.size.x))
-			size_y := int(clamp(y,0,layer.size.y))
-			mul_sizes := int(layer.size.x) * size_y
+			size_x := int(clamp(x,0,layer.size.x - 1))
+			size_y := int(clamp(y,0,layer.size.y - 1))
+			drawn_rect.z = f32(size_x) + 1
+			drawn_rect.w = f32(size_y) + 1
+
+			//NOTE(RAY):I cant remember why we mul size here.
+			stride := int(layer.size.x)
+			mul_sizes := stride * size_y
 			painting_idx := int( size_x + mul_sizes)
 			if painting_idx >= 0 && painting_idx < int(layer.size.x * layer.size.y) - 1{
-				prev_color := layer.grid[painting_idx].color
+				prev_color := layer.grid[painting_idx]
 				//if prev_color != color{
-					layer.grid[painting_idx].color = color
+					layer.grid[painting_idx] = color
 					pixel_diff : ActionPaintPixelDiffData
 					pixel_diff.idx = i32(painting_idx)
 					pixel_diff.color = color
@@ -330,81 +415,98 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size
 	return drawn_rect
 }
 
+push_to_gpu :: proc(){
+	top_layer_idx : u64 = con.buf_len(current_group.layer_ids) - 1
+	top_layer_id : i32
+	top_layer : Layer
+	found := false
+	for i := con.buf_len(current_group.layer_ids);i > 0;i -= 1{
+		top_layer_id = con.buf_get(&current_group.layer_ids,u64(i - 1))
+		top_layer = con.buf_get(&layer_master_list,u64(top_layer_id))
+		
+		if top_layer.is_show{
+			found = true
+			break
+		}
+	}
+	if found == true{
+		mem.copy(mapped_buffer_data,mem.raw_dynamic_array_data(top_layer.cache.grid),(cast(int)len(current_group.grid) - 1) * size_of(u32))
+	}
+}
+
 flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
+	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
+
+	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
 	for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
-		layer := con.buf_get(&layer_master_list,u64(layer_id))
-		
-		if layer.is_show == false{
-		//	continue
-		}
+		layer := con.buf_ptr(&layer_master_list,u64(layer_id))
+		if i != 0{
+			prev_layer = con.buf_ptr(&layer_master_list,u64(prev_layer_id))
+		}	
 
-		prev_cache_layer_idx := layer_id - 1
-		if i == 0{ prev_cache_layer_idx = 0}
-		prev_cache_layer := con.buf_ptr(&layer_cache_list,u64(prev_cache_layer_idx))
-		cache_layer := con.buf_ptr(&layer_cache_list,u64(layer_id))
+		if layer.is_show == false{
+			continue
+		}
 		
 		for row : i32 = i32(drawn_rect.y);row < i32(drawn_rect.w);row +=1{
 			for col : i32 = i32(drawn_rect.x);col < i32(drawn_rect.z);col += 1{ 
 				x := f32(col)
 				y := f32(row)
-				size_x := int(clamp(x,0,layer.size.x))
-				size_y := int(clamp(y,0,layer.size.y))
+				size_x := int(clamp(x,0,layer.size.x - 1))
+				size_y := int(clamp(y,0,layer.size.y - 1))
 				mul_sizes := int(layer.size.x) * size_y
 				painting_idx := int( size_x + mul_sizes)
 				{
-					base : u32 = prev_cache_layer.grid[painting_idx]
-					blend : u32 = layer.grid[painting_idx].color
+					base : u32 = prev_layer.cache.grid[painting_idx]
+					blend : u32 = layer.grid[painting_idx]
 					//if base == 0 && blend == 0{continue}
 					if layer.blend_mode == .Normal{
 						result_color := blend_op_normal(base,blend)
-						//temp[painting_idx] = result_color
-						cache_layer.grid[painting_idx] = result_color
+						layer.cache.grid[painting_idx] = result_color
 					}else if layer.blend_mode == .Multiply{
 						result_color := blend_op_multiply(base,blend)
-						//temp[painting_idx] = result_color
-						cache_layer.grid[painting_idx] = result_color
+						layer.cache.grid[painting_idx] = result_color
 					}
 				}
 			}
 		}
+		prev_layer_id = layer_id
 	}
 }
 
 flatten_group_init :: proc(group : ^LayerGroup){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
+	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
+	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
+
 	for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
 		layer := con.buf_get(&layer_master_list,u64(layer_id))
-		cache_layer := con.buf_ptr(&layer_cache_list,u64(layer_id))
-		
-		prev_cache_layer_idx := layer_id - 1
-		if i == 0{ prev_cache_layer_idx = 0}
-		prev_cache_layer := con.buf_ptr(&layer_cache_list,u64(prev_cache_layer_idx))
-		
-	/*
+		if i != 0{
+			prev_layer = con.buf_ptr(&layer_master_list,u64(prev_layer_id))
+		}
+
 		if layer.is_show == false{
-			//copy(group.grid[:],layer.grid[:])
 			continue
 		}
-		*/
+
 		for texel,j in layer.grid{
-			base : u32 = prev_cache_layer.grid[j]
-			blend : u32 = layer.grid[j].color
+			base : u32 = prev_layer.cache.grid[j]
+			blend : u32 = layer.grid[j]
 			//if base == 0 && blend == 0{continue}
 			if layer.blend_mode == .Normal{
 				result_color := blend_op_normal(base,blend)
-				cache_layer.grid[j] = result_color
-				//temp[j] = result_color
+				layer.cache.grid[j] = result_color
 			}else if layer.blend_mode == .Multiply{
 				result_color := blend_op_multiply(base,blend)
-				//temp[j] = result_color
-				cache_layer.grid[j] = result_color
+				layer.cache.grid[j] = result_color
 			}
 		}
+		prev_layer_id = layer_id
 	}
 //	copy(group.grid[:],temp[:])
 }
@@ -503,7 +605,6 @@ show_sprite_createor :: proc(){
 				if payload := accept_drag_drop_payload("LAYERS_DND_ROW");payload != nil{
 					swap_id_a = (^int)(payload.data)^
 					swap_id_b = i
-					
 				}
 			}
 			pop_id()
@@ -515,6 +616,8 @@ show_sprite_createor :: proc(){
 			same_line()
 			if button(fmt.tprintf("view/hide %d",i)){
 				layer.is_show = ~layer.is_show
+				flatten_group_init(current_group)
+				push_to_gpu()
 			}
 			same_line()
 			if button(fmt.tprintf("solo %d",i)){
@@ -523,8 +626,11 @@ show_sprite_createor :: proc(){
 			same_line()
 			push_item_width(40)
 			push_id(i32(i))
-			combo("BlendType",&layer.selected_blend_mode,blend_mode_names)
-			layer.blend_mode = BlendType(layer.selected_blend_mode)
+			if combo("BlendType",&layer.selected_blend_mode,blend_mode_names){
+				layer.blend_mode = BlendType(layer.selected_blend_mode)
+				flatten_group_init(current_group)
+				push_to_gpu()
+			}
 			pop_id()
 
 			same_line()
@@ -544,18 +650,34 @@ show_sprite_createor :: proc(){
 			remove_layer(current_group,u64(remove_id))
 		}
 		if  swap_id_a >= 0 && swap_id_b >= 0{
+			/*
 			ls : LayerSwap
 			ls.prev_layer_id = swap_id_a
 			ls.layer_id = swap_id_b
 			//current_undo_id = buf_push(&urdo.actions,ls)
 			insert_undo(ls)
+			*/
 			buf_swap(&current_group.layer_ids,u64(swap_id_a),u64(swap_id_b))
+			flatten_group_init(current_group)
+			push_to_gpu()
 		}
 		end_list_box()
 	}
 
 
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])
+
+	if button("Move tool"){
+		if is_move_mode{
+			copy(current_layer.grid[:],current_selection.grid[:])
+			flatten_group_init(current_group)
+			push_to_gpu()
+		}
+		
+		is_move_mode = !is_move_mode
+		//copy bounds rect from layer to selection
+		
+	}
 
 	//prepare drawing surface
 	canvas_p0 : Vec2
@@ -575,23 +697,30 @@ show_sprite_createor :: proc(){
 	get_mouse_pos(&mouse_pos_in_canvas)
 	mouse_pos_in_canvas.x = mouse_pos_in_canvas.x - origin.x
 	mouse_pos_in_canvas.y = mouse_pos_in_canvas.y - origin.y
-	//Working on getting the mouse grid
+
 	mouse_grid_p : Vec2
 	mouse_grid_p.x = mouse_pos_in_canvas.x / grid_step
 	mouse_grid_p.y = mouse_pos_in_canvas.y / grid_step
 
 	grid_offset : Vec2 = {mouse_grid_p.x,mouse_grid_p.y}
 	sel_origin : Vec2
-	sel_origin.x = origin.x + f32(int(grid_offset.x) * int(grid_step))
-	sel_origin.y = origin.y + f32(int(grid_offset.y) * int(grid_step))
-	selected_p := sel_origin 
-
-	selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-	draw_list_add_rect_filled(draw_list,selected_p,selectd_size,color_convert_float4to_u32(Vec4{1,0,1,1}))
+	sel_origin.x = origin.x + ((grid_offset.x) * (grid_step))
+	sel_origin.y = origin.y + ((grid_offset.y) * (grid_step))
+	selected_p := sel_origin
 
 	drawn_rect : eng_m.f4
 	if is_window_focused(Focused_Flags.None){
-		if is_mouse_down(Mouse_Button.Left){
+
+		if is_move_mode == true && is_mouse_down(Mouse_Button.Left){
+			//and movemode is true and mouse down left button held
+			//offset the pixels in the direction of the 
+			//keeping the pixels alive even if they go off the canvas 
+			//and only finalizing after enter is pushed.
+
+//for now the selection is the whole layer.
+
+			move_selection(current_layer,grid_offset,current_selection)
+		}else if is_mouse_down(Mouse_Button.Left){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 			has_painted = true
 		}
@@ -621,89 +750,51 @@ show_sprite_createor :: proc(){
 			insert_undo(pa)
 		}
 
-		grid_step += io.mouse_wheel
+		grid_step += (io.mouse_wheel * 0.1)
+
 	}
-
-
-/*
-	for layer_id in current_group.layer_ids.buffer{
-		layer := con.buf_get(&layer_master_list,u64(layer_id))
-		if layer.is_show == false{continue}
-
-		stride := layer.size.x
-		x : int
-		y : int
-		idx : int
-		for zoxel,i in layer.grid{
-			sel_origin : Vec2
-			sel_origin.x = origin.x + f32(x * int(grid_step))
-			sel_origin.y = origin.y + f32(y * int(grid_step))
-			selected_p := sel_origin 
-
-			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-			pix_col : Vec4
-			color_convert_u32to_float4(&pix_col,zoxel.color)
-			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
-			if x == int(stride - 1){
-				y = (y + 1) % int(stride)
-			}
-			x = (x + 1) % int(stride)
-		}	
-	}
-
-
-	//if show_output{
-	if true{
-		stride := current_group.size.x
-		x : int
-		y : int
-		idx : int
-		flatten_group(current_group)
-		for zoxel,i in current_group.grid{
-			sel_origin : Vec2
-			sel_origin.x = origin.x + f32(x * int(grid_step))
-			sel_origin.y = origin.y + f32(y * int(grid_step))
-			selected_p := sel_origin 
-
-			selectd_size := Vec2{sel_origin.x + grid_step,sel_origin.y + grid_step}
-			draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
-			if x == int(stride - 1){
-				y = (y + 1) % int(stride)
-			}
-			x = (x + 1) % int(stride)
-		}
-	}
-	*/
 
 	set_cursor_screen_pos(origin)
 	current_size := default_size * grid_step
 
-		if has_painted{
-			flatten_group(current_group,drawn_rect)
-			high_cache_layer_idx := con.buf_len(layer_cache_list) - 1
-			high_cache_list := con.buf_get(&layer_cache_list,high_cache_layer_idx)
-			mem.copy(mapped_buffer_data,mem.raw_dynamic_array_data(high_cache_list.grid),cast(int)len(current_group.grid) * size_of(u32))
-			has_painted = false
+	if has_painted{
+		//drawn_rect_test : eng_m.f4 = {grid_offset.x,grid_offset.y,grid_offset.x + 2,grid_offset.y + 2}
+		flatten_group(current_group,drawn_rect)
+//		flatten_group_init(current_group)
+		push_to_gpu()
+		has_painted = false
+	}
+
+	imgui.image(imgui.Texture_ID(uintptr(blank_image_gpu_handle.ptr)),Vec2{current_size.x,current_size.y})
+
+	if grid_step > 5 && is_show_grid{
+		start : Vec2 = origin
+		total_size_of_graph_x := grid_step * current_layer.size.x + start.x
+		total_size_of_graph_y := grid_step * current_layer.size.y + start.y
+
+		draw_line_distance_x := grid_step * current_layer.size.x
+		draw_line_distance_y := grid_step * current_layer.size.y
+		
+		for x := start.x; x < total_size_of_graph_x; x += grid_step{
+			draw_list_add_line(draw_list,Vec2{x, origin.y}, Vec2{x, origin.y + draw_line_distance_x}, color_convert_float4to_u32(grid_color))
 		}
-
-		imgui.image(imgui.Texture_ID(uintptr(blank_image_gpu_handle.ptr)),Vec2{current_size.x,current_size.y})
-	//gfx.Unmap(buffer_gpu_arena.resource,0,nil)
-
-/*
-	start : Vec2 = origin
-	total_size_of_graph_x := grid_step * current_layer.size.x + start.x
-	total_size_of_graph_y := grid_step * current_layer.size.y + start.y
-
-	draw_line_distance_x := grid_step * current_layer.size.x
-	draw_line_distance_y := grid_step * current_layer.size.y
-	
-	for x := start.x; x < total_size_of_graph_x; x += grid_step{
-		draw_list_add_line(draw_list,Vec2{x, origin.y}, Vec2{x, origin.y + draw_line_distance_x}, color_convert_float4to_u32(grid_color))
+		for y := start.y; y < total_size_of_graph_y; y += grid_step{
+			draw_list_add_line(draw_list,Vec2{origin.x, y}, Vec2{origin.x + draw_line_distance_y, y}, color_convert_float4to_u32(grid_color))
+		}
 	}
-	for y := start.y; y < total_size_of_graph_y; y += grid_step{
-		draw_list_add_line(draw_list,Vec2{origin.x, y}, Vec2{origin.x + draw_line_distance_y, y}, color_convert_float4to_u32(grid_color))
-	}
-	*/
+
+
+	selected_size := Vec2{sel_origin.x + f32(current_brush_size) * grid_step,sel_origin.y + f32(current_brush_size) * grid_step}
+	draw_list_add_rect_filled(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,1,0.25}))
+
+	//draw bounds of current layer
+	draw_list_add_rect(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,0,0.9}))
+	bound_p_origin := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
+	bound_p_size := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
+	draw_list_add_rect(draw_list,bound_p_origin,bound_p_size,color_convert_float4to_u32(Vec4{1,0,0,0.9}))
+
+
+
 	end()
 
 /*
@@ -830,7 +921,7 @@ show_sprite_createor :: proc(){
 					if layer_idx,ok := get_layer_idx_with_id(current_group^,u64(pixel.layer_id));ok{
 						layer_id := current_group.layer_ids.buffer[layer_idx]
 						layer := buf_ptr(&layer_master_list,u64(layer_id))
-						layer.grid[pixel.idx].color = pixel.prev_color
+						layer.grid[pixel.idx] = pixel.prev_color
 					}else{
 						tprintf("Todo failed to find layerid %d not applying undo operation \n",pixel.layer_id)
 					}
@@ -881,7 +972,7 @@ show_sprite_createor :: proc(){
 					if layer_idx,ok := get_layer_idx_with_id(current_group^,u64(pixel.layer_id));ok{
 						layer_id := current_group.layer_ids.buffer[layer_idx]
 						layer := buf_ptr(&layer_master_list,u64(layer_id))
-						layer.grid[pixel.idx].color = pixel.color
+						layer.grid[pixel.idx] = pixel.color
 					}else{
 						tprintf("Todo failed to find layerid %d not applying redo operation \n",pixel.layer_id)
 					}
