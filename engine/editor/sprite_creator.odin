@@ -237,47 +237,7 @@ remove_layer :: proc(group : ^LayerGroup,id : u64){
 */
 }
 
-move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection){
-	if p.x <  0 || p.y < 0{
-		return
-	}
 
-	//copy the layer to the selection grid
-	//replace the current layer grid with the selection grid temporarily
-	stride := layer.size.x
-
-	x := p.x//selection.bounds.left
-	start_x := x
-	y := p.y//selection.bounds.top
-	//dest_start := &selection.grid[0]//&selection.grid[int((y * stride) + x)]
-	row_size := layer.size.x * size_of(u32)//(layer.bounds.right - layer.bounds.left) * size_of(u32)
-	if row_size > layer.size.x * size_of(u32){
-		return
-	}
-	bounds_size_y := layer.bounds.right - layer.bounds.left
-	bounds_size_x := layer.bounds.bottom - layer.bounds.top
-	for row := int(layer.bounds.top);row < int(layer.bounds.bottom);row += 1{
-		x = start_x
-		for col := int(layer.bounds.left);col < int(layer.bounds.right);col += 1{
-			src_index := int((row * int(stride)) + col)
-			src_texel := layer.grid[src_index]
-			//layer.grid[src_index] = 0x00000000
-			dest_row := y
-			dest_column := x
-
-			dest_index := int((y *  stride) + x)
-
-			current_selection.grid[int(dest_index)] = src_texel
-			x += 1
-		}
-		y += 1
-	}
-	//also reset bounds to offset from  the new  p.x
-	layer.bounds.left = p.x
-	layer.bounds.right =  p.x + bounds_size_x
-	layer.bounds.top = p.y
-	layer.bounds.bottom = p.y + bounds_size_y
-}
 
 move_origin :: proc(layer : ^Layer,offset : eng_m.f2,selection : Selection){
 
@@ -347,6 +307,49 @@ blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
+move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> bool{
+	if p.x <  0 || p.y < 0{
+		return false
+	}
+
+	//copy the layer to the selection grid
+	//replace the current layer grid with the selection grid temporarily
+	stride := layer.size.x
+
+	x := p.x//selection.bounds.left
+	start_x := x
+	y := p.y//selection.bounds.top
+	//dest_start := &selection.grid[0]//&selection.grid[int((y * stride) + x)]
+	row_size := layer.size.x * size_of(u32)//(layer.bounds.right - layer.bounds.left) * size_of(u32)
+	if row_size > layer.size.x * size_of(u32){
+		return false
+	}
+	bounds_size_y := layer.bounds.right - layer.bounds.left
+	bounds_size_x := layer.bounds.bottom - layer.bounds.top
+	for row := int(layer.bounds.top);row < int(layer.bounds.bottom);row += 1{
+		x = start_x
+		for col := int(layer.bounds.left);col < int(layer.bounds.right);col += 1{
+			src_index := int((row * int(stride)) + col)
+			src_texel := layer.grid[src_index]
+			layer.grid[src_index] = 0x00000000
+			dest_row := y
+			dest_column := x
+
+			dest_index := int((dest_row *  stride) + dest_column)
+
+			current_selection.grid[int(dest_index)] = src_texel
+			x += 1
+		}
+		y += 1
+	}
+	//also reset bounds to offset from  the new  p.x
+	layer.bounds.left = p.x
+	layer.bounds.right =  p.x + bounds_size_y
+	layer.bounds.top = p.y
+	layer.bounds.bottom = p.y + bounds_size_x
+	return true
+}
+
 //painting ops 
 start_stroke_idx : u64
 end_stroke_idx : u64
@@ -387,7 +390,6 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size
 			drawn_rect.z = f32(size_x) + 1
 			drawn_rect.w = f32(size_y) + 1
 
-			//NOTE(RAY):I cant remember why we mul size here.
 			stride := int(layer.size.x)
 			mul_sizes := stride * size_y
 			painting_idx := int( size_x + mul_sizes)
@@ -508,7 +510,6 @@ flatten_group_init :: proc(group : ^LayerGroup){
 		}
 		prev_layer_id = layer_id
 	}
-//	copy(group.grid[:],temp[:])
 }
 
 show_sprite_createor :: proc(){
@@ -668,10 +669,11 @@ show_sprite_createor :: proc(){
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])
 
 	if button("Move tool"){
-		//copy bounds rect from layer to selection
-		
-
-		is_move_mode = !is_move_mode
+		if current_tool_mode == .Move{
+			tool_mode_change_request = .Brush
+		}else{
+			tool_mode_change_request = .Move
+		}
 	}
 
 	//prepare drawing surface
@@ -697,7 +699,7 @@ show_sprite_createor :: proc(){
 	mouse_grid_p.x = mouse_pos_in_canvas.x / grid_step
 	mouse_grid_p.y = mouse_pos_in_canvas.y / grid_step
 
-	grid_offset : Vec2 = {mouse_grid_p.x,mouse_grid_p.y}
+	grid_offset : Vec2 = {f32(int(mouse_grid_p.x)),f32(int(mouse_grid_p.y))}
 	sel_origin : Vec2
 	sel_origin.x = origin.x + ((grid_offset.x) * (grid_step))
 	sel_origin.y = origin.y + ((grid_offset.y) * (grid_step))
@@ -705,27 +707,29 @@ show_sprite_createor :: proc(){
 
 	drawn_rect : eng_m.f4
 	if is_window_focused(Focused_Flags.None){
-
-		if is_move_mode == true && is_mouse_down(Mouse_Button.Left){
+		if current_tool_mode == .Move && is_mouse_down(Mouse_Button.Left){
 			//and movemode is true and mouse down left button held
 			//offset the pixels in the direction of the 
 			//keeping the pixels alive even if they go off the canvas 
 			//and only finalizing after enter is pushed.
 
 //for now the selection is the whole layer.
-
-			move_selection(current_layer,grid_offset,current_selection)
-			if is_move_mode{
+			is_moved_true := move_selection(current_layer,grid_offset,current_selection)
+			if is_moved_true{
 				copy(current_layer.grid[:],current_selection.grid[:])
+				for texel in &current_selection.grid{
+					texel = 0x00000000
+				}
 				flatten_group_init(current_group)
-				push_to_gpu()
+				push_to_gpu()	
 			}
-		}else if is_mouse_down(Mouse_Button.Left){
+			
+		}else if current_tool_mode == .Brush && is_mouse_down(Mouse_Button.Left){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 			has_painted = true
 		}
 
-		if is_mouse_down(Mouse_Button.Right){
+		if current_tool_mode == .Brush && is_mouse_down(Mouse_Button.Right){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,0x00000000,current_brush_size)
 			has_painted = true
 		}
@@ -735,14 +739,14 @@ show_sprite_createor :: proc(){
 			scrolling.y += io.mouse_delta.y
 		}
 
-		if is_mouse_released(Mouse_Button.Left){
+		if current_tool_mode == .Brush && is_mouse_released(Mouse_Button.Left){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
 			//current_undo_id = buf_push(&urdo.actions,pa)
 			insert_undo(pa)
 		}
-		if is_mouse_released(Mouse_Button.Right){
+		if current_tool_mode == .Brush && is_mouse_released(Mouse_Button.Right){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
@@ -783,17 +787,22 @@ show_sprite_createor :: proc(){
 		}
 	}
 
-
 	selected_size := Vec2{sel_origin.x + f32(current_brush_size) * grid_step,sel_origin.y + f32(current_brush_size) * grid_step}
+	grid_offset_offset := Vec2{f32(int(grid_offset.x)),f32(int(grid_offset.y))}
+	grid_offset_size := Vec2{grid_offset_offset.x + grid_step,grid_offset_offset.y + grid_step}
+
+	draw_list_add_rect_filled(draw_list,grid_offset_offset,grid_offset_size,color_convert_float4to_u32(Vec4{1,1,0,1}))
 	draw_list_add_rect_filled(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,1,0.25}))
 
 	//draw bounds of current layer
-	draw_list_add_rect(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,0,0.9}))
 	bound_p_origin := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
 	bound_p_size := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
-	draw_list_add_rect(draw_list,bound_p_origin,bound_p_size,color_convert_float4to_u32(Vec4{1,0,0,0.9}))
-
-
+	
+	bounds_color := Vec4{1,0,0,0.9}
+	if current_tool_mode == .Move{
+		bounds_color = Vec4{0,0,1,1}
+	}
+	draw_list_add_rect(draw_list,bound_p_origin,bound_p_size,color_convert_float4to_u32(bounds_color))
 
 	end()
 
@@ -1029,6 +1038,11 @@ show_sprite_createor :: proc(){
 	}
 
 	end()
+
+	//
+	if current_tool_mode != tool_mode_change_request{
+		current_tool_mode = tool_mode_change_request
+	}
 }
 
 get_layer_idx_with_id :: proc(group : LayerGroup,id : u64)-> (u64,bool){

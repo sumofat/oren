@@ -112,9 +112,10 @@ TransformTool :: struct{
 	origin : eng_m.f2,//layermode this is middle of canvas
 }
 	
-ToolMode :: 	union{
+ToolMode :: enum{
 	Brush,	
-	Line	,
+	Line,
+	Move,
 	TransformTool,
 }	
 	
@@ -202,6 +203,6 @@ current_selection : Selection
 //temp : [dynamic]u32// = make([dynamic]u32,int(group.size.x * group.size.y),int(group.size.x * group.size.y))
 
 current_tool_mode : ToolMode
-transform_scratch_grid : [dynamic]u32
+tool_mode_change_request : ToolMode
 
-is_move_mode : bool
+//is_move_mode : bool
