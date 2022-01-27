@@ -19,7 +19,13 @@ BoundingRect :: struct{
 	right : f32,
 	bottom : f32,	
 }
-	
+
+BoundingQuad :: struct{
+	tl : eng_m.f2,
+	bl : eng_m.f2,
+	tr : eng_m.f2,
+	br : eng_m.f2,
+}	
 
 ActionPaintPixelDiffData :: struct{
 	idx : i32,
@@ -95,6 +101,7 @@ Layer :: struct{
 	blend_mode : BlendType,
 	selected_blend_mode : i32,
 	bounds : BoundingRect,
+	bounds_quad : BoundingQuad,
 	cache : LayerCache,
 }
 
@@ -113,9 +120,12 @@ TransformTool :: struct{
 }
 	
 ToolMode :: enum{
+	None,
 	Brush,	
 	Line,
 	Move,
+	Rotate,
+	Scale,
 	TransformTool,
 }	
 	
@@ -123,7 +133,8 @@ ToolMode :: enum{
 Selection ::	 struct{
 	layer_id : i32,
 	size : eng_m.f2,//always the same size as the current layer
-	bounds : BoundingRect,
+	//bounds : BoundingRect,
+	bounds_quad : BoundingQuad,
 	grid : [dynamic]u32,
 }	
 
@@ -200,9 +211,12 @@ mapped_buffer_data : rawptr;
 current_brush_size : i32 = 4
 
 current_selection : Selection
-//temp : [dynamic]u32// = make([dynamic]u32,int(group.size.x * group.size.y),int(group.size.x * group.size.y))
 
 current_tool_mode : ToolMode
 tool_mode_change_request : ToolMode
 
-//is_move_mode : bool
+scratch_bounds : BoundingRect
+scratch_bounds_quad : BoundingQuad
+scratch_grid : [dynamic]u32
+
+canvas_origin : eng_m.f2

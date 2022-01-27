@@ -97,7 +97,7 @@ init_sprite_creator :: proc(){
 	group_names = con.buf_init(0,string)
 	layer_groups = con.buf_init(0,LayerGroup)
 	layer_master_list = con.buf_init(0,Layer)
-	
+	scratch_grid = make([dynamic]u32,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
 	current_selection.grid = make([dynamic]u32,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
 	
 	urdo.actions = con.buf_init(0,ActionsTypes)
@@ -132,6 +132,8 @@ init_sprite_creator :: proc(){
 	//flatten_group(current_group,{0,0,current_group.size.x,current_group.size.y})
 	flatten_group_init(current_group)
 	has_painted = true
+	current_tool_mode = .Brush
+	tool_mode_change_request = .Brush
 }
 
 init_layer_group :: proc(name : string) -> LayerGroup{
@@ -243,10 +245,6 @@ move_origin :: proc(layer : ^Layer,offset : eng_m.f2,selection : Selection){
 
 }
 
-rotate_selection :: proc(layer : ^Layer,degrees : f32,selection : Selection){
-	//get the origin of selection or layer
-}
-
 scale_selection :: proc(layer : ^Layer,amount : i32,selection : Selection){
 
 }
@@ -307,9 +305,13 @@ blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
+
+//we reference the scratch buffer for the copy
+//TODO(Ray):Later on when we can resize the canvas we will have to make sure all sizes resize 
+//and match
 move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> bool{
 	if p.x <  0 || p.y < 0{
-		return false
+		//return false
 	}
 
 	//copy the layer to the selection grid
@@ -324,13 +326,29 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> b
 	if row_size > layer.size.x * size_of(u32){
 		return false
 	}
-	bounds_size_y := layer.bounds.right - layer.bounds.left
-	bounds_size_x := layer.bounds.bottom - layer.bounds.top
-	for row := int(layer.bounds.top);row < int(layer.bounds.bottom);row += 1{
+
+	bounds := scratch_bounds
+	bounds_size_y := bounds.right - bounds.left
+	bounds_size_x := bounds.bottom - bounds.top
+	for row := int(bounds.top);row < int(bounds.bottom);row += 1{
 		x = start_x
-		for col := int(layer.bounds.left);col < int(layer.bounds.right);col += 1{
+		if y > layer.size.y - 1{
+			break
+		}
+		if y < 0{
+			y+=1
+			continue
+		}
+		for col := int(bounds.left);col < int(bounds.right);col += 1{
+			if x > layer.size.x - 1{
+				break
+			}
+			if x < 0{
+				x += 1
+				continue
+			}
 			src_index := int((row * int(stride)) + col)
-			src_texel := layer.grid[src_index]
+			src_texel := scratch_grid[src_index]
 			layer.grid[src_index] = 0x00000000
 			dest_row := y
 			dest_column := x
@@ -340,14 +358,83 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> b
 			current_selection.grid[int(dest_index)] = src_texel
 			x += 1
 		}
+
 		y += 1
 	}
-	//also reset bounds to offset from  the new  p.x
+
 	layer.bounds.left = p.x
+	if layer.bounds.left < 0{
+		layer.bounds.left = 0
+	}
+	if layer.bounds.left > layer.size.x - 1{
+		layer.bounds.left = layer.size.x
+	}
+
 	layer.bounds.right =  p.x + bounds_size_y
+	if layer.bounds.right < 0{
+		layer.bounds.right = 0
+	}
+	if layer.bounds.right > layer.size.x - 1{
+		layer.bounds.right = layer.size.x
+	}
+
 	layer.bounds.top = p.y
+	if layer.bounds.top < 0{
+		layer.bounds.top = 0
+	}
+
+	if layer.bounds.top > layer.size.y - 1{
+		layer.bounds.top  = layer.size.y
+	}
 	layer.bounds.bottom = p.y + bounds_size_x
+
+	if layer.bounds.bottom < 0{
+		layer.bounds.bottom = 0
+	}
+	if layer.bounds.bottom > layer.size.y - 1{
+		layer.bounds.bottom  = layer.size.y
+	}
 	return true
+}
+
+bounds_to_points :: proc(origin : eng_m.f2,bounds : BoundingRect,grid_step : f32) -> BoundingQuad{
+	using eng_m
+	result : BoundingQuad
+
+	//tl
+	result.tl = f2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
+	//bl
+	result.bl = f2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
+	//tr
+	result.tr = f2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.top * grid_step}
+	//br
+	result.br = f2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
+	return result
+}
+
+f2_to_Vec2 :: proc(a : eng_m.f2) -> imgui.Vec2{
+	return imgui.Vec2{a.x,a.y}
+}
+
+rotate_selection :: proc(layer : ^Layer,degrees : f32,selection : Selection){
+	using math
+	using eng_m
+	angle : f32 = 45
+	radians : f32 = (2.0 * 3.1416 * angle) / 360
+	cosine := cos(radians)
+	sine := sin(radians)
+	//get the origin of selection or layer
+	bounds_origin : f2 = {layer.bounds.right - layer.bounds.left / 2,layer.bounds.bottom - layer.bounds.top / 2}
+	
+
+	//assume origin is middle of box for now
+
+	//rotate the bounding box
+
+	//calculate the destination pixel
+	//sample from the source pixel that is equivalent
+	//do the same copys as when we moved
+
 }
 
 //painting ops 
@@ -673,6 +760,10 @@ show_sprite_createor :: proc(){
 			tool_mode_change_request = .Brush
 		}else{
 			tool_mode_change_request = .Move
+			//copy the starting point of the move into scratch
+			copy(scratch_grid[:],current_layer.grid[:])
+			scratch_bounds = current_layer.bounds
+			scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step) 
 		}
 	}
 
@@ -690,8 +781,17 @@ show_sprite_createor :: proc(){
 	invisible_button("canvas",canvas_size,imgui.Button_Flags.MouseButtonLeft | imgui.Button_Flags.MouseButtonRight)
 
 	origin : Vec2 = {canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y}
+	canvas_origin = f2{origin.x,origin.y}
+
+	origin_no_scroll : Vec2 = {canvas_p0.x,canvas_p0.y}
 	mouse_pos_in_canvas : Vec2
+	raw_mouse_p_in_canvas : Vec2
+
 	get_mouse_pos(&mouse_pos_in_canvas)
+
+	raw_mouse_p_in_canvas.x = mouse_pos_in_canvas.x - origin_no_scroll.x
+	raw_mouse_p_in_canvas.y = mouse_pos_in_canvas.y - origin_no_scroll.y
+
 	mouse_pos_in_canvas.x = mouse_pos_in_canvas.x - origin.x
 	mouse_pos_in_canvas.y = mouse_pos_in_canvas.y - origin.y
 
@@ -705,9 +805,15 @@ show_sprite_createor :: proc(){
 	sel_origin.y = origin.y + ((grid_offset.y) * (grid_step))
 	selected_p := sel_origin
 
+	current_layer.bounds_quad = bounds_to_points(f2{origin.x,origin.y},current_layer.bounds,grid_step)
+
 	drawn_rect : eng_m.f4
+	no_focus_action : 
 	if is_window_focused(Focused_Flags.None){
-		if current_tool_mode == .Move && is_mouse_down(Mouse_Button.Left){
+		if raw_mouse_p_in_canvas.x < 0 || raw_mouse_p_in_canvas.y < 0{
+			break no_focus_action
+		}
+		if current_tool_mode == .Move && tool_mode_change_request == .Move && is_mouse_down(Mouse_Button.Left){
 			//and movemode is true and mouse down left button held
 			//offset the pixels in the direction of the 
 			//keeping the pixels alive even if they go off the canvas 
@@ -724,12 +830,12 @@ show_sprite_createor :: proc(){
 				push_to_gpu()	
 			}
 			
-		}else if current_tool_mode == .Brush && is_mouse_down(Mouse_Button.Left){
+		}else if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_down(Mouse_Button.Left){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 			has_painted = true
 		}
 
-		if current_tool_mode == .Brush && is_mouse_down(Mouse_Button.Right){
+		if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_down(Mouse_Button.Right){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,0x00000000,current_brush_size)
 			has_painted = true
 		}
@@ -739,14 +845,14 @@ show_sprite_createor :: proc(){
 			scrolling.y += io.mouse_delta.y
 		}
 
-		if current_tool_mode == .Brush && is_mouse_released(Mouse_Button.Left){
+		if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_released(Mouse_Button.Left){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
 			//current_undo_id = buf_push(&urdo.actions,pa)
 			insert_undo(pa)
 		}
-		if current_tool_mode == .Brush && is_mouse_released(Mouse_Button.Right){
+		if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_released(Mouse_Button.Right){
 			is_started_paint = false
 			pa : PaintAdd
 			pa.stroke = PaintStroke{start_stroke_idx,end_stroke_idx}
@@ -762,9 +868,7 @@ show_sprite_createor :: proc(){
 	current_size := default_size * grid_step
 
 	if has_painted{
-		//drawn_rect_test : eng_m.f4 = {grid_offset.x,grid_offset.y,grid_offset.x + 2,grid_offset.y + 2}
 		flatten_group(current_group,drawn_rect)
-//		flatten_group_init(current_group)
 		push_to_gpu()
 		has_painted = false
 	}
@@ -795,66 +899,30 @@ show_sprite_createor :: proc(){
 	draw_list_add_rect_filled(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,1,0.25}))
 
 	//draw bounds of current layer
-	bound_p_origin := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
+	bound_p_tl := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
 	bound_p_size := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
 	
 	bounds_color := Vec4{1,0,0,0.9}
 	if current_tool_mode == .Move{
 		bounds_color = Vec4{0,0,1,1}
 	}
-	draw_list_add_rect(draw_list,bound_p_origin,bound_p_size,color_convert_float4to_u32(bounds_color))
 
-	end()
+	if current_tool_mode == .Move{
 
-/*
-	//calculate bounding rects
-	//top is highest row in grid
-	//right is highest col 
-	//lef is low col
-	//bot is low row in grid
-	for layer_id in current_group.layer_ids.buffer{
-		layer := buf_get(&layer_master_list,u64(layer_id))
-		stride := current_group.size.x
-		t : i32 = 0
-		r : i32 = max(i32)
-		l : i32 = 0
-		b : i32 = max(i32)
-		for row := 0;row < int(current_group.size.y);row+=1{
-			for col := 0;col < int(current_group.size.x);col+= 1{
-				index := (row * int(stride)) + col
-				texel := layer.grid[index].color
-				if texel != 0{
-					if t < row{
-						t = index
-					}else if l < col{
-						l = index
-					}else if r > col{
-						r = index
-					}else if b > row{
-						b = index
-					} 
-				}
-			}
-		}
+		bounding_quad := current_layer.bounds_quad
+		//tl
+		p0 := f2_to_Vec2(bounding_quad.tl)
+		//bl
+		p1 := f2_to_Vec2(bounding_quad.bl)
+		//tr
+		p2 := f2_to_Vec2(bounding_quad.tr)
+		//br
+		p3 := f2_to_Vec2(bounding_quad.br)
+		draw_list_add_quad(draw_list, p0,p1,p3,p2,color_convert_float4to_u32(bounds_color),1)
+	//	draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
 
-		draw_list_add_rect_filled(draw_list,selected_p,selectd_size,zoxel.color)
-		///layer.bounding_rect = {0,0,0,0}
 	}
-	//if move tool is active show bounds and controls
-	//buttons for scale move and rotate
-	/*
-	r = rotate
-	s = scale
-	m = move
-	r...s...r
-	.		.
-	.		.
-	s   m   s
-	.		.
-	.		.
-	r   s...r
-	*/
-*/
+	end()
 
 /*
 	if !begin("TEST WINDOW"){

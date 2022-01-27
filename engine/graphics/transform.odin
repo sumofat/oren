@@ -98,11 +98,6 @@ set_camera_view_pos_forward_up :: proc(p : enginemath.f3,d : enginemath.f3,u : e
     m[3][2] = -dot(d,p)
     m[3][3] = 1
 
-    //result.c0 = f4{cam_right.x,cam_up.x,d.x,0.0}
-    //result.c1 = f4_create(cam_right.y,cam_up.y,d.y,0.0);
-    //result.c2 = f4_create(cam_right.z,cam_up.z,d.z,0.0);
-    //result.c3 = f4_create(-f3_dot(cam_right, p),-f3_dot(cam_up, p),-f3_dot(d, p),1.0);
-    
     return m
 }
 
