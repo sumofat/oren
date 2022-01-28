@@ -164,7 +164,7 @@ is_game_bridge_running : bool = true
 set_time_seconds : f32 = 0
 
 matrix_gpu_arena : platform.GPUArena
-
+ 
 init_called : bool
 window_data : WindowData
 engine_init_success : bool
@@ -182,7 +182,9 @@ engine_init :: proc(dim : enginemath.f2){
 	
 	window_dim := dim//enginemath.f2{1920, 1080};
    	show_cmd: i32 = 0;
-   	fmt.println(ps.is_running);
+   	fmt.println(ps.is_running)
+
+    ;
   	fmt.println(ps.window.handle);
   	result : ErrorStr
    	result,window_data = spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y)

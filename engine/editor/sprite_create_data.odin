@@ -220,3 +220,8 @@ scratch_bounds_quad : BoundingQuad
 scratch_grid : [dynamic]u32
 
 canvas_origin : eng_m.f2
+
+test_angle : f64
+//test_x : f32
+//test_y : f32
+has_first_paint : bool
