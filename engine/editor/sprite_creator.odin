@@ -935,9 +935,8 @@ show_sprite_createor :: proc(){
 
 	test_angle = test_angle + 0.11
 	bounds_origin : f2 = {origin.x + current_layer.bounds.left + ((current_layer.bounds.right - current_layer.bounds.left) / 2),origin.y + current_layer.bounds.top + ((current_layer.bounds.bottom - current_layer.bounds.top) / 2)}
-	draw_list_add_circle(draw_list, f2_to_Vec2(bounds_origin),10,color_convert_float4to_u32(bounds_color))
 
-    rad : f64 = linalg.radians(45.0)
+    rad : f64 = linalg.radians(test_angle)
 	//cosine := cos(radians)
 	//sine := sin(radians)
 	//get the origin of selection or layer
@@ -958,6 +957,9 @@ show_sprite_createor :: proc(){
 	right := (right_dir * (width * 0.5))
 	left := (right_dir * (-width * 0.5))
 	
+	layer_bounds_origin : f3 = {current_layer.bounds.left + (width * 0.5),current_layer.bounds.top + (height * 0.5),0}
+	draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + layer_bounds_origin.x,origin.x + layer_bounds_origin.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
+	
 	f3_bo := f3{bounds_origin.x,bounds_origin.y,0}
 	tr :=  top + f3_bo + right
 	tl :=  top + f3_bo + -right
@@ -967,25 +969,24 @@ show_sprite_createor :: proc(){
 	ft := up * (height)
 	fr := right_dir * (width)
 	
-	layer_bounds_origin : f3 = {current_layer.bounds.left + ((current_layer.bounds.right - current_layer.bounds.left) / 2),current_layer.bounds.top + ((current_layer.bounds.bottom - current_layer.bounds.top) / 2),0}
 	//layer_bounds_origin.x = current_layer.size.x * 0.5
 	//layer_bounds_origin.y = current_layer.size.y * 0.5
 
 	top_right := f3_bo + left + bottom + fr + ft
+	//draw_list_add_circle(draw_list, f2_to_Vec2(f2{top_right.x,top_right.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
 
 	if has_first_paint{
 		test_x : f32
 		test_y : f32
-		for x := 0;x < 1/*int(height * width) - 1*/;x += 1{
+		for x := 0;x < int(height * width) - 1;x += 1{
 			full_top := up * (height - test_x)
 			full_right := right_dir * (width - test_y)
 		
-			dest_pixel_approx := layer_bounds_origin + left// + bottom + full_right + full_top
-			draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + dest_pixel_approx.x,origin.x + dest_pixel_approx.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
-			//draw_list_add_circle(draw_list, f2_to_Vec2(f2{top_right.x,top_right.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
+			dest_pixel_approx := layer_bounds_origin + left + bottom + full_right + full_top
+			// /draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + dest_pixel_approx.x,origin.x + dest_pixel_approx.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
 
 //			source_pixel_idx := int(((current_layer.bounds.top + test_y) * current_layer.size.x)  +  (current_layer.bounds.left + test_x))
-			dest_pixel_idx := int((dest_pixel_approx.y * current_layer.size.x) + dest_pixel_approx.x)
+			dest_pixel_idx := int((int(dest_pixel_approx.y) * int(current_layer.size.x)) + int(dest_pixel_approx.x))
 			current_selection.grid[dest_pixel_idx] = 0xFF000000//current_layer.grid[source_pixel_idx]
 
 			test_x += 1
