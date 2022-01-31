@@ -165,6 +165,7 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 	
 	default_layer.name = "draw layer 1"
 	layer_id = add_layer(&result,default_layer)
+	test_selected_points : [dynamic]imgui.Vec2 = make([dynamic]imgui.Vec2,int(default_layer.size.x * default_layer.size.y),int(default_layer.size.x * default_layer.size.y))
 
 	return result
 }
@@ -431,32 +432,7 @@ is_point_in_quad :: proc(point : eng_m.f2,rect : BoundingQuad) -> bool{
 }
 
 rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f32,selection : Selection){
-	using math
-	using eng_m
-	//using linalg
-
-	angle : f32 = 45
-	rad : f64 = linalg.radians(90.0)
-	//cosine := cos(radians)
-	//sine := sin(radians)
-	//get the origin of selection or layer
-	//assume origin is middle of box for now
-	width := layer.bounds.right - layer.bounds.left
-	height := layer.bounds.bottom - layer.bounds.top
-	bounds_origin : f2 = {origin.x + current_layer.bounds.left + ((current_layer.bounds.right - current_layer.bounds.left) / 2),origin.y + current_layer.bounds.top + ((current_layer.bounds.bottom - current_layer.bounds.top) / 2)}
 	
-	q : Quat = quat_identity
-	rot := linalg.quaternion_angle_axis(f32(rad), f3{0, 0, 1})
-	top := gfx.quaternion_up(rot) * width
-	right := gfx.quaternion_right(rot) * height
-
-	//layer.bounds_quad.tr = f2{origin.x + right ,origin + right}
-	//layer.bounds_quad.tl = f2{origin.x - right ,origin - right}
-	//rotate the bounding box
-
-	//calculate the destination pixel
-	//sample from the source pixel that is equivalent
-	//do the same copys as when we moved
 
 }
 
@@ -777,7 +753,7 @@ show_sprite_createor :: proc(){
 
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])
 
-	if button("Move tool"){
+	if button("Move"){
 		if current_tool_mode == .Move{
 			tool_mode_change_request = .Brush
 		}else{
@@ -786,6 +762,28 @@ show_sprite_createor :: proc(){
 			copy(scratch_grid[:],current_layer.grid[:])
 			scratch_bounds = current_layer.bounds
 			scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step) 
+
+			
+
+		}
+	}
+
+	if button("Rotate"){
+		if current_tool_mode == .Rotate{
+			tool_mode_change_request = .Brush
+			current_layer.grid = temp_layer_grid
+		}else{
+			tool_mode_change_request = .Rotate
+			//copy the starting point of the move into scratch
+			temp_layer_grid = current_layer.grid
+			current_layer.grid = scratch_grid
+			for texel in &current_selection.grid{
+				texel = 0x00000000
+			}
+			flatten_group_init(current_group)
+			push_to_gpu()
+
+			copy(scratch_grid[:],current_layer.grid[:])
 		}
 	}
 
@@ -933,10 +931,12 @@ show_sprite_createor :: proc(){
 		bounds_color = Vec4{0,0,1,1}
 	}
 
-	test_angle = test_angle + 0.11
+	//test_angle = test_angle + 0.11
 	bounds_origin : f2 = {origin.x + current_layer.bounds.left + ((current_layer.bounds.right - current_layer.bounds.left) / 2),origin.y + current_layer.bounds.top + ((current_layer.bounds.bottom - current_layer.bounds.top) / 2)}
 
     rad : f64 = linalg.radians(test_angle)
+    al_rad : f64 = linalg.radians(0.0)
+    
 	//cosine := cos(radians)
 	//sine := sin(radians)
 	//get the origin of selection or layer
@@ -951,12 +951,23 @@ show_sprite_createor :: proc(){
 	rot := linalg.quaternion_angle_axis(f32(rad), f3{0, 0, 1}) * x_rot
 	up := gfx.quaternion_up(rot)
     right_dir := gfx.quaternion_right(rot)
+	
+	al_x_rot := linalg.quaternion_angle_axis(f32(linalg.radians(180.0)), f3{1,0,0}) //* y_rot
+	al_rot := linalg.quaternion_angle_axis(f32(al_rad), f3{0, 0, 1}) * al_x_rot
+	
+	al_up := gfx.quaternion_up(al_rot)
+    al_right_dir := gfx.quaternion_right(al_rot)
 
 	top := (up * (height * 0.5))
     bottom := (up * (-height * 0.5))
 	right := (right_dir * (width * 0.5))
 	left := (right_dir * (-width * 0.5))
 	
+	al_top := (al_up * (height * 0.5))
+    al_bottom := (al_up * (-height * 0.5))
+	al_right := (al_right_dir * (width * 0.5))
+	al_left := (al_right_dir * (-width * 0.5))
+
 	layer_bounds_origin : f3 = {current_layer.bounds.left + (width * 0.5),current_layer.bounds.top + (height * 0.5),0}
 	draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + layer_bounds_origin.x,origin.x + layer_bounds_origin.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
 	
@@ -974,36 +985,83 @@ show_sprite_createor :: proc(){
 
 	top_right := f3_bo + left + bottom + fr + ft
 	//draw_list_add_circle(draw_list, f2_to_Vec2(f2{top_right.x,top_right.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
-
-	if has_first_paint{
-		test_x : f32
-		test_y : f32
-		for x := 0;x < int(height * width) - 1;x += 1{
+	//if has_first_paint{
+	if current_tool_mode == .Rotate{
+		if is_mouse_down(Mouse_Button.Left){
+			test_angle += f64( io.mouse_delta.x)
+		}
+		//test_x : f32
+		//test_y : f32
+		test_x = 0
+		test_y = 0
+		src_x : f32 = 0.0
+		src_y : f32 = 0.0
+		using math
+		max_size_idx := int(current_layer.size.x * current_layer.size.y)
+		for x := 0;x < int((f32(height * width) - 1) * 2);x += 1{
 			full_top := up * (height - test_x)
+			full_top.x = (full_top.x)
+			full_top.y = (full_top.y)
 			full_right := right_dir * (width - test_y)
-		
+			full_right.x = (full_right.x)
+			full_right.y =  (full_right.y)
 			dest_pixel_approx := layer_bounds_origin + left + bottom + full_right + full_top
+			
+			al_full_top := al_up * (height - test_x)
+			al_full_right := al_right_dir * (width - test_y)
+			
+			src_texel_approx := layer_bounds_origin + al_left + al_bottom + al_full_right + al_full_top
 			// /draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + dest_pixel_approx.x,origin.x + dest_pixel_approx.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
-
-//			source_pixel_idx := int(((current_layer.bounds.top + test_y) * current_layer.size.x)  +  (current_layer.bounds.left + test_x))
+			//new_point := f2{dest_pixel_approx.x,dest_pixel_approx.y}
+			//append(&test_selected_points,f2_to_Vec2(new_point))
+			
+			source_pixel_idx := int((int(src_texel_approx.y) * int(current_layer.size.x)) + int(src_texel_approx.x))
+			//int(((current_layer.bounds.left + src_y) * current_layer.size.x)  +  (current_layer.bounds.top + src_x))
 			dest_pixel_idx := int((int(dest_pixel_approx.y) * int(current_layer.size.x)) + int(dest_pixel_approx.x))
-			current_selection.grid[dest_pixel_idx] = 0xFF000000//current_layer.grid[source_pixel_idx]
+			//current_selection.grid[dest_pixel_idx] = current_layer.grid[source_pixel_idx]//0xFF000000//
 
-			test_x += 1
+			factor : f32 = 0.7
+			test_x += factor
 			if test_x > height - 1{
 				test_x = 0
-				test_y += 1
+				test_y += factor
 			}
 			if test_y > width  - 1{test_y = 0}
+			src_y = test_x
+			src_x = test_y
+
+			
+			if (source_pixel_idx > (max_size_idx - 1) || dest_pixel_idx > (max_size_idx - 1)) || 
+				(source_pixel_idx < 0 || dest_pixel_idx < 0){
+				continue
+			}
+			
+			current_selection.grid[dest_pixel_idx] = temp_layer_grid[source_pixel_idx]//0xFF000000//
 		  	  	
 		} 
-
+			
 		copy(current_layer.grid[:],current_selection.grid[:])
 		for texel in &current_selection.grid{
 			texel = 0x00000000
 		}
-		flatten_group_init(current_group)
-		push_to_gpu()
+		//flatten_group_init(current_group)
+		//push_to_gpu()
+
+		/*
+		prev_point : Vec2
+		for point,i in test_selected_points{
+			if len(test_selected_points) > 1 && i > 0{
+				next_point := point
+				//add in scrolling  
+				next_point.x = origin.x + (next_point.x *  grid_step)
+				next_point.y = origin.y + (next_point.y *  grid_step)
+				
+				draw_list_add_line(draw_list,prev_point,next_point,color_convert_float4to_u32(Vec4{0,0,1,1}),2)
+			}
+			prev_point.x = origin.x + (point.x *  grid_step)
+			prev_point.y = origin.y + (point.y *  grid_step)
+		}
+*/
 	}
 	
     points_slice : []f3 = {tr,tl,bl,br}
@@ -1035,12 +1093,14 @@ show_sprite_createor :: proc(){
 	draw_list_add_circle(draw_list, f2_to_Vec2(f2{bl.x,bl.y}),10,color_convert_float4to_u32(bounds_color))
 	draw_list_add_circle(draw_list, f2_to_Vec2(f2{br.x,br.y}),10,color_convert_float4to_u32(bounds_color))
 
+/*
 	//find the min max of the dest rect
 	//loop through dest rect
 	//reject any texels that dont have a source equivalent
     dest_stride := dest_width
 	src_min_p := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
 	src_max_p := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
+
 
 	for row := min_p.y;row < max_p.y - 1;row += 1{
 		for col := min_p.x;col < max_p.x - 1;col += 1{
@@ -1052,11 +1112,10 @@ show_sprite_createor :: proc(){
             }else{
                 continue
             }
-
-            
 		}
 	}
-	
+*/	
+
 	//tl
 	//draw_list_add_circle(draw_list, f2_to_Vec2(f2{top.x,top.y}),10,color_convert_float4to_u32(bounds_color))
 	//draw_list_add_circle(draw_list, f2_to_Vec2(f2{right.x,right.y}),10,color_convert_float4to_u32(bounds_color))
