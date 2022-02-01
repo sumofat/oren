@@ -283,7 +283,7 @@ blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
 		bl = clamp(bl * ba,0.0,1.0)
 		result_unpacked[i] = clamp(u8((ba * (1-a2) + bl * (a2)) * 255),0,255)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
 	}		
-	result_unpacked[3] = 255//blend_channels[3]
+	result_unpacked[3] = 255
 	
 	final_color := u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return final_color
@@ -306,6 +306,52 @@ blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
+find_top_bounds :: proc(layer : Layer) -> i32{
+	for texel,i in layer.grid[:]{
+		if texel != 0x00000000{
+			return i32(i / int(layer.size.x))
+		}
+	}
+	return min(i32)
+}
+
+find_left_bounds :: proc(layer : Layer)-> i32{
+	for col := 0;col < int(layer.size.x) - 1;col += int(layer.size.x) - 1{
+		for row := 0;row < int(layer.size.y) - 1;row += 1{
+			idx := col + row
+			texel := layer.grid[idx]
+			if texel != 0x00000000{
+				return i32(col)
+			}
+		}
+	}
+	return min(i32)
+}
+
+find_bottom_bounds :: proc(layer : Layer) -> i32{
+	for row := int(layer.size.y) - 1;row < int(layer.size.y) - 1;row-=1{
+		for col := 0;col < int(layer.size.x ) - 1;col += 1{
+			texel := layer.grid[row + col]
+			if texel != 0x00000000{
+				return i32(row)
+			}
+		}
+	}
+	return max(i32)
+}
+
+find_right_bounds :: proc(layer : Layer)-> i32{
+	for col := int(layer.size.x);col < int(layer.size.x) - 1;col -= 1{
+		for row := 0;row < int(layer.size.y) - 1;row += 1{
+			idx := col + row
+			texel := layer.grid[idx]
+			if texel != 0x00000000{
+				return i32(col)
+			}
+		}
+	}
+	return max(i32)
+}
 
 //we reference the scratch buffer for the copy
 //TODO(Ray):Later on when we can resize the canvas we will have to make sure all sizes resize 
@@ -333,18 +379,18 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> b
 	bounds_size_x := bounds.bottom - bounds.top
 	for row := int(bounds.top);row < int(bounds.bottom);row += 1{
 		x = start_x
-		if y > layer.size.y - 1{
+		if y > layer.size.y - 1 || row > int(layer.size.y) - 1{
 			break
 		}
-		if y < 0{
+		if y < 0 || row < 0{
 			y+=1
 			continue
 		}
 		for col := int(bounds.left);col < int(bounds.right);col += 1{
-			if x > layer.size.x - 1{
+			if x > layer.size.x - 1 || col > int(layer.size.x)  - 1{
 				break
 			}
-			if x < 0{
+			if x < 0 || col < 0{
 				x += 1
 				continue
 			}
@@ -401,7 +447,6 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> b
 bounds_to_points :: proc(origin : eng_m.f2,bounds : BoundingRect,grid_step : f32) -> BoundingQuad{
 	using eng_m
 	result : BoundingQuad
-
 	//tl
 	result.tl = f2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
 	//bl
@@ -431,15 +476,58 @@ is_point_in_quad :: proc(point : eng_m.f2,rect : BoundingQuad) -> bool{
     return false
 }
 
+set_bounds_from_points :: proc(origin_p : eng_m.f2,quad : BoundingQuad) -> BoundingRect{
+	quad_copy := quad
+	quad_copy.br -= origin_p
+	quad_copy.tl -= origin_p
+	quad_copy.tr -= origin_p
+	quad_copy.bl -= origin_p
+	bounds : BoundingRect
+	bounds.left = min(min(quad.br.x,quad.bl.x),min(quad.tl.x,quad.tr.x))
+	bounds.right = max(max(quad.br.x,quad.bl.x),max(quad.tl.x,quad.tr.x))
+
+	bounds.top = min(min(quad.br.y,quad.bl.y),min(quad.tl.y,quad.tr.y))
+	bounds.bottom = max(max(quad.br.y,quad.bl.y),max(quad.tl.y,quad.tr.y))
+	return bounds
+}
+
+/*
+get_bounds_from_points :: proc(rect : BoundingRect,top : eng_m.f2,right : eng_m.f2){
+	bounds_origin : f2 = {rect.left + ((rect.right - rect.left) / 2),rect.top + ((rect.bottom - rect.top) / 2)}
+	f3_bo := f3{bounds_origin.x,bounds_origin.y,0}
+	tr :=  top + f3_bo + right
+	tl :=  top + f3_bo + -right
+	bl := -top + f3_bo + -right
+	br := -top + f3_bo + right
+
+	bounding_quad := BoundingQuad{tl.xy,bl.xy,tr.xy,br.xy}
+	//tl
+	p0 := f2_to_Vec2(bounding_quad.tl)
+	//bl
+	p1 := f2_to_Vec2(bounding_quad.bl)
+	//tr
+	p2 := f2_to_Vec2(bounding_quad.tr)
+	//br
+	p3 := f2_to_Vec2(bounding_quad.br)
+	
+	bounds : BoundingRect
+	bounds.left = min(min(quad.br.x,quad.bl.x),min(quad.tl.x,quad.tr.x))
+	bounds.right = max(max(quad.br.x,quad.bl.x),max(quad.tl.x,quad.tr.x))
+
+	bounds.top = min(min(quad.br.y,quad.bl.y),min(quad.tl.y,quad.tr.y))
+	bounds.bottom = max(max(quad.br.y,quad.bl.y),max(quad.tl.y,quad.tr.y))
+}
+*/
+
 rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f64,selection : Selection) -> bool{
 	using eng_m
 	using imgui
 
     rad : f64 = linalg.radians(degrees)
     al_rad : f64 = linalg.radians(0.0)
-    
-	width := layer.bounds.right - layer.bounds.left
-	height := layer.bounds.bottom - layer.bounds.top
+    bounds := scratch_bounds
+	width := bounds.right - bounds.left
+	height := bounds.bottom - bounds.top
 	
 	q : Quat = quat_identity
 	x_rot := linalg.quaternion_angle_axis(f32(linalg.radians(180.0)), f3{1,0,0}) //* y_rot
@@ -463,7 +551,7 @@ rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f64,select
 	al_right := (al_right_dir * (width * 0.5))
 	al_left := (al_right_dir * (-width * 0.5))
 
-	layer_bounds_origin : f3 = {layer.bounds.left + (width * 0.5),layer.bounds.top + (height * 0.5),0}
+	layer_bounds_origin : f3 = {bounds.left + (width * 0.5),bounds.top + (height * 0.5),0}
 
 	test_x = 0
 	test_y = 0
@@ -484,14 +572,9 @@ rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f64,select
 		al_full_right := al_right_dir * (width - test_y)
 		
 		src_texel_approx := layer_bounds_origin + al_left + al_bottom + al_full_right + al_full_top
-		// /draw_list_add_circle(draw_list, f2_to_Vec2(f2{origin.x + dest_pixel_approx.x,origin.x + dest_pixel_approx.y}),10,color_convert_float4to_u32(Vec4{1,0,1,1}))
-		//new_point := f2{dest_pixel_approx.x,dest_pixel_approx.y}
-		//append(&test_selected_points,f2_to_Vec2(new_point))
 		
 		source_pixel_idx := int((int(src_texel_approx.y) * int(current_layer.size.x)) + int(src_texel_approx.x))
-		//int(((current_layer.bounds.left + src_y) * current_layer.size.x)  +  (current_layer.bounds.top + src_x))
 		dest_pixel_idx := int((int(dest_pixel_approx.y) * int(current_layer.size.x)) + int(dest_pixel_approx.x))
-		//current_selection.grid[dest_pixel_idx] = current_layer.grid[source_pixel_idx]//0xFF000000//
 
 		factor : f32 = 0.7
 		test_x += factor
@@ -509,6 +592,16 @@ rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f64,select
 		}
 		selection.grid[dest_pixel_idx] = temp_layer_grid[source_pixel_idx]
 	} 
+
+	bounds_origin : f2 = {origin.x + bounds.left + ((bounds.right - bounds.left) / 2),origin.y + bounds.top + ((bounds.bottom - bounds.top) / 2)}
+	f3_bo := f3{bounds_origin.x,bounds_origin.y,0}
+	tr :=  top + f3_bo + right
+	tl :=  top + f3_bo + -right
+	bl := -top + f3_bo + -right
+	br := -top + f3_bo + right
+
+	scratch_bounds_quad = BoundingQuad{tl.xy,bl.xy,tr.xy,br.xy}
+	
 	return true
 }
 
@@ -838,19 +931,20 @@ show_sprite_createor :: proc(){
 			copy(scratch_grid[:],current_layer.grid[:])
 			scratch_bounds = current_layer.bounds
 			scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step) 
-
-			
-
 		}
 	}
 
 	if button("Rotate"){
 		if current_tool_mode == .Rotate{
 			tool_mode_change_request = .Brush
+			copy(current_layer.grid[:],scratch_grid[:])
 			current_layer.grid = temp_layer_grid
+			copy(current_layer.grid[:],scratch_grid[:])
+			//current_layer.bounds_quad = bounding_quad
 		}else{
 			tool_mode_change_request = .Rotate
 			//copy the starting point of the move into scratch
+			copy(scratch_grid[:],current_layer.grid[:])
 			temp_layer_grid = current_layer.grid
 			current_layer.grid = scratch_grid
 			for texel in &current_selection.grid{
@@ -860,6 +954,9 @@ show_sprite_createor :: proc(){
 			push_to_gpu()
 
 			copy(scratch_grid[:],current_layer.grid[:])
+
+			scratch_bounds = current_layer.bounds
+			scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step)
 		}
 	}
 
@@ -876,9 +973,9 @@ show_sprite_createor :: proc(){
 	draw_list_add_rect(draw_list,canvas_p0,canvas_p1,color_convert_float4to_u32(Vec4{1,1,1,1}))
 	invisible_button("canvas",canvas_size,imgui.Button_Flags.MouseButtonLeft | imgui.Button_Flags.MouseButtonRight)
 
-	origin : Vec2 = {canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y}
+	origin = {canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y}
 	canvas_origin = f2{origin.x,origin.y}
-
+	
 	origin_no_scroll : Vec2 = {canvas_p0.x,canvas_p0.y}
 	mouse_pos_in_canvas : Vec2
 	raw_mouse_p_in_canvas : Vec2
@@ -900,11 +997,18 @@ show_sprite_createor :: proc(){
 	sel_origin.x = origin.x + ((grid_offset.x) * (grid_step))
 	sel_origin.y = origin.y + ((grid_offset.y) * (grid_step))
 	selected_p := sel_origin
-
+	
+	//set_bounds_from_points(bounding_quad,&current_layer.bounds)
 	current_layer.bounds_quad = bounds_to_points(f2{origin.x,origin.y},current_layer.bounds,grid_step)
+	//draw bounds of current layer
+	bounds_color := Vec4{1,0,0,0.9}
+	if current_tool_mode == .Move{
+		bounds_color = Vec4{0,0,1,1}
+	}
 
 	drawn_rect : eng_m.f4
 	no_focus_action : 
+
 	if is_window_focused(Focused_Flags.None){
 		if raw_mouse_p_in_canvas.x < 0 || raw_mouse_p_in_canvas.y < 0{
 			break no_focus_action
@@ -937,6 +1041,7 @@ show_sprite_createor :: proc(){
 				flatten_group_init(current_group)
 				push_to_gpu()
 			}
+			
 		}else if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_down(Mouse_Button.Left){
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 			has_painted = true
@@ -1009,14 +1114,36 @@ show_sprite_createor :: proc(){
 	draw_list_add_rect_filled(draw_list,grid_offset_offset,grid_offset_size,color_convert_float4to_u32(Vec4{1,1,0,1}))
 	draw_list_add_rect_filled(draw_list,selected_p,selected_size,color_convert_float4to_u32(Vec4{1,0,1,0.25}))
 
-	
+	if current_tool_mode == .Rotate{
+		//redraw bounds based on rotated points
+		quad_copy := scratch_bounds_quad
+		quad_copy.br -= f2{origin.x,origin.y}
+		quad_copy.tl -= f2{origin.x,origin.y}
+		quad_copy.tr -= f2{origin.x,origin.y}
+		quad_copy.bl -= f2{origin.x,origin.y}
+		
+		bounds : BoundingRect
+		bounds.left = min(min(quad_copy.br.x,quad_copy.bl.x),min(quad_copy.tl.x,quad_copy.tr.x))
+		bounds.right = max(max(quad_copy.br.x,quad_copy.bl.x),max(quad_copy.tl.x,quad_copy.tr.x))
+
+		bounds.top = min(min(quad_copy.br.y,quad_copy.bl.y),min(quad_copy.tl.y,quad_copy.tr.y))
+		bounds.bottom = max(max(quad_copy.br.y,quad_copy.bl.y),max(quad_copy.tl.y,quad_copy.tr.y))
+
+		current_layer.bounds = bounds
+
+		p0 := f2_to_Vec2(scratch_bounds_quad.tl)
+		p1 := f2_to_Vec2(scratch_bounds_quad.bl)
+		p2 := f2_to_Vec2(scratch_bounds_quad.tr)
+		p3 := f2_to_Vec2(scratch_bounds_quad.br)
+		draw_list_add_quad(draw_list, p0,p1,p3,p2,color_convert_float4to_u32(bounds_color),2)
+		
+		bound_p_tl := Vec2{origin.x + bounds.left * grid_step,origin.y + bounds.top * grid_step}
+		bound_p_size := Vec2{origin.x + bounds.right * grid_step,origin.y + bounds.bottom * grid_step}
+		draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
+
+	}
+
 /*
-	bounds_origin : f2 = {origin.x + current_layer.bounds.left + ((current_layer.bounds.right - current_layer.bounds.left) / 2),origin.y + current_layer.bounds.top + ((current_layer.bounds.bottom - current_layer.bounds.top) / 2)}
-	f3_bo := f3{bounds_origin.x,bounds_origin.y,0}
-	tr :=  top + f3_bo + right
-	tl :=  top + f3_bo + -right
-	bl := -top + f3_bo + -right
-	br := -top + f3_bo + right
 	
 	ft := up * (height)
 	fr := right_dir * (width)
@@ -1031,28 +1158,12 @@ show_sprite_createor :: proc(){
 	draw_list_add_circle(draw_list, f2_to_Vec2(f2{bl.x,bl.y}),10,color_convert_float4to_u32(bounds_color))
 	draw_list_add_circle(draw_list, f2_to_Vec2(f2{br.x,br.y}),10,color_convert_float4to_u32(bounds_color))
 */
-	//draw bounds of current layer
-	bounds_color := Vec4{1,0,0,0.9}
-	if current_tool_mode == .Move{
-		bounds_color = Vec4{0,0,1,1}
-	}
-
+	
 	bound_p_tl := Vec2{origin.x + current_layer.bounds.left * grid_step,origin.y + current_layer.bounds.top * grid_step}
 	bound_p_size := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
 	
-	/*
-	bounding_quad := BoundingQuad{tl.xy,bl.xy,tr.xy,br.xy}//current_layer.bounds_quad
-	//tl
-	p0 := f2_to_Vec2(bounding_quad.tl)
-	//bl
-	p1 := f2_to_Vec2(bounding_quad.bl)
-	//tr
-	p2 := f2_to_Vec2(bounding_quad.tr)
-	//br
-	p3 := f2_to_Vec2(bounding_quad.br)
-	draw_list_add_quad(draw_list, p0,p1,p3,p2,color_convert_float4to_u32(bounds_color),1)
 	draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
-	*/
+
 	end()
 
 /*
