@@ -316,12 +316,13 @@ find_top_bounds :: proc(layer : Layer) -> i32{
 }
 
 find_left_bounds :: proc(layer : Layer)-> i32{
-	for col := 0;col < int(layer.size.x) - 1;col += int(layer.size.x) - 1{
+	stride := int(layer.size.x)
+	for col := 0;col < int(layer.size.x) - 1;col += 1{
 		for row := 0;row < int(layer.size.y) - 1;row += 1{
-			idx := col + row
+			idx := (row * stride) + col
 			texel := layer.grid[idx]
 			if texel != 0x00000000{
-				return i32(col)
+				return max(0,i32(col - 1))
 			}
 		}
 	}
@@ -329,9 +330,10 @@ find_left_bounds :: proc(layer : Layer)-> i32{
 }
 
 find_bottom_bounds :: proc(layer : Layer) -> i32{
-	for row := int(layer.size.y) - 1;row < int(layer.size.y) - 1;row-=1{
+	stride := int(layer.size.x)
+	for row := int(layer.size.y) - 1;row >= 0;row-=1{
 		for col := 0;col < int(layer.size.x ) - 1;col += 1{
-			texel := layer.grid[row + col]
+			texel := layer.grid[(row * stride) + col]
 			if texel != 0x00000000{
 				return i32(row)
 			}
@@ -341,12 +343,13 @@ find_bottom_bounds :: proc(layer : Layer) -> i32{
 }
 
 find_right_bounds :: proc(layer : Layer)-> i32{
-	for col := int(layer.size.x);col < int(layer.size.x) - 1;col -= 1{
+	stride := int(layer.size.x)
+	for col := int(layer.size.x);col >= 0;col -= 1{
 		for row := 0;row < int(layer.size.y) - 1;row += 1{
-			idx := col + row
+			idx := col + (row * stride)
 			texel := layer.grid[idx]
 			if texel != 0x00000000{
-				return i32(col)
+				return min(i32(stride),i32(col + 1))
 			}
 		}
 	}
@@ -940,7 +943,10 @@ show_sprite_createor :: proc(){
 			copy(current_layer.grid[:],scratch_grid[:])
 			current_layer.grid = temp_layer_grid
 			copy(current_layer.grid[:],scratch_grid[:])
-			//current_layer.bounds_quad = bounding_quad
+			current_layer.bounds.left = f32(find_left_bounds(current_layer^))
+			current_layer.bounds.right = f32(find_right_bounds(current_layer^))
+			current_layer.bounds.top = f32(find_top_bounds(current_layer^))
+			current_layer.bounds.bottom = f32(find_bottom_bounds(current_layer^))
 		}else{
 			tool_mode_change_request = .Rotate
 			//copy the starting point of the move into scratch
@@ -1121,7 +1127,8 @@ show_sprite_createor :: proc(){
 		quad_copy.tl -= f2{origin.x,origin.y}
 		quad_copy.tr -= f2{origin.x,origin.y}
 		quad_copy.bl -= f2{origin.x,origin.y}
-		
+
+/*		
 		bounds : BoundingRect
 		bounds.left = min(min(quad_copy.br.x,quad_copy.bl.x),min(quad_copy.tl.x,quad_copy.tr.x))
 		bounds.right = max(max(quad_copy.br.x,quad_copy.bl.x),max(quad_copy.tl.x,quad_copy.tr.x))
@@ -1130,16 +1137,16 @@ show_sprite_createor :: proc(){
 		bounds.bottom = max(max(quad_copy.br.y,quad_copy.bl.y),max(quad_copy.tl.y,quad_copy.tr.y))
 
 		current_layer.bounds = bounds
-
+*/
 		p0 := f2_to_Vec2(scratch_bounds_quad.tl)
 		p1 := f2_to_Vec2(scratch_bounds_quad.bl)
 		p2 := f2_to_Vec2(scratch_bounds_quad.tr)
 		p3 := f2_to_Vec2(scratch_bounds_quad.br)
 		draw_list_add_quad(draw_list, p0,p1,p3,p2,color_convert_float4to_u32(bounds_color),2)
 		
-		bound_p_tl := Vec2{origin.x + bounds.left * grid_step,origin.y + bounds.top * grid_step}
-		bound_p_size := Vec2{origin.x + bounds.right * grid_step,origin.y + bounds.bottom * grid_step}
-		draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
+//		bound_p_tl := Vec2{origin.x + bounds.left * grid_step,origin.y + bounds.top * grid_step}
+//		bound_p_size := Vec2{origin.x + bounds.right * grid_step,origin.y + bounds.bottom * grid_step}
+//		draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
 
 	}
 
