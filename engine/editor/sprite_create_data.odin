@@ -12,6 +12,7 @@ import strings "core:strings"
 import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
+import thread "core:thread"
 
 BoundingRect :: struct{
 	left : f32,
@@ -228,3 +229,4 @@ test_y : f32
 has_first_paint : bool
 test_selected_points : [dynamic]imgui.Vec2
 origin : imgui.Vec2
+mouse_input_thread : ^thread.Thread

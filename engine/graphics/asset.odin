@@ -174,7 +174,6 @@ assetctx_init :: proc(ctx : ^AssetContext)
     asset_tables.texture_cache =  anycache_init(u64,Texture,false)
 }
 
-
 load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cgltf.node,ctx : ^AssetContext,file_path : cstring, material : RenderMaterial,so_id : u64,type : SceneObjectType)
 {
     using enginemath;
@@ -188,10 +187,10 @@ load_meshes_recursively_gltf_node ::  proc(result : ^ModelLoadResult,node : cglt
         if child.has_matrix == true
         {
                     
-            out_mat = f4x4{{child.m[0],child.m[1],child.m[2],child.m[3]},
-                           {child.m[4],child.m[5],child.m[6],child.m[7]},
-                           {child.m[8],child.m[9],child.m[10],child.m[11]},
-                           {child.m[12],child.m[13],child.m[14],child.m[15]}};                                        
+            out_mat = f4x4{child.m[0],child.m[1],child.m[2],child.m[3],
+                           child.m[4],child.m[5],child.m[6],child.m[7],
+                           child.m[8],child.m[9],child.m[10],child.m[11],
+                           child.m[12],child.m[13],child.m[14],child.m[15]};                                        
         }
         else
         {
@@ -272,10 +271,10 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
                 out_mat := la.MATRIX4F32_IDENTITY;
                 if root_node.has_matrix == true
                 {
-                    out_mat = f4x4{{root_node.m[0],root_node.m[1],root_node.m[2],root_node.m[3]},
-                                   {root_node.m[4],root_node.m[5],root_node.m[6],root_node.m[7]},
-                                   {root_node.m[8],root_node.m[9],root_node.m[10],root_node.m[11]},
-                                   {root_node.m[12],root_node.m[13],root_node.m[14],root_node.m[15]}};                                        
+                    out_mat = f4x4{root_node.m[0],root_node.m[1],root_node.m[2],root_node.m[3],
+                                   root_node.m[4],root_node.m[5],root_node.m[6],root_node.m[7],
+                                   root_node.m[8],root_node.m[9],root_node.m[10],root_node.m[11],
+                                   root_node.m[12],root_node.m[13],root_node.m[14],root_node.m[15]};                                        
                 }
                 else
                 {
@@ -320,6 +319,7 @@ asset_load_model :: proc(ctx : ^AssetContext,file_path : cstring,material : Rend
     return result;        
 }
  a : int = 0
+
 create_mesh_from_cgltf_mesh  :: proc(ctx : ^AssetContext,ma : ^cgltf.mesh,material : RenderMaterial,path : string) -> enginemath.f2
 {
     using con;

@@ -224,8 +224,6 @@ engine_init :: proc(dim : enginemath.f2){
 
 			set_arena_constant_buffer(device.device, &matrix_gpu_arena, default_srv_desc_heap.count, default_srv_desc_heap.heap);
 			default_srv_desc_heap.count += 1;
-
-
 			engine_init_success = true
 		} else {
 			//Could not initialize graphics device.
@@ -235,8 +233,6 @@ engine_init :: proc(dim : enginemath.f2){
 	}
 
 	gfx.camera_system_init(20)
-	
-
 	editor.init_basic_viewers()
 	editor.init_sprite_creator()
 	init_called = true
@@ -262,14 +258,12 @@ engine_start :: proc(dim : enginemath.f2) {
 
 /*
 	g_pd3dSrvDescHeap : ID3D12DescriptorHeap;
-	
 	imgui_desc : platform.D3D12_DESCRIPTOR_HEAP_DESC;
 	imgui_desc.Type = .D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 	imgui_desc.NumDescriptors = 1;
 	imgui_desc.Flags = .D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 	g_pd3dSrvDescHeap = create_descriptor_heap(device.device,imgui_desc);
 	assert(g_pd3dSrvDescHeap.value != nil);
-
 */
 
 
@@ -297,7 +291,6 @@ engine_start :: proc(dim : enginemath.f2) {
 
 	scene := scenes["test"];
 
-
 	test_scene := scene_init("test");
 	rn_id      := scene_add_so(&asset_ctx, &test_scene.buffer, enginemath.f3{0, 0, 0}, QUATERNIONF32_IDENTITY, enginemath.f3{1, 1, 1}, "root_so");
 
@@ -306,7 +299,6 @@ engine_start :: proc(dim : enginemath.f2) {
 	root_t := transform_init();
 	root_so.transform = root_t;
 	buf_chk_in(&asset_ctx.scene_objects);
-
 
 	def_r := quaternion_angle_axis(degrees(cast(f32)0.0), enginemath.f3{0, 0, 1});
 

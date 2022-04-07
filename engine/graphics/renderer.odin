@@ -20,7 +20,6 @@ RenderCommand :: struct {
 	material_name:         string,
 }
 
-
 CustomRenderCommand :: struct {
 	geometry:              RenderGeometry,
 	material_id:           u64,
@@ -53,8 +52,6 @@ CustomRenderCommandList :: struct{
 RenderCommandList :: struct($list_type: typeid) {
 	list : list_type,
 }
-
-
 
 RenderProjectionPass :: struct {
 	matrix_buffer:      ^con.Buffer(enginemath.f4x4),

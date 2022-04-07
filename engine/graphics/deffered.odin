@@ -10,7 +10,6 @@ import "core:fmt"
 import enginemath "../math"
 import imgui "../external/odin-imgui"
 
-
 render       := renderer_init(40_000,GeometryRenderCommandList,RenderCommand)
 light_render := renderer_init(1_000,LightRenderCommandList,LightRenderCommand)
 custom_render := renderer_init(2_000,CustomRenderCommandList,CustomRenderCommand)

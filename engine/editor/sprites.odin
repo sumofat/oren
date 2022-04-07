@@ -7,14 +7,11 @@ import enginemath "../math"
 import ref "../reflecthelper"
 import mem "core:mem"
 import os "core:os"
-import path "core:path"
+import path "core:path/slashpath"
 import fmt "core:fmt"
 
-
 init_sprite_editor :: proc() {
-
 }
-
 
 show_sprite_editor :: proc(show: bool) {
 	using imgui

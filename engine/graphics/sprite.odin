@@ -244,7 +244,7 @@ init_sprite_render_system :: proc(cam_id : u64){
 
 	//tex := texture_from_file(strings.clone_to_cstring(default_sprite_path),4)
 	//layer.texture_id = texture_add(&asset_ctx,&tex,&default_srv_desc_heap)
-	default_layer_id := con.buf_push(&sprite_layers,layer)
+	default_layer_id = con.buf_push(&sprite_layers,layer)
 
 }
 
