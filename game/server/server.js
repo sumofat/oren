@@ -36,12 +36,11 @@ tcpserver.on('connection', function(sock) {
         //var serialized = packr.pack(data)
         var deserialized = packr.unpack(data)
         console.log(deserialized)
-
+/*
         insert(deserialized)
           .then(console.log)
           .catch(console.error)
           .finally(() => client.close());
-/*
         // Write the data back to all the connected, the client will receive it as data from the server
         sockets.forEach(function(sock, index, array) {
             sock.write(sock.remoteAddress + ':' + sock.remotePort + " said " + data + '\n');
@@ -64,15 +63,20 @@ tcpserver.on('connection', function(sock) {
 const client = new MongoClient(url);
 const dbName = 'gargame';
 
-async function insert(data){
+async function insert(){
   await client.connect();
   console.log('Connected successfully to server');
   const db = client.db(dbName);
   const collection = db.collection('slots');
-  const insertResult = await collection.insertMany([{test_struct : data}]);
-  console.log('Inserted documents =>', insertResult);
+const insertResult = await collection.insertMany([{ a: 1 }, { a: 2 }, { a: 3 }]);
+console.log('Inserted documents =>', insertResult);
     // the following code examples can be pasted here...
     return 'done.';
 }
 
+
+        insert()
+          .then(console.log)
+          .catch(console.error)
+          .finally(() => client.close());
 

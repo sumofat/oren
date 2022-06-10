@@ -150,7 +150,7 @@ init_sprite_creator :: proc(){
 
 
 	//init thread stuff for mouse sampleing etc..
-	sync.ticket_mutex_init(&mouse_sub_sample_tick_mut)
+	//sync.ticket_mutex_init(&mouse_sub_sample_tick_mut)
 	mouse_sub_samples = make([dynamic]eng_m.f2,0,0)
 	mouse_proc : thread.Thread_Proc = subsample_mouse_input
 	mouse_input_thread = thread.create_and_start(subsample_mouse_input)
@@ -159,10 +159,12 @@ mouse_sub_sample_tick_mut : sync.Ticket_Mutex
 mouse_sub_samples : [dynamic]eng_m.f2
 
 subsample_mouse_input :: proc(t: ^thread.Thread){
+	/*
 	sync.ticket_mutex_lock(&mouse_sub_sample_tick_mut)
 	defer{
 		sync.ticket_mutex_unlock(&mouse_sub_sample_tick_mut)
 	}
+	*/
 	prev_sample_x : i32
 	prev_sample_y : i32
 	for {
@@ -178,6 +180,26 @@ subsample_mouse_input :: proc(t: ^thread.Thread){
 		append(&mouse_sub_samples,p)	
 		if len(mouse_sub_samples) > 100{break}
 	}
+}
+
+begin_move :: proc(){
+	tool_mode_change_request = .Move
+	//copy the starting point of the move into scratch
+	copy(scratch_grid[:],current_layer.grid[:])
+	scratch_bounds = current_layer.bounds
+	scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step) 
+}
+
+end_move :: proc(){
+	tool_mode_change_request = .Brush
+}
+
+begin_rotate :: proc(){
+
+}
+
+end_rotate :: proc(){
+
 }
 
 show_sprite_createor :: proc(){
@@ -280,6 +302,7 @@ show_sprite_createor :: proc(){
 			same_line()
 			if button(fmt.tprintf("select %d",i)){
 				current_layer_id = i32(i)
+				//reset_selection_grid()
 			}
 			same_line()
 			if button(fmt.tprintf("view/hide %d",i)){
@@ -332,23 +355,19 @@ show_sprite_createor :: proc(){
 		end_list_box()
 	}
 
-
 	combo("Layers",&current_layer_id,current_group.layers_names.buffer[:])
 
 	if button("Move"){
 		if current_tool_mode == .Move{
-			tool_mode_change_request = .Brush
+			end_move()
 		}else{
-			tool_mode_change_request = .Move
-			//copy the starting point of the move into scratch
-			copy(scratch_grid[:],current_layer.grid[:])
-			scratch_bounds = current_layer.bounds
-			scratch_bounds_quad = bounds_to_points(canvas_origin,scratch_bounds,grid_step) 
+			begin_move()
 		}
 	}
 
 	if button("Rotate"){
 		if current_tool_mode == .Rotate{
+			//end_rotate()
 			tool_mode_change_request = .Brush
 			copy(current_layer.grid[:],scratch_grid[:])
 			current_layer.grid = temp_layer_grid
@@ -358,14 +377,15 @@ show_sprite_createor :: proc(){
 			current_layer.bounds.top = f32(find_top_bounds(current_layer^))
 			current_layer.bounds.bottom = f32(find_bottom_bounds(current_layer^))
 		}else{
+			//begin_rotate()
 			tool_mode_change_request = .Rotate
 			//copy the starting point of the move into scratch
 			copy(scratch_grid[:],current_layer.grid[:])
 			temp_layer_grid = current_layer.grid
 			current_layer.grid = scratch_grid
-			for texel in &current_selection.grid{
-				texel = 0x00000000
-			}
+
+			reset_selection_grid()
+
 			flatten_group_init(current_group)
 			push_to_gpu()
 
@@ -433,31 +453,27 @@ show_sprite_createor :: proc(){
 		if raw_mouse_p_in_canvas.x < 0 || raw_mouse_p_in_canvas.y < 0{
 			break no_focus_action
 		}
+
 		if current_tool_mode == .Move && tool_mode_change_request == .Move && is_mouse_down(Mouse_Button.Left){
 			//and movemode is true and mouse down left button held
 			//offset the pixels in the direction of the 
 			//keeping the pixels alive even if they go off the canvas 
 			//and only finalizing after enter is pushed.
 
-//for now the selection is the whole layer.
+			//for now the selection is the whole layer.
 			is_moved_true := move_selection(current_layer,grid_offset,current_selection)
 			if is_moved_true{
 				copy(current_layer.grid[:],current_selection.grid[:])
-				for texel in &current_selection.grid{
-					texel = 0x00000000
-				}
+				reset_selection_grid()
 				flatten_group_init(current_group)
 				push_to_gpu()	
 			}
-			
 		}else if current_tool_mode == .Rotate && tool_mode_change_request == .Rotate && is_mouse_down(Mouse_Button.Left){
 			test_angle += f64( io.mouse_delta.x)
 			is_rotate_true := rotate_selection(origin,current_layer,test_angle,current_selection)
 			if is_rotate_true {
 				copy(current_layer.grid[:],current_selection.grid[:])
-				for texel in &current_selection.grid{
-					texel = 0x00000000
-				}
+				reset_selection_grid()
 				flatten_group_init(current_group)
 				push_to_gpu()
 			}
@@ -465,10 +481,12 @@ show_sprite_createor :: proc(){
 		}else if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_down(Mouse_Button.Left){
 			prev_mouse_p := io.mouse_pos
 			//println("start")
+			/*
 			sync.ticket_mutex_lock(&mouse_sub_sample_tick_mut)
 			defer{
 				sync.ticket_mutex_unlock(&mouse_sub_sample_tick_mut)
 			}
+
 			for mouse_sample in mouse_sub_samples{
 				io.mouse_pos = imgui.Vec2{f32(mouse_sample.x),f32(mouse_sample.y)};	
 				//println(f2{grid_offset.x,grid_offset.y})
@@ -491,7 +509,8 @@ show_sprite_createor :: proc(){
 			//println("end")
 			io.mouse_pos = prev_mouse_p
 			
-			//	drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
+			*/
+			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 
 			has_painted = true
 			has_first_paint = true
@@ -502,8 +521,6 @@ show_sprite_createor :: proc(){
 			has_painted = true
 			has_first_paint = true
 		}
-
-
 
 		if is_mouse_down(Mouse_Button.Middle){
 			scrolling.x += io.mouse_delta.x
@@ -517,6 +534,7 @@ show_sprite_createor :: proc(){
 			//current_undo_id = buf_push(&urdo.actions,pa)
 			insert_undo(pa)
 		}
+
 		if current_tool_mode == .Brush && tool_mode_change_request == .Brush && is_mouse_released(Mouse_Button.Right){
 			is_started_paint = false
 			pa : PaintAdd
@@ -526,7 +544,6 @@ show_sprite_createor :: proc(){
 		}
 
 		grid_step += (io.mouse_wheel * 0.1)
-
 	}
 
 	set_cursor_screen_pos(origin)
@@ -583,8 +600,6 @@ show_sprite_createor :: proc(){
 	bound_p_size := Vec2{origin.x + current_layer.bounds.right * grid_step,origin.y + current_layer.bounds.bottom * grid_step}
 	draw_list_add_rect(draw_list,bound_p_tl,bound_p_size,color_convert_float4to_u32(bounds_color))
 	end()
-
-
 
 	if !begin("Animator Editor"){
 	}

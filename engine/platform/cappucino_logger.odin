@@ -72,7 +72,7 @@ logError :: #force_inline proc(ident : string, fmtString : string, args : ..any)
 logFatal :: #force_inline proc(ident : string, fmtString : string, args : ..any) {
     str := fmt.tprintf(fmtString, ..args);
     log.logf(Fatal, "FATAL {} fail! {}\n", ident, str);
-    when ODIN_DEBUG do intrinsics.debug_trap() else do intrinsics.trap();
+    //when ODIN_DEBUG do intrinsics.debug_trap() else do intrinsics.trap();
 }
 
 // -----------------------------------------------------------------------------------

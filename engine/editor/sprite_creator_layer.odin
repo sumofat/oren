@@ -13,8 +13,7 @@ import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
 import linalg "core:math/linalg"
-
-
+import m "core:math/linalg/hlsl"
 //Layers
 init_layer_group :: proc(name : string) -> LayerGroup{
 	result : LayerGroup
@@ -410,6 +409,40 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size
 	return drawn_rect
 }
 
+calculate_dim_of_extents :: proc(from : m.float2,to : m.float2,brush_size : f32) -> m.float4{
+	result : m.float4	
+	
+
+	return result
+}
+
+test_is_p_in_volume :: proc(from : m.float2,to : m.float2,brush_size : f32) -> bool{
+	result : bool
+
+	return result
+}
+
+/*
+paint_from_to :: proc(from : m.float2,to : m.float2,layer : ^Layer,color : u32,brush_size : i32) -> (draw_rect : eng_m.f4){
+
+	//algorithm
+	//go from first to second point sample pixels inside check coverage if over 0.5 paint
+	//get a subset of possible pixels based on bounding box and iterate by scanline checking  
+	//if we are inside the sum
+	
+	bounds := calculate_dim_of_extents(from,to,f32(brush_size))
+
+	for y := bounds.top;y < bounds.bottom;y+=1{
+		for x := bounds.left;x < bounds.right;x+=1{
+			pixel_of_x := grid[x][y]
+			if test_is_p_in_volume(from,to,brush_size,pixel_of_x.p){
+				paint_pixel_at_p(pixel_of_x)
+			}
+		}
+	}
+}
+*/
+
 flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
@@ -483,5 +516,12 @@ flatten_group_init :: proc(group : ^LayerGroup){
 			}
 		}
 		prev_layer_id = layer_id
+	}
+}
+
+reset_selection_grid :: proc(){
+	copy(current_layer.grid[:],current_selection.grid[:])
+	for texel in &current_selection.grid{
+		texel = 0x00000000
 	}
 }

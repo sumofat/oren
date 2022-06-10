@@ -358,6 +358,7 @@ engine_start :: proc(dim : enginemath.f2) {
 	//game object setup 	
 	//	test_model_result := asset_load_model(&asset_ctx,"data/BoxTextured.glb",mesh_material);
 	test_model_result   := asset_load_model(&asset_ctx, "data/Lantern.glb", mesh_material);
+	//test_model_result   := asset_load_model(&asset_ctx, "data/glTF/sponza.gltf", mesh_material);
 	test_model_instance := create_model_instance(&asset_ctx, test_model_result);
 
 	light_sphere_model_result := asset_load_model(&asset_ctx, "data/sphere.glb", mesh_material, SceneObjectType.light);
