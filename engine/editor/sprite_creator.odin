@@ -19,6 +19,10 @@ import sync "core:sync"
 
 //TODO(Ray): Sprite Editor
 /*
+# Architecture
+	| In general the code for doing graphics needs to be revamped and cleaned up.
+	| 
+	| We need a concept for a copyable texture/buffer to the gpu right now its very cumbersome
 # brushes
 	| The whole painting algorith needs to be redone perhaps with a volume
 	| calculated per frame that is painted in rather than just stamping the brush per frame.
@@ -109,8 +113,8 @@ init_sprite_creator :: proc(){
 	group_names = con.buf_init(0,string)
 	layer_groups = con.buf_init(0,LayerGroup)
 	layer_master_list = con.buf_init(0,Layer)
-	scratch_grid = make([dynamic]u32,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
-	current_selection.grid = make([dynamic]u32,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
+	scratch_grid = make([dynamic]eng_m.f4,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
+	current_selection.grid = make([dynamic]eng_m.f4,int(default_size.x * default_size.y),int(default_size.x * default_size.y))
 	
 	urdo.actions = con.buf_init(0,ActionsTypes)
 	stroke =  con.buf_init(0,ActionPaintPixelDiffData)
@@ -122,11 +126,12 @@ init_sprite_creator :: proc(){
 	using gfx
 
 	//create a gpu texture that can be written to by the cpu
-	gfx.image_blank(&texture,default_size,4,4)
-	heap_idx := gfx.texture_add(&texture,&gfx.default_srv_desc_heap)
+	//4 32 bit float format
+	gfx.image_blank(&texture,default_size,4,(4* 4)) 
+	heap_idx := gfx.texture_add_format(&texture,platform.DXGI_FORMAT.DXGI_FORMAT_R32G32B32A32_FLOAT,&gfx.default_srv_desc_heap)
 	blank_image_gpu_handle = gfx.get_gpu_handle_srv(gfx.device,gfx.default_srv_desc_heap.heap.value,heap_idx)
 
-	max_gpu_buffer_size : u64 = u64(size_of(u32) * default_size.x * default_size.y)
+	max_gpu_buffer_size : u64 = u64(4 * 4 * default_size.x * default_size.y)
 	buffer_gpu_arena = AllocateGPUArena(device.device, max_gpu_buffer_size)
 	
 	set_arena_constant_buffer(device.device, &buffer_gpu_arena, default_srv_desc_heap.count, default_srv_desc_heap.heap)
@@ -147,7 +152,6 @@ init_sprite_creator :: proc(){
 	has_first_paint = false
 	current_tool_mode = .Brush
 	tool_mode_change_request = .Brush
-
 
 	//init thread stuff for mouse sampleing etc..
 	//sync.ticket_mutex_init(&mouse_sub_sample_tick_mut)
@@ -195,11 +199,9 @@ end_move :: proc(){
 }
 
 begin_rotate :: proc(){
-
 }
 
 end_rotate :: proc(){
-
 }
 
 show_sprite_createor :: proc(){
@@ -216,7 +218,7 @@ show_sprite_createor :: proc(){
 	}
 
 	color : Vec4 
-	@static colora : [4]f32 = {0,0,0,1}
+	@static colora : eng_m.f4 = {0,0,0,1}
 	@static current_group_id : i32 = 0
 	@static prev_group_id  : i32 = 0
 
@@ -251,7 +253,7 @@ show_sprite_createor :: proc(){
 		current_layer_id = 0
 	}
 
-	color_edit4("ColorButton",&colora)
+	//color_edit4("ColorButton",([]eng_m.f4)(colora))
 	checkbox("Show Grid",&is_show_grid)
 	input_int("Brush Size",&current_brush_size)
 	if is_show_grid  == false{
@@ -260,7 +262,7 @@ show_sprite_createor :: proc(){
 		grid_color = Vec4{0.6,0.6, 0.6, 1}
 	}
 
-	selected_color = color_convert_float4to_u32(Vec4{colora[0],colora[1],colora[2],colora[3]})
+	selected_color = {0,0,0,1}//eng_m.f4(colora)//color_convert_float4to_u32(Vec4{colora[0],colora[1],colora[2],colora[3]})
 
 	input_text("Layer Name",transmute([]u8)input_layer_name)
 	same_line()
@@ -508,8 +510,8 @@ show_sprite_createor :: proc(){
 			}
 			//println("end")
 			io.mouse_pos = prev_mouse_p
-			
 			*/
+
 			drawn_rect = paint_on_grid_at(f2{grid_offset.x,grid_offset.y},current_layer,selected_color,current_brush_size)
 
 			has_painted = true
@@ -617,9 +619,6 @@ show_sprite_createor :: proc(){
 
 	end()
 	prev_group_id = current_group_id
-
-	
-
 
 	//Action HIstory
 	if !begin("History Viewer"){
@@ -751,7 +750,6 @@ show_sprite_createor :: proc(){
 
 	end()
 
-	//
 	if current_tool_mode != tool_mode_change_request{
 		current_tool_mode = tool_mode_change_request
 	}

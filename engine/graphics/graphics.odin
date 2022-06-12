@@ -818,6 +818,7 @@ texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Res
 	}
 
 	req_size := GetIntermediateSize(tex_resource.state, 0, 1);
+
 	res_d: D3D12_RESOURCE_DESC = {
 		.D3D12_RESOURCE_DIMENSION_BUFFER,
 		0,
@@ -833,16 +834,11 @@ texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Res
 
 	subresourceData: D3D12_SUBRESOURCE_DATA;
 	subresourceData.pData = lt.texels;
-
-	// TODO(Ray Garner): Handle minimum size for alignment.
-	//This wont work for a smaller texture im pretty sure.
-	subresourceData.RowPitch = cast(int)(cast(u32)lt.dim.x * lt.bytes_per_pixel);
-	subresourceData.SlicePitch = subresourceData.RowPitch;
+	subresourceData.RowPitch = cast(int)(cast(u32)lt.dim.x * lt.bytes_per_pixel)
+	subresourceData.SlicePitch = subresourceData.RowPitch * int(lt.dim.y)
 
 	// Create a temporary (intermediate) resource for uploading the subresources
-
 	uop: UploadOp;
-
 	intermediate_resource: rawptr; /*ID3D12Resource**/
 	hr: windows.HRESULT = CreateCommittedResource(
 	                                              device.device,
@@ -855,9 +851,7 @@ texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Res
 
 	//    uop.temp_arena.resource.SetName(L"TEMP_UPLOAD_TEXTURE");
 	assert(hr == 0);
-
 	hr = D3D12UpdateSubresources(resource_cl, tex_resource.state, uop.temp_arena.resource, 0, 0, 1, &subresourceData);
-
 	CheckFeatureSupport(device.device, platform.D3D12_FEATURE.D3D12_FEATURE_FORMAT_SUPPORT, &tex_resource.format_support, size_of(platform.D3D12_FEATURE.D3D12_FEATURE_FORMAT_SUPPORT));
 
 	lt.state = tex_resource.state;
@@ -880,7 +874,6 @@ texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Res
 		//copy_command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
 		ExecuteCommandLists(copy_command_queue, mem.raw_slice_data(command_lists[:]), cast(u32)len(command_lists));
 		upload_operations.fence_value = Signal(copy_command_queue, upload_operations.fence, &upload_operations.fence_value);
-
 		WaitForFenceValue(upload_operations.fence, upload_operations.fence_value, upload_operations.fence_event, F32_MAX);
 
 		//If we have gotten here we remove the temmp transient resource. and remove them from the cache
@@ -888,7 +881,6 @@ texture_2d :: proc(lt: ^Texture, heap_index: u32, tex_resource: ^platform.D12Res
 			finished_uop: ^UploadOp = con.buf_ptr(&upload_operations.table_cache.anythings, cast(u64)i);
 			// NOTE(Ray Garner): Upload should always be a copy operation and so we cant/dont need to 
 			//call discard resource.
-
 			//finished_uop->temp_arena.resource->Release();
 			k_: UploadOpKey = {finished_uop.id};
 			con.anycache_remove_free_list(&upload_operations.table_cache, k_);

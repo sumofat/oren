@@ -764,17 +764,16 @@ draw_imgui :: proc(command_list : rawptr,imgui_heap : rawptr){
         dst_union}
 
     buffer_footprint : D3D12_SUBRESOURCE_FOOTPRINT = {
-       .DXGI_FORMAT_R8G8B8A8_UNORM,
+       .DXGI_FORMAT_R32G32B32A32_FLOAT,
         u32(current_image_size.x),//Width  : c.uint,
         u32(current_image_size.y),
         1,
-        u32(current_image_size.x) * size_of(u32),//must be aligned to 256 byte boundary
+        u32(current_image_size.x) * 4 * 4,//size_of(32),//must be aligned to 256 byte boundary
     }
 
     src_union : D3D12_TEXTURE_COPY_UNION
     src_union.PlacedFootprint.Offset = 0
     src_union.PlacedFootprint.Footprint = buffer_footprint
-    
 
     src_loc : D3D12_TEXTURE_COPY_LOCATION = {
             src_buffer_resource,

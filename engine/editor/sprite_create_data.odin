@@ -31,8 +31,8 @@ BoundingQuad :: struct{
 ActionPaintPixelDiffData :: struct{
 	idx : i32,
 	layer_id : i32,
-	color : u32,
-	prev_color : u32,
+	color : eng_m.f4,
+	prev_color : eng_m.f4,
 }
 
 PaintStroke :: struct{
@@ -95,7 +95,7 @@ Zoxel :: struct{
 Layer :: struct{
 	id : i32,
 	name : string,
-	grid : [dynamic]u32,
+	grid : [dynamic]eng_m.f4,
 	is_show : bool,
 	is_solo : bool,	
 	size : eng_m.f2,
@@ -136,7 +136,7 @@ Selection ::	 struct{
 	size : eng_m.f2,//always the same size as the current layer
 	//bounds : BoundingRect,
 	bounds_quad : BoundingQuad,
-	grid : [dynamic]u32,
+	grid : [dynamic]eng_m.f4,
 }	
 
 /*		
@@ -158,7 +158,7 @@ LayerCache :: struct{
 	id : i32,
 	layer_id : i32,
 	size : eng_m.f2,
-	grid : [dynamic]u32,
+	grid : [dynamic]eng_m.f4,
 }
 
 LayerGroup :: struct{
@@ -167,7 +167,7 @@ LayerGroup :: struct{
 	layer_ids : con.Buffer(i32),
 	layers_names : con.Buffer(string),
 	gpu_image_id : u64,
-	grid : [dynamic]u32,
+	grid : [dynamic]eng_m.f4,
 	size : eng_m.f2,
 	size_in_bytes : int,
 	current_layer_id : i32,
@@ -184,7 +184,7 @@ preview_grid_step : f32 = 6
 current_group : ^LayerGroup
 current_layer : ^Layer
 
-selected_color : u32
+selected_color : eng_m.f4
 is_show_grid : bool = true
 grid_color := imgui.Vec4{50, 500, 50, 40}
 
@@ -218,8 +218,8 @@ tool_mode_change_request : ToolMode
 
 scratch_bounds : BoundingRect
 scratch_bounds_quad : BoundingQuad
-scratch_grid : [dynamic]u32
-temp_layer_grid : [dynamic]u32
+scratch_grid : [dynamic]eng_m.f4
+temp_layer_grid : [dynamic]eng_m.f4
 
 canvas_origin : eng_m.f2
 

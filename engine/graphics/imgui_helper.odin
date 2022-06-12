@@ -10,16 +10,17 @@ import reflect_helper "../reflecthelper"
 import reflect "core:reflect"
 import mem "core:mem"
 
+//TODO(Ray):Need to fixed these to work with multipointers
 input_matrix4x4 :: proc(f4x4value : enginemath.f4x4){
-	imgui.input_float4("",cast([4]f32)f4x4value[0])
-	imgui.input_float4("",cast([4]f32)f4x4value[1])
-	imgui.input_float4("",cast([4]f32)f4x4value[2])
-	imgui.input_float4("",cast([4]f32)f4x4value[3])
+	//imgui.input_float4("",cast([4]f32)f4x4value[0])
+	//imgui.input_float4("",cast([4]f32)f4x4value[1])
+	//imgui.input_float4("",cast([4]f32)f4x4value[2])
+	//imgui.input_float4("",cast([4]f32)f4x4value[3])
 }
 
 print_quat :: proc(data : rawptr){
 	quat_value := (cast(^enginemath.Quat)data)^
-	imgui.input_float4("quat",transmute([4]f32)quat_value)
+	//imgui.input_float4("quat",transmute([4]f32)quat_value)
 }
 
 print_float :: proc(data : rawptr){
@@ -30,22 +31,22 @@ print_float :: proc(data : rawptr){
 //TODO(Ray):Major issue with something getting passed unexpectedly
 print_f2 :: proc(data : rawptr){
 	f2value := cast(^[2]f32)((cast(^enginemath.f2)data))
-	imgui.input_float2("f2",f2value)
+	//imgui.input_float2("f2",f2value)
 }
 
 print_f3 :: proc(data : rawptr){
 	f3value := (cast(^enginemath.f3)data)^
-	imgui.input_float3("f3",cast([3]f32)f3value)
+	//imgui.input_float3("f3",cast([3]f32)f3value)
 }
 
 print_f4 :: proc(data : rawptr){
 	value := (cast(^enginemath.f4)data)^
-	imgui.input_float4("f4",cast([4]f32)value)
+//	imgui.input_float4("f4",cast([4]f32)value)
 }
 
 print_f4x4 :: proc(data : rawptr){
 	f4x4value :=  (cast(^enginemath.f4x4)data)^
-	input_matrix4x4(f4x4value)
+//	input_matrix4x4(f4x4value)
 }
 
 print_buffer :: proc(type : ^runtime.Type_Info,data : rawptr){

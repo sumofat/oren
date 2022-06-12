@@ -13,6 +13,7 @@ import reflect "core:reflect"
 import runtime "core:runtime"
 import mem "core:mem"
 import linalg "core:math/linalg"
+import simd "core:simd"
 
 //Convience functions
 unpack_color_32 :: proc(color : u32)-> [4]u8{
@@ -28,8 +29,9 @@ pack_color_32 :: proc(colors : [4]u8) -> u32{
 	return u32((colors[0]) | (colors[1] << 8) | (colors[2] << 16) | (colors[3] << 24) )
 }
 
+
 //Blend OP functions
-blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
+old_blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
 	result_unpacked : [4]u8
 	blend_channels := unpack_color_32(blend)
 	base_channels :=  unpack_color_32(base)
@@ -47,7 +49,28 @@ blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
-blend_op_normal :: proc(base : u32,blend : u32) -> u32{
+//Blend OP functions
+blend_op_multiply :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+	result_unpacked : eng_m.f4
+	//blend_channels := unpack_color_32(blend)
+	//base_channels :=  unpack_color_32(base)
+	a2 := blend[3]//f32(blend_channels[3]) / 255.0
+	a1 := base[3]//f32(base_channels[3])  / 255.0
+	for i in 0..2{
+		bl := blend[i]//f32(blend_channels[i]) / 255.0
+		ba := base[i]//f32(base_channels[i]) / 255.0
+		bl = clamp(bl * ba,0.0,1.0)
+		result_unpacked[i] = clamp(f32((ba * (1-a2) + bl * (a2))),0,1)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
+	}
+
+	result_unpacked[3] = 1//255
+
+	final_color : eng_m.f4 = {1,1,1,1}//u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
+
+	return final_color
+}
+
+old_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	result_unpacked : [4]u8
 	blend_channels := unpack_color_32(blend)
 	base_channels :=  unpack_color_32(base)
@@ -64,7 +87,21 @@ blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
-
+blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+	result_unpacked : eng_m.f4
+	//blend_channels := unpack_color_32(blend)
+	//base_channels :=  unpack_color_32(base)
+	a2 := blend[3]//f32(blend_channels[3]) / 255.0
+	a1 := base[3]//f32(base_channels[3])  / 255.0
+	for i in 0..2{
+		bl := blend[i]//f32(blend_channels[i]) / 255.0
+		ba := base[i]//f32(base_channels[i]) / 255.0
+		result_unpacked[i] = clamp(f32((ba * (1-a2) + bl * (a2))),0,1)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
+	}		
+	result_unpacked[3] = 1//255//blend_channels[3]
+	//final_color : eng_m.f4 = //u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
+	return result_unpacked//final_color
+}
 
 bounds_to_points :: proc(origin : eng_m.f2,bounds : BoundingRect,grid_step : f32) -> BoundingQuad{
 	using eng_m
@@ -157,7 +194,7 @@ push_to_gpu :: proc(){
 		}
 	}
 	if found == true{
-		mem.copy(mapped_buffer_data,mem.raw_dynamic_array_data(top_layer.cache.grid),(cast(int)len(current_group.grid) - 1) * size_of(u32))
+		mem.copy(mapped_buffer_data,mem.raw_dynamic_array_data(top_layer.cache.grid),(cast(int)len(current_group.grid) - 1) * size_of(eng_m.f4))
 	}
 }
 

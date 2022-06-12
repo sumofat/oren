@@ -625,27 +625,33 @@ image_from_file :: proc(filename : cstring,texture : ^Texture ,desired_channels 
     texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
 }
 
+//TODO(Ray):In teh case of different formats this will NOT always write to all the pixels.
 image_blank :: proc(texture : ^Texture,dim : enginemath.f2,desired_channels : i32,bytes_per_pixel : i32){
+	assert(bytes_per_pixel % 4 == 0)
     dimx : i32 = i32(dim.x)
     dimy : i32 = i32(dim.y)
     texture.bytes_per_pixel = u32(bytes_per_pixel)
     texture.size = cast(u32)(dimx * dimy * cast(i32)texture.bytes_per_pixel);
-
     texture.texels = mem.alloc(int(texture.size))
-    texture.dim = enginemath.f2{cast(f32)dimx,cast(f32)dimy};
+    texture.dim = enginemath.f2{cast(f32)dimx,cast(f32)dimy}
+//	adjusted_dim := texture.dim * enginemath.f2{f32(texture.bytes_per_pixel),f32(texture.bytes_per_pixel)};
     texture.width_over_height = cast(f32)(dimx / dimy);
-    stride := dimx
-    for row := 0;row < int(texture.dim.x); row +=1{
-        for col := 0;col < int(texture.dim.y); col += 1{
-            texel := mem.ptr_offset(cast(^u32)texture.texels,(i32(row) * stride) + i32(col))
-            texel^ = 0xFF0000FF
-        }
-    }
+    stride := texture.dim.x
 
-    // NOTE(Ray Garner):stbi_info always returns 8bits/1byte per channels if we want to load 16bit or float need to use a 
-    //a different api. for now we go with this. 
-    //Will probaby need a different path for HDR textures etc..
-    texture.bytes_per_pixel = cast(u32)desired_channels;
+	
+	iterator_count : int = int(bytes_per_pixel) / 4
+	for x := 0;x < int(texture.size) / 4;x += 1{
+		texel := mem.ptr_offset(cast(^f32)texture.texels,x)
+		texel^ = 1.0
+	}
+	/*
+    for row := 0;row < int(texture.dim.x); row += 1{
+        for col := 0;col < int(texture.dim.y) * iterator_count; col += iterator_count{
+            texel := mem.ptr_offset(cast(^enginemath.f4)texture.texels,(i32(row) * i32(stride)) + i32(col))
+            texel^ = {1,1,1,1}//0xFF0000FF
+        }
+    }*/
+
     texture.align_percentage = enginemath.f2{0.5,0.5};
     texture.channel_count = cast(u32)desired_channels;
 }
@@ -735,7 +741,7 @@ get_texture_from_file :: proc(path : string,heap : ^GPUHeap = nil) -> (texture :
     }
 }
 
-texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
+texture_add_format :: proc(texture : ^Texture,in_format : platform.DXGI_FORMAT,heap : ^GPUHeap) -> (heap_id : u64)
 {
     using con;
     assert(heap != nil)
@@ -760,7 +766,7 @@ texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
     
     srvDesc2 : platform.D3D12_SHADER_RESOURCE_VIEW_DESC;
     srvDesc2.Shader4ComponentMapping = platform.D3D12_ENCODE_SHADER_4_COMPONENT_MAPPING(0,1,2,3);
-    srvDesc2.Format = platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc2.Format = in_format;
     srvDesc2.ViewDimension = platform.D3D12_SRV_DIMENSION.D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc2.Buffer.Texture2D.MipLevels = 1;
 
@@ -775,11 +781,11 @@ texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
     
     res_d : D3D12_RESOURCE_DESC  = {
 	.D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-        0,
+	0,
   	cast(u64)texture.dim.x,
 	cast(u32)texture.dim.y,
 	1,0,
-	.DXGI_FORMAT_R8G8B8A8_UNORM,
+	in_format,
 	sd,
 	.D3D12_TEXTURE_LAYOUT_UNKNOWN,
 	.D3D12_RESOURCE_FLAG_NONE,
@@ -793,7 +799,7 @@ texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
             1,
             1,
         };
-    
+
     CreateCommittedResource(device.device,
         &hp,
         .D3D12_HEAP_FLAG_NONE,
@@ -801,13 +807,20 @@ texture_add :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
         .D3D12_RESOURCE_STATE_COMMON,
         nil,
         &tex_resource.state);
-    
+
     CreateShaderResourceView(device.device,tex_resource.state, &srvDesc2, hmdh);
 
     texture_2d(texture,cast(u32)heap_index,&tex_resource,heap.heap.value);
 
     return heap_index
 }
+
+texture_add_default :: proc(texture : ^Texture,heap : ^GPUHeap) -> (heap_id : u64)
+{
+    return texture_add_format(texture,platform.DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM,heap)
+}
+
+texture_add :: proc{texture_add_format,texture_add_default}
 
 load_texture_from_path_to_default_heap :: proc(path : string) -> u64{
     return load_texture_from_path(path,&default_srv_desc_heap)

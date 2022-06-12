@@ -154,7 +154,7 @@ ImGui_ImplWin32_Init :: proc(hwnd : win32.Hwnd) -> bool{
     bd.Time = perf_counter;
     bd.LastMouseCursor = Mouse_Cursor.Count;// ImGuiMouseCursor_COUNT;
 
-    io.ime_window_handle = hwnd;
+//    io.ime_window_handle = hwnd;
 
     // Keyboard mapping. Dear ImGui will use those indices to peek into the io.KeysDown[] array that we will update during the application lifetime.
     io.key_map[imgui.Key.Tab] = win32.VK_TAB;
@@ -172,7 +172,7 @@ ImGui_ImplWin32_Init :: proc(hwnd : win32.Hwnd) -> bool{
     io.key_map[Key.Space] = win32.VK_SPACE;
     io.key_map[Key.Enter] = win32.VK_RETURN;
     io.key_map[Key.Escape] = win32.VK_ESCAPE;
-    io.key_map[Key.KeyPadEnter] = win32.VK_RETURN;
+    //io.key_map[Key.KeyPadEnter] = win32.VK_RETURN;
     io.key_map[Key.A] = 'A';
     io.key_map[Key.C] = 'C';
     io.key_map[Key.V] = 'V';

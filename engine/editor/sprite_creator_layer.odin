@@ -24,7 +24,7 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 
 	result.name = strings.clone(name)
 	result.layers_names = con.buf_init(0,string)
-	result.grid = make([dynamic]u32,int(default_layer.size.x * default_layer.size.y),int(default_layer.size.x * default_layer.size.y))
+	result.grid = make([dynamic]eng_m.f4,int(default_layer.size.x * default_layer.size.y),int(default_layer.size.x * default_layer.size.y))
 	//result.layers = con.buf_init(0,Layer)
 	result.size = default_layer.size
 	result.size_in_bytes = int(default_layer.size.x * default_layer.size.y)
@@ -36,7 +36,7 @@ init_layer_group :: proc(name : string) -> LayerGroup{
 
 	default_layer_ptr := con.buf_ptr(&layer_master_list,u64(master_layer_id))
 	for zoxel in &default_layer_ptr.grid{
-		color :u32 = 0xFFFFFFFF
+		color : eng_m.f4 = {1,1,1,1}//0xFFFFFFFF
 		zoxel = color
 	}
 	
@@ -63,13 +63,13 @@ add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	new_layer.bounds.top = max(f32)
 	new_layer.bounds.left = max(f32)
 	group.current_layer_id += 1
-	new_layer.grid = make([dynamic]u32,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+	new_layer.grid = make([dynamic]eng_m.f4,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
 	
 	lc : LayerCache
 	//lc.id = i32(con.buf_len(layer_cache_list))
 	lc.layer_id = layer_id
 	lc.size = layer_desc.size
-	lc.grid = make([dynamic]u32,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
+	lc.grid = make([dynamic]eng_m.f4,int(layer_desc.size.x * layer_desc.size.y),int(layer_desc.size.x * layer_desc.size.y))
 	
 	new_layer.cache = lc
 
@@ -84,6 +84,7 @@ add_layer :: proc(group : ^LayerGroup, layer_desc : Layer)  -> (layer_id : i32){
 	
 	flatten_group_init(group)
 	push_to_gpu()
+
 	//TODO(Ray):Reinstate this later.
 /*
 	la : LayerAdd
@@ -286,10 +287,8 @@ rotate_selection :: proc(origin : imgui.Vec2,layer : ^Layer,degrees : f64,select
 	br := -top + f3_bo + right
 
 	scratch_bounds_quad = BoundingQuad{tl.xy,bl.xy,tr.xy,br.xy}
-	
 	return true
 }
-
 
 find_top_bounds :: proc(layer : Layer) -> i32{
 	for texel,i in layer.grid[:]{
@@ -341,11 +340,10 @@ find_right_bounds :: proc(layer : Layer)-> i32{
 	return max(i32)
 }
 
-
 //painting ops 
 start_stroke_idx : u64
 end_stroke_idx : u64
-paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size : i32) -> (draw_rect : eng_m.f4){
+paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : eng_m.f4,brush_size : i32) -> (draw_rect : eng_m.f4){
 	if grid_p.x <  0 || grid_p.y < 0{
 		return
 	}
@@ -411,27 +409,21 @@ paint_on_grid_at :: proc(grid_p : eng_m.f2,layer : ^Layer,color : u32,brush_size
 
 calculate_dim_of_extents :: proc(from : m.float2,to : m.float2,brush_size : f32) -> m.float4{
 	result : m.float4	
-	
-
 	return result
 }
 
 test_is_p_in_volume :: proc(from : m.float2,to : m.float2,brush_size : f32) -> bool{
 	result : bool
-
 	return result
 }
 
 /*
 paint_from_to :: proc(from : m.float2,to : m.float2,layer : ^Layer,color : u32,brush_size : i32) -> (draw_rect : eng_m.f4){
-
 	//algorithm
 	//go from first to second point sample pixels inside check coverage if over 0.5 paint
 	//get a subset of possible pixels based on bounding box and iterate by scanline checking  
 	//if we are inside the sum
-	
 	bounds := calculate_dim_of_extents(from,to,f32(brush_size))
-
 	for y := bounds.top;y < bounds.bottom;y+=1{
 		for x := bounds.left;x < bounds.right;x+=1{
 			pixel_of_x := grid[x][y]
@@ -444,10 +436,10 @@ paint_from_to :: proc(from : m.float2,to : m.float2,layer : ^Layer,color : u32,b
 */
 
 flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
+	using eng_m
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
 	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
-
 	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
 	for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
@@ -459,8 +451,8 @@ flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 		if layer.is_show == false{
 			continue
 		}
-		
-		for row : i32 = i32(drawn_rect.y);row < i32(drawn_rect.w);row +=1{
+
+		for row : i32 = i32(drawn_rect.y);row < i32(drawn_rect.w);row += 1{
 			for col : i32 = i32(drawn_rect.x);col < i32(drawn_rect.z);col += 1{ 
 				x := f32(col)
 				y := f32(row)
@@ -469,8 +461,8 @@ flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 				mul_sizes := int(layer.size.x) * size_y
 				painting_idx := int( size_x + mul_sizes)
 				{
-					base : u32 = prev_layer.cache.grid[painting_idx]
-					blend : u32 = layer.grid[painting_idx]
+					base : f4 = prev_layer.cache.grid[painting_idx]
+					blend : f4 = layer.grid[painting_idx]
 					//if base == 0 && blend == 0{continue}
 					if layer.blend_mode == .Normal{
 						result_color := blend_op_normal(base,blend)
@@ -486,7 +478,49 @@ flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 	}
 }
 
+//TODO(Ray): Try flattening only changed pixels.
+//Mutithreading is possible but must be done in order in most cases?
+//Also find ways to use caching to advantage so we 
+//skip re calculating every layer where avoidable.
 flatten_group_init :: proc(group : ^LayerGroup){
+	//starting from bottom to top layer apply final blend and
+	//pixel color and filtering to image
+	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
+	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
+
+	for layer_id,i in group.layer_ids.buffer{
+		//nothing to blend to
+		layer := con.buf_get(&layer_master_list,u64(layer_id))
+		if i != 0{
+			prev_layer = con.buf_ptr(&layer_master_list,u64(prev_layer_id))
+		}
+
+		if layer.is_show == false{
+			continue
+		}
+
+		for texel,j in layer.grid{
+			base : eng_m.f4 = prev_layer.cache.grid[j]
+			blend : eng_m.f4 = layer.grid[j]
+			//if base == 0 && blend == 0{continue}
+			if layer.blend_mode == .Normal{
+				result_color := blend_op_normal(base,blend)
+				layer.cache.grid[j] = result_color
+			}else if layer.blend_mode == .Multiply{
+				result_color := blend_op_multiply(base,blend)
+				layer.cache.grid[j] = result_color
+			}
+		}
+		prev_layer_id = layer_id
+	}
+}
+
+/*
+//TODO(Ray): Try flattening only changed pixels.
+//Mutithreading is possible but must be done in order in most cases?
+//Also find ways to use caching to advantage so we 
+//skip re calculating every layer where avoidable.
+old_flatten_group_init :: proc(group : ^LayerGroup){
 	//starting from bottom to top layer apply final blend and
 	//pixel color and filtering to image
 	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
@@ -518,9 +552,9 @@ flatten_group_init :: proc(group : ^LayerGroup){
 		prev_layer_id = layer_id
 	}
 }
+*/
 
 reset_selection_grid :: proc(){
-	copy(current_layer.grid[:],current_selection.grid[:])
 	for texel in &current_selection.grid{
 		texel = 0x00000000
 	}
