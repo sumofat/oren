@@ -410,7 +410,7 @@ GPUArena AllocateStaticGPUArena(ID3D12Device2* device,u64 size)
     return result;
 }
 
-void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
+f2 WINSetScreenMode(PlatformState* ps,bool is_full_screen)
 {
     HWND Window = ps->window.handle;
     LONG Style = GetWindowLong(Window, GWL_STYLE);
@@ -430,6 +430,7 @@ void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
                          SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
             ps->window.is_full_screen_mode = true;
 			ps->window.dim = f2_create(mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top);
+			return ps->window.dim;
         }
     }
     else
@@ -452,10 +453,12 @@ void WINSetScreenMode(PlatformState* ps,bool is_full_screen)
 */
 
             //SetWindowPlacement(Window, &ps->window.global_window_p);
+			return ps->window.dim;
+			
         }
-        
-        
+
     }
+return f2_create(0,0);
 }
 /*
 D12CommandAllocatorEntry* GetFreeCommandAllocatorEntry(D3D12_COMMAND_LIST_TYPE  type)

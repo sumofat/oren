@@ -4,7 +4,6 @@ import "core:fmt"
 import "core:c"
 import "core:mem"
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 import la "core:math/linalg"
 
 import platform "engine/platform"
@@ -189,7 +188,7 @@ engine_init :: proc(dim : enginemath.f2){
   	result : ErrorStr
    	result,window_data = spawn_window(&ps, "test window", cast(u32)window_dim.x, cast(u32)window_dim.y)
    	if len(result) == 0{
-   		set_screen_mode(&ps,true)
+   		ps.window.dim = set_screen_mode(&ps,true)
    	}
    	window_p   := enginemath.f2{0, 0};
 	   

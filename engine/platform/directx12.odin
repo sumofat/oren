@@ -5,7 +5,6 @@ import "core:c"
 import fmj "../fmj"
 
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 
 import con "../containers"
 
@@ -20,7 +19,7 @@ D3D12_FLOAT32_MAX : f32 : 3.402823466e+38;
 
 D3D12_TEXTURE_DATA_PITCH_ALIGNMENT :: ( 256 );
 
-D3D12_RECT :: window32.Rect;
+D3D12_RECT :: windows.RECT;
 
 CompatibilityProfile :: struct{
     level : c.int,

@@ -156,7 +156,7 @@ struct Input
 struct Window
 {
 #if WINDOWS
-    WNDCLASS w_class;
+    WNDCLASSA w_class;
     HWND handle;
     HDC device_context;
     WINDOWPLACEMENT global_window_p;
@@ -506,7 +506,7 @@ extern "C"
 {
     void HandleWindowsMessages(PlatformState* ps);
     f2 GetWin32WindowDim(PlatformState* ps);
-    void WINSetScreenMode(PlatformState* ps,bool is_full_screen);
+    f2 WINSetScreenMode(PlatformState* ps,bool is_full_screen);
     void PullTimeState(PlatformState* ps);
     void UpdateDigitalButton(DigitalButton* button,u32 state);
     void PullMouseState(PlatformState* ps);

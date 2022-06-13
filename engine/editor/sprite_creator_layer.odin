@@ -14,6 +14,7 @@ import runtime "core:runtime"
 import mem "core:mem"
 import linalg "core:math/linalg"
 import m "core:math/linalg/hlsl"
+
 //Layers
 init_layer_group :: proc(name : string) -> LayerGroup{
 	result : LayerGroup

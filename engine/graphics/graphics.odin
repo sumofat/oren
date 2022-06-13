@@ -10,7 +10,6 @@ import fmj "../fmj"
 import la "core:math/linalg"
 
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 
 import con "../containers"
 
@@ -102,9 +101,9 @@ foreign gfx
 
 	//TODO(Ray):Use a multipointer or something to make sure the user understands need an array here!!
 	ExecuteCommandLists :: proc "c" (queue: rawptr, /*ID3D12CommandList* takes array of lists*/ lists: rawptr, list_count: u32) ---
-	SetEventOnCompletion :: proc "c"(fence : rawptr/*ID3D12Fence**/,Value  : u64,hEvent : windows.HANDLE) -> window32.Hresult ---;
+	SetEventOnCompletion :: proc "c"(fence : rawptr/*ID3D12Fence**/,Value  : u64,hEvent : windows.HANDLE) -> windows.HRESULT ---;
 	Signal :: proc "c" ( /*ID3D12CommandQueue**/commandQueue: rawptr, /*ID3D12Fence**/ fence: rawptr, fenceValue: ^u64) -> u64 ---
-	SignalCommandQueue :: proc "c"(commandQueue : rawptr/*^platform.ID3D12CommandQueue*/,pFence : rawptr /*^platform.ID3D12Fence*/,Value : u64) -> window32.Hresult ---;
+	SignalCommandQueue :: proc "c"(commandQueue : rawptr/*^platform.ID3D12CommandQueue*/,pFence : rawptr /*^platform.ID3D12Fence*/,Value : u64) -> windows.HRESULT ---;
 	WaitForFenceValue :: proc "c" ( /*ID3D12Fence**/fence: rawptr, fenceValue: u64, fenceEvent: windows.HANDLE, duration: f64) ---
 	CheckFeatureSupport :: proc "c" (device: rawptr, Feature: platform.D3D12_FEATURE, pFeatureSupportData: rawptr, FeatureSupportDataSize: windows.UINT) -> bool ---
 	GetIntermediateSize :: proc "c" (resource: rawptr, /*ID3D12Resource* */ firstSubResource: u32, NumSubresources: u32) -> u64 ---

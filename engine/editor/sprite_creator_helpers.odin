@@ -37,7 +37,7 @@ old_blend_op_multiply :: proc(base : u32,blend : u32) -> u32{
 	base_channels :=  unpack_color_32(base)
 	a2 := f32(blend_channels[3]) / 255.0
 	a1 := f32(base_channels[3])  / 255.0
-	for i in 0..2{
+	for i in 0..=2{
 		bl := f32(blend_channels[i]) / 255.0
 		ba := f32(base_channels[i]) / 255.0
 		bl = clamp(bl * ba,0.0,1.0)
@@ -56,10 +56,11 @@ blend_op_multiply :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	//base_channels :=  unpack_color_32(base)
 	a2 := blend[3]//f32(blend_channels[3]) / 255.0
 	a1 := base[3]//f32(base_channels[3])  / 255.0
-	for i in 0..2{
+	for i in 0..=2{
 		bl := blend[i]//f32(blend_channels[i]) / 255.0
 		ba := base[i]//f32(base_channels[i]) / 255.0
 		bl = clamp(bl * ba,0.0,1.0)
+
 		result_unpacked[i] = clamp(f32((ba * (1-a2) + bl * (a2))),0,1)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
 	}
 
@@ -76,7 +77,7 @@ old_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	base_channels :=  unpack_color_32(base)
 	a2 := f32(blend_channels[3]) / 255.0
 	a1 := f32(base_channels[3])  / 255.0
-	for i in 0..2{
+	for i in 0..=2{
 		bl := f32(blend_channels[i]) / 255.0
 		ba := f32(base_channels[i]) / 255.0
 		result_unpacked[i] = clamp(u8((ba * (1-a2) + bl * (a2)) * 255),0,255)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
@@ -87,13 +88,14 @@ old_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
-blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+
+pre_simd_blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	result_unpacked : eng_m.f4
 	//blend_channels := unpack_color_32(blend)
 	//base_channels :=  unpack_color_32(base)
 	a2 := blend[3]//f32(blend_channels[3]) / 255.0
 	a1 := base[3]//f32(base_channels[3])  / 255.0
-	for i in 0..2{
+	for i in 0..=2{
 		bl := blend[i]//f32(blend_channels[i]) / 255.0
 		ba := base[i]//f32(base_channels[i]) / 255.0
 		result_unpacked[i] = clamp(f32((ba * (1-a2) + bl * (a2))),0,1)//clamp(u8(((ba * (1 - a1) + bl * a2) * 255)),0,255)
@@ -101,6 +103,30 @@ blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	result_unpacked[3] = 1//255//blend_channels[3]
 	//final_color : eng_m.f4 = //u32((u32(result_unpacked[3]) << 24) | (u32(result_unpacked[2]) << 16) | (u32(result_unpacked[1]) << 8) | u32(result_unpacked[0]) )
 	return result_unpacked//final_color
+}
+
+blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+	result_unpacked : eng_m.f4
+
+	t_result : simd.f32x4
+
+	a2 := blend[3]
+	a1 := base[3]
+	one_minus_a2 := 1 - a2
+	omt : simd.f32x4 = {one_minus_a2,one_minus_a2,one_minus_a2,one_minus_a2}
+	omt2 : simd.f32x4 = {a2,a2,a2,a2}
+	base_sim : simd.f32x4 = {base.x,base.y,base.z,base.w}
+	blend_sim : simd.f32x4 = {blend.x,blend.y,blend.z,blend.w}
+
+	ba_times_omt := simd.mul(base_sim,omt)
+	bl_time_a2 := simd.mul(blend_sim,omt2)
+	ba_plus_b1_times_a2 := simd.add(ba_times_omt,bl_time_a2)
+	clamped_simd_result := simd.clamp(ba_plus_b1_times_a2,{0,0,0,0},{1,1,1,1})
+
+	result_unpacked = la.Vector4f32(simd.to_array(ba_plus_b1_times_a2))
+
+	result_unpacked[3] = 1
+	return result_unpacked
 }
 
 bounds_to_points :: proc(origin : eng_m.f2,bounds : BoundingRect,grid_step : f32) -> BoundingQuad{

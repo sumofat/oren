@@ -11,7 +11,6 @@ import "../external/cgltf"
 import "../external/odin_stb/stbi"
 
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 
 import con "../containers"
 import enginemath "../math"

@@ -1,43 +1,40 @@
 package oren
 import platform "engine/platform"
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 import runtime "core:runtime"
 import la "core:math/linalg"
 
-Wnd_Proc :: proc "std" (hwnd : window32.Hwnd, uMsg : u32, wParam : window32.Wparam, lParam : window32.Lparam) -> window32.Lresult{
+Wnd_Proc :: proc "std" (hwnd : windows.HWND, uMsg : u32, wParam : windows.WPARAM, lParam : windows.LPARAM) -> windows.LRESULT{
 	context = runtime.default_context();
 	platform.ImGui_ImplWin32_WndProcHandler(hwnd, uMsg, wParam, lParam);//{
 
     switch (uMsg){
-    	case window32.WM_DESTROY:{
-    	    window32.post_quit_message(0);
+    	case windows.WM_DESTROY:{
+    	    windows.PostQuitMessage(0);
     	    return 0;
         }
-    	case window32.WM_PAINT:{
-    	    ps : window32.Paint_Struct = {};
-    	    hdc : window32.Hdc = window32.begin_paint(hwnd, &ps);
-
-    	    //window32.fill_rect(hdc, &ps.rcPaint, window32.COLOR_BACKGROUND);
-
-    	    window32.end_paint(hwnd, &ps);
+    	case windows.WM_PAINT:{
+    	    ps : windows.PAINTSTRUCT = {};
+    	    hdc : windows.HDC = windows.BeginPaint(hwnd, &ps);
+    	    //windows.fill_rect(hdc, &ps.rcPaint, windows.COLOR_BACKGROUND);
+    	    windows.EndPaint(hwnd, &ps);
     	    return 0;
     	}
     }
-    return window32.def_window_proc_a(hwnd, uMsg, wParam, lParam);
+    return windows.DefWindowProcA(hwnd, uMsg, wParam, lParam);
 }
 
 WindowData :: struct {
-    hInstance : window32.Hinstance,
-    hwnd : window32.Hwnd,
+    hInstance : windows.HINSTANCE,
+    hwnd : windows.HWND,
     width : u32,
     height : u32,
 };
 
 ErrorStr :: cstring;
 GWL_STYLE :: -16
-set_screen_mode :: proc(ps : ^platform.PlatformState,is_full_screen : bool){
-	platform.WINSetScreenMode(ps,is_full_screen)
+set_screen_mode :: proc(ps : ^platform.PlatformState,is_full_screen : bool)-> la.Vector2f32{
+	return platform.WINSetScreenMode(ps,is_full_screen)
 }
 
 spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : u32 = 640, height : u32 = 480 ) -> (ErrorStr, WindowData){
@@ -47,25 +44,25 @@ spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : 
 
     CLASS_NAME : cstring = "Main Window";
 
-    wc : window32.Wnd_Class_Ex_A = {}; 
-    hInstance := cast(window32.Hinstance)(window32.get_module_handle_a(nil));
+    wc : windows.WNDCLASSEXA = {}; 
+    hInstance := cast(windows.HINSTANCE)(windows.GetModuleHandleA(nil));
     ps.is_running = true;
     ps.window.dim = Vector2f32{f32(width), f32(height)};
     ps.window.p = Vector2f32{};
     
-    wc.size = size_of(window32.Wnd_Class_Ex_A);
-    wc.wnd_proc = Wnd_Proc;
-    wc.instance = hInstance;
-    wc.class_name = CLASS_NAME;
+    wc.cbSize = size_of(windows.WNDCLASSEXA);
+    wc.lpfnWndProc = Wnd_Proc;
+    wc.hInstance = hInstance;
+    wc.lpszClassName = CLASS_NAME;
 
-    if window32.register_class_ex_a(&wc) == 0 do return "Failed to register class!", window;
+    if windows.RegisterClassExA(&wc) == 0 do return "Failed to register class!", window;
 
-    hwnd := window32.create_window_ex_a(
+    hwnd := windows.CreateWindowExA(
         0,
         CLASS_NAME,
         windowName,
-        window32.WS_OVERLAPPEDWINDOW | window32.WS_VISIBLE,
-        window32.CW_USEDEFAULT, window32.CW_USEDEFAULT, i32(ps.window.dim.x), i32(ps.window.dim.y),
+        windows.WS_OVERLAPPEDWINDOW | windows.WS_VISIBLE,
+        windows.CW_USEDEFAULT, windows.CW_USEDEFAULT, i32(ps.window.dim.x), i32(ps.window.dim.y),
         nil,
         nil,
         hInstance,
@@ -86,12 +83,12 @@ spawn_window :: proc(ps : ^platform.PlatformState,windowName : cstring, width : 
 }
 
 handle_msgs :: proc(window : ^WindowData) -> bool{
-    msg : window32.Msg = {};
+    msg : windows.MSG = {};
     cont : bool = true;
-    for window32.peek_message_a(&msg, nil, 0, 0, window32.PM_REMOVE){ 
-        if msg.message == window32.WM_QUIT do cont = false;
-        window32.translate_message(&msg);
-        window32.dispatch_message_a(&msg);
+    for windows.PeekMessageA(&msg, nil, 0, 0, windows.PM_REMOVE){ 
+        if msg.message == windows.WM_QUIT do cont = false;
+        windows.TranslateMessage(&msg);
+        windows.DispatchMessageA(&msg);
     }
     return cont;
 }

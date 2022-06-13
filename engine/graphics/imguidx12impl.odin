@@ -37,9 +37,9 @@ import imgui "../external/odin-imgui"
 import platform "../platform"
 import "core:c"
 import "core:mem"
-import win32 "core:sys/win32"
 import "core:runtime"
 import "core:intrinsics"
+import "core:sys/windows"
 // DirectX
 //#include <d3d12.h>
 //#include <dxgi1_4.h>
@@ -305,6 +305,7 @@ ImGui_ImplDX12_RenderDrawData :: proc(draw_data: ^imgui.Draw_Data, ctx_list: raw
 	}
 }
 
+INFINITE :: 0xFFFFFFFF  // Infinite timeout
 ImGui_ImplDX12_CreateFontsTexture :: proc() {
 	// Build texture atlas
 	io:     ^imgui.IO = imgui.get_io();
@@ -444,7 +445,7 @@ ImGui_ImplDX12_CreateFontsTexture :: proc() {
 
 		SetEventOnCompletion(fence,1,event);
 		//fence.SetEventOnCompletion(1, event);
-		WaitForSingleObject(event, win32.INFINITE);
+		WaitForSingleObject(event, INFINITE);
 
 
 		//cmdList.Release();

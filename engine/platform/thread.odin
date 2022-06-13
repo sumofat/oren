@@ -1,8 +1,6 @@
 package platform;
 
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
-
 import intrin "core:intrinsics"
 
 TicketMutex :: struct

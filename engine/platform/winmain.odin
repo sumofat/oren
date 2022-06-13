@@ -4,7 +4,6 @@ package platform
 import "core:fmt"
 import "core:c"
 import windows "core:sys/windows"
-import window32 "core:sys/win32"
 import fmj "../fmj"
 import la "core:math/linalg"
 import math "../math"
@@ -156,10 +155,10 @@ Input :: struct
 
 Window :: struct
 {
-    w_class : window32.Wnd_Class_A,
-    handle : window32.Hwnd,
-    device_context : window32.Hdc,
-    global_window_p : window32.Window_Placement,
+    w_class : windows.WNDCLASSA,
+    handle : windows.HWND,
+    device_context : windows.HDC,
+    global_window_p : windows.WINDOWPLACEMENT,
     dim : la.Vector2f32,
     p : la.Vector2f32,
     is_full_screen_mode : bool,
@@ -168,14 +167,14 @@ Window :: struct
 TRACKMOUSEEVENT :: struct{
   cbSize : windows.DWORD,
   dwFlags : windows.DWORD,
-  hwndTrack : window32.Hwnd,
+  hwndTrack : windows.HWND,
   dwHoverTime : windows.DWORD,
 };
 
 TME_LEAVE :: 0x00000002;
 WM_MOUSELEAVE :: 0x02A3;
 WHEEL_DELTA :: 120;
-GET_WHEEL_DELTA_WPARAM :: window32.HIWORD_W;
+GET_WHEEL_DELTA_WPARAM :: windows.HIWORD;
 HTCLIENT :: 1; //in a client area
 DBT_DEVNODES_CHANGED :: 0x0007;//device has been added to or removed from the system.
 WM_DEVICECHANGE :: 0x0219;
@@ -231,12 +230,12 @@ foreign platform
     CreateFence :: proc "c"(device : rawptr) -> rawptr/*ID3D12Fence**/---;
     CreateEventHandle :: proc "c"() ->windows.HANDLE ---;
     IsFenceComplete :: proc "c"(fence : rawptr /*ID3D12Fence* */,fence_value : u64) -> bool ---;
-    GetForegroundWindow :: proc "c"() ->  window32.Hwnd ---;
-    IsChild :: proc "c"(hWndParent : window32.Hwnd,hWnd : window32.Hwnd) -> bool ---;
+    GetForegroundWindow :: proc "c"() ->  windows.HWND ---;
+    IsChild :: proc "c"(hWndParent : windows.HWND,hWnd : windows.HWND) -> bool ---;
     //TrackMouseEvent :: proc "c"(lpEventTrack : ^TRACKMOUSEEVENT) -> bool ---;
     CopyTextureRegion :: proc "c" (list : rawptr,pDst : ^D3D12_TEXTURE_COPY_LOCATION,DstX : c.uint,DstY : c.uint,DstZ : c.uint,pSrc : ^D3D12_TEXTURE_COPY_LOCATION,pSrcBox : ^D3D12_BOX) ---;
     WaitForSingleObject :: proc "c" (hHandle : windows.HANDLE,dwMilliseconds : windows.DWORD) -> windows.DWORD ---;
-    WINSetScreenMode :: proc "c"(ps : ^PlatformState,is_full_screen : bool) ---;
+    WINSetScreenMode :: proc "c"(ps : ^PlatformState,is_full_screen : bool) -> la.Vector2f32 ---;
     OutputDebugStringW :: proc "c"(lpOutputString : cstring) ---
 }
 

@@ -14,9 +14,8 @@ import runtime "core:runtime"
 import mem "core:mem"
 import linalg "core:math/linalg"
 import thread "core:thread"
-import syswin32 "core:sys/win32"
 import sync "core:sync"
-
+import win "core:sys/windows"
 //TODO(Ray): Sprite Editor
 /*
 # Architecture
@@ -172,8 +171,8 @@ subsample_mouse_input :: proc(t: ^thread.Thread){
 	prev_sample_x : i32
 	prev_sample_y : i32
 	for {
-		point : syswin32.Point
-		syswin32.get_cursor_pos(&point)
+		point : win.POINT
+		win.GetCursorPos(&point)
 		p : eng_m.f2 = eng_m.f2{f32(point.x),f32(point.y)}
 		//fmt.println(p)
 		if i32(p.x) == prev_sample_x && i32(p.y) == prev_sample_y{

@@ -215,7 +215,7 @@ init_lines :: proc(using state : ^SlotMachineState){
 	using con
 	total_lines := grid.tile_size.y
 	machine.lines = buf_init(5,SlotLine)
-	for i in 0..total_lines - 1{
+	for i in 0..= total_lines - 1{
 		new_line := SlotLine{con.buf_init(u64(grid.tile_size.x),u64),false,false,1000,800,i + 0.2,-1}
 		new_line.is_spin_complete = true
 		buf_push(&machine.lines,new_line)
@@ -237,8 +237,8 @@ set_default_grid :: proc(using state : ^SlotMachineState){
 	start_row := origin_left
 	start_column := origin_top
 
-	for row in 0..grid.tile_size.x - 1{
-		for column in 0..grid.tile_size.y - 1{
+	for row in 0..=grid.tile_size.x - 1{
+		for column in 0..=grid.tile_size.y - 1{
 			idx := (row * grid.stride) + column
 			tile : SlotGridTile
 			rand_symbol_id := u64(rand.float32_range(0,5))
@@ -293,7 +293,7 @@ set_paylines :: proc(using state : ^SlotMachineState){
 0 idx	
 	*/
 
-	for i in 0..4{
+	for i in 0..=4{
 		entry  : PayLineEntry
 		entry.idx = (2 * 5) + i
 		buf_push(&test_payline,entry)
@@ -388,7 +388,7 @@ get_playable_grid :: proc(using state : ^SlotMachineState){
 	stride : int = int(grid.stride)
 	
 
-	for row in 0..int(grid.playable_size.x) - 1{
+	for row in 0..=int(grid.playable_size.x) - 1{
 		for line , column in lines.buffer{
 			logger.print_log("pgrid ","idx ",(row*stride + column),playable_grid[(row * stride) + column:(row * stride)+ column + 1])
 			copy(playable_grid[(row * stride) + column:(row * stride)+ column + 1], tiles[(row * stride) + column:(row * stride)+ column + 1])
@@ -501,7 +501,7 @@ finish_slot_animation :: proc(using state : ^SlotMachineState, slot_idx : int,of
 					bottom_row := 0
 					finish_row_index := bottom_row
 					stride := int(machine.grid.tile_size.y)
-					for j in 0..int(machine.grid.playable_size.x) - 1{
+					for j in 0..=int(machine.grid.playable_size.x) - 1{
 						//tiles with final ids
 
 						final_tile := playable_grid[(j * stride) + slot_idx : (j*stride) + (slot_idx + 1)]
@@ -542,8 +542,8 @@ assign_random_symbol_to_grid :: proc(using state : ^SlotMachineState){
 	using gfx.asset_ctx
 	using platform.ps
 
-	for row in 0..grid.tile_size.x - 1{
-		for column in 0..machine.grid.tile_size.y - 1{
+	for row in 0..=grid.tile_size.x - 1{
+		for column in 0..=machine.grid.tile_size.y - 1{
 			idx := (row * grid.stride) + column
 			tile := buf_ptr(&grid.tile_grid,u64(idx))
 			sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
@@ -620,8 +620,8 @@ show_temp_ui :: proc(using state : ^SlotMachineState, is_showing : ^bool){
 	if imgui.button("Toggle Hide Playable Grid"){
 
 		if show_hide_play_grid == false{
-			for row in 0..int(machine.grid.playable_size.x) - 1{
-				for column in 0..int(machine.grid.playable_size.y) - 1{
+			for row in 0..=int(machine.grid.playable_size.x) - 1{
+				for column in 0..=int(machine.grid.playable_size.y) - 1{
 					tile := con.buf_get(&machine.grid.tile_grid,u64(current_play_grid_rows_tile_ids[row][column]))
 					sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
 					sprite.visible = false
@@ -629,8 +629,8 @@ show_temp_ui :: proc(using state : ^SlotMachineState, is_showing : ^bool){
 			}	
 		}else{
 			stride := int(machine.grid.stride)
-			for row in 0..int(machine.grid.tile_size.x) - 1{
-				for column in 0..int(machine.grid.tile_size.y) - 1{
+			for row in 0..=int(machine.grid.tile_size.x) - 1{
+				for column in 0..=int(machine.grid.tile_size.y) - 1{
 					tile := con.buf_get(&machine.grid.tile_grid,u64(row * stride + column))
 					sprite := gfx.get_sprite(machine.grid.sprite_layer,tile.sprite_id)
 					sprite.visible = true
@@ -666,7 +666,7 @@ show_temp_ui :: proc(using state : ^SlotMachineState, is_showing : ^bool){
 
 		total_money -= bet_amount
 
-		for i in 0..4{
+		for i in 0..<4{
 			line := con.buf_ptr(&machine.lines,u64(i))
 			line.is_spin_complete = false
 			line.is_stop_set = false
@@ -704,7 +704,7 @@ show_temp_ui :: proc(using state : ^SlotMachineState, is_showing : ^bool){
 			total_money -= bet_amount
 			is_spin_complete = false
 			assign_random_symbol_to_grid(state)
-			for i in 0..4{
+			for i in 0..<4{
 				line := con.buf_ptr(&machine.lines,u64(i))
 				line.is_spin_complete = false
 			}
