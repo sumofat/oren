@@ -218,7 +218,6 @@ get_bounds_from_points :: proc(rect : BoundingRect,top : eng_m.f2,right : eng_m.
 }
 */
 
-
 push_to_gpu :: proc(){
 	top_layer_idx : u64 = con.buf_len(current_group.layer_ids) - 1
 	top_layer_id : i32

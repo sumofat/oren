@@ -636,7 +636,6 @@ image_blank :: proc(texture : ^Texture,dim : enginemath.f2,desired_channels : i3
 //	adjusted_dim := texture.dim * enginemath.f2{f32(texture.bytes_per_pixel),f32(texture.bytes_per_pixel)};
     texture.width_over_height = cast(f32)(dimx / dimy);
     stride := texture.dim.x
-
 	
 	iterator_count : int = int(bytes_per_pixel) / 4
 	for x := 0;x < int(texture.size) / 4;x += 1{

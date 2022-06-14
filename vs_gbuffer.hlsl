@@ -1,12 +1,11 @@
 #pragma pack_matrix( row_major )
 
-ByteAddressBuffer matrix_buffer : register(t3);
+ByteAddressBuffer matrix_buffer : register(t0);
 
 struct ModelViewProjection
 {
     matrix MVP;
 };
-
 
 ConstantBuffer<ModelViewProjection> ModelViewProjectionCB : register(b0);
 ConstantBuffer<ModelViewProjection> test : register(b1);
