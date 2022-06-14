@@ -105,13 +105,9 @@ add_sprite :: proc(layer : ^SpriteLayer,p : e_math.f3,r : e_math.Quat,s : e_math
 
 sprite_update :: proc(entity_bucket : ^pkg_entity.EntityBucket,data : rawptr){
 	using pkg_entity
-
 	mesh := con.buf_get(&asset_ctx.asset_tables.meshes,quad_mesh_id)
-
 	for b ,i in entity_bucket.entities.buffer{
-		
 		ecs_sprites := (^con.Buffer(Sprite))(data)
-
 		sprite := con.buf_ptr(ecs_sprites,u64(i))
 		if sprite.visible{
 			com := CustomRenderCommand{}
@@ -127,9 +123,9 @@ sprite_update :: proc(entity_bucket : ^pkg_entity.EntityBucket,data : rawptr){
 			com.material_id = cast(u64)mesh.material_id
 			com.material_name = "mesh_alpha"
 			com.texture_id = sprite.texture_id
-			com.matrix_id = sprite.m_id//child_so.m_id
-			com.camera_matrix_id = cam_m_id//sprite_group.camera_m_id
-			com.perspective_matrix_id = cam_persp_m_id//sprite_group.projection_m_id//p_mat
+			com.matrix_id = sprite.m_id
+			com.camera_matrix_id = cam_m_id
+			com.perspective_matrix_id = cam_persp_m_id
 			con.buf_push(&custom_render.list.command_buffer, com)
 		}
 	}

@@ -20,7 +20,11 @@ import win "core:sys/windows"
 /*
 
 SPRITE EDITOR
-
+# Idea
+	| We are potentionally creating a framework for doing random and procedural texture creation at runtime 
+	| which could be also extended to a nocode solution using some generalized tools for artist such as 
+	| setting a paint area with color range and random number gen.  
+	| We want to also move the engine out of being wholistic and set the game code to be loaded as a module.
 # Architecture
 	| In general the code for doing graphics needs to be revamped and cleaned up.
 	| 
