@@ -16,8 +16,11 @@ import linalg "core:math/linalg"
 import thread "core:thread"
 import sync "core:sync"
 import win "core:sys/windows"
-//TODO(Ray): Sprite Editor
+
 /*
+
+SPRITE EDITOR
+
 # Architecture
 	| In general the code for doing graphics needs to be revamped and cleaned up.
 	| 
@@ -252,7 +255,7 @@ show_sprite_createor :: proc(){
 		current_layer_id = 0
 	}
 
-	//color_edit4("ColorButton",([]eng_m.f4)(colora))
+	color_edit4("ColorButton",([^]f32)(&colora))
 	checkbox("Show Grid",&is_show_grid)
 	input_int("Brush Size",&current_brush_size)
 	if is_show_grid  == false{
@@ -261,7 +264,7 @@ show_sprite_createor :: proc(){
 		grid_color = Vec4{0.6,0.6, 0.6, 1}
 	}
 
-	selected_color = {0,0,0,1}//eng_m.f4(colora)//color_convert_float4to_u32(Vec4{colora[0],colora[1],colora[2],colora[3]})
+	selected_color = eng_m.f4(colora)
 
 	input_text("Layer Name",transmute([]u8)input_layer_name)
 	same_line()
@@ -463,12 +466,10 @@ show_sprite_createor :: proc(){
 
 			//for now the selection is the whole layer.
 			is_moved_true := move_selection(current_layer,grid_offset,current_selection)
-			if is_moved_true{
-				copy(current_layer.grid[:],current_selection.grid[:])
-				reset_selection_grid()
-				flatten_group_init(current_group)
-				push_to_gpu()	
-			}
+			copy(current_layer.grid[:],current_selection.grid[:])
+			reset_selection_grid()
+			flatten_group_init(current_group)
+			push_to_gpu()	
 		}else if current_tool_mode == .Rotate && tool_mode_change_request == .Rotate && is_mouse_down(Mouse_Button.Left){
 			test_angle += f64( io.mouse_delta.x)
 			is_rotate_true := rotate_selection(origin,current_layer,test_angle,current_selection)

@@ -71,7 +71,7 @@ blend_op_multiply :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	return final_color
 }
 
-old_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
+u8_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	result_unpacked : [4]u8
 	blend_channels := unpack_color_32(blend)
 	base_channels :=  unpack_color_32(base)
@@ -88,8 +88,7 @@ old_blend_op_normal :: proc(base : u32,blend : u32) -> u32{
 	return final_color
 }
 
-
-pre_simd_blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	result_unpacked : eng_m.f4
 	//blend_channels := unpack_color_32(blend)
 	//base_channels :=  unpack_color_32(base)
@@ -105,14 +104,13 @@ pre_simd_blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	return result_unpacked//final_color
 }
 
-blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
+simd_blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	result_unpacked : eng_m.f4
-
-	t_result : simd.f32x4
-
 	a2 := blend[3]
 	a1 := base[3]
 	one_minus_a2 := 1 - a2
+
+/*
 	omt : simd.f32x4 = {one_minus_a2,one_minus_a2,one_minus_a2,one_minus_a2}
 	omt2 : simd.f32x4 = {a2,a2,a2,a2}
 	base_sim : simd.f32x4 = {base.x,base.y,base.z,base.w}
@@ -123,9 +121,25 @@ blend_op_normal :: proc(base : eng_m.f4,blend : eng_m.f4) -> eng_m.f4{
 	ba_plus_b1_times_a2 := simd.add(ba_times_omt,bl_time_a2)
 	clamped_simd_result := simd.clamp(ba_plus_b1_times_a2,{0,0,0,0},{1,1,1,1})
 
-	result_unpacked = la.Vector4f32(simd.to_array(ba_plus_b1_times_a2))
+	result_unpacked = la.Vector4f32(simd.to_array(clamped_simd_result))
 
 	result_unpacked[3] = 1
+	*/
+
+	omt_a2 : simd.f32x8 = {one_minus_a2,one_minus_a2,one_minus_a2,one_minus_a2,a2,a2,a2,a2}
+	base_blend : simd.f32x8 = {base.x,base.y,base.z,base.w,blend.x,blend.y,blend.z,blend.w}
+
+	ba_bl_omt_a2 := simd.mul(omt_a2,base_blend)
+	ba_bl_omt_a2_2 := simd.lanes_rotate_left(ba_bl_omt_a2,4)
+
+	//ba_result := simd.clamp(simd.add(ba_bl_omt_a2,ba_bl_omt_a2_2),{0,0,0,0,0,0,0,0},{1,1,1,1,1,1,1,1})
+	ba_result := simd.add(ba_bl_omt_a2,ba_bl_omt_a2_2)
+
+	result_unpacked = simd.extract(ba_result,0)
+	result_unpacked = simd.extract(ba_result,1)
+	result_unpacked = simd.extract(ba_result,2)
+	result_unpacked[3] = 1
+	
 	return result_unpacked
 }
 

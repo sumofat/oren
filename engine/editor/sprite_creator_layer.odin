@@ -130,7 +130,7 @@ move_selection :: proc(layer : ^Layer,p : imgui.Vec2,selection : Selection) -> b
 	x := p.x//selection.bounds.left
 	start_x := x
 	y := p.y//selection.bounds.top
-	//dest_start := &selection.grid[0]//&selection.grid[int((y * stride) + x)]
+
 	row_size := layer.size.x * size_of(u32)//(layer.bounds.right - layer.bounds.left) * size_of(u32)
 	if row_size > layer.size.x * size_of(u32){
 		return false
@@ -442,7 +442,7 @@ flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 	//pixel color and filtering to image
 	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
 	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
-	for layer_id,i in group.layer_ids.buffer{
+	#no_bounds_check for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
 		layer := con.buf_ptr(&layer_master_list,u64(layer_id))
 		if i != 0{
@@ -453,25 +453,22 @@ flatten_group :: proc(group : ^LayerGroup,drawn_rect : eng_m.f4){
 			continue
 		}
 
-		for row : i32 = i32(drawn_rect.y);row < i32(drawn_rect.w);row += 1{
-			for col : i32 = i32(drawn_rect.x);col < i32(drawn_rect.z);col += 1{ 
+		#no_bounds_check for row : i32 = i32(drawn_rect.y);row < i32(drawn_rect.w);row += 1{
+			#no_bounds_check for col : i32 = i32(drawn_rect.x);col < i32(drawn_rect.z);col += 1{ 
 				x := f32(col)
 				y := f32(row)
 				size_x := int(clamp(x,0,layer.size.x - 1))
 				size_y := int(clamp(y,0,layer.size.y - 1))
 				mul_sizes := int(layer.size.x) * size_y
 				painting_idx := int( size_x + mul_sizes)
-				{
-					base : f4 = prev_layer.cache.grid[painting_idx]
-					blend : f4 = layer.grid[painting_idx]
-					//if base == 0 && blend == 0{continue}
-					if layer.blend_mode == .Normal{
-						result_color := blend_op_normal(base,blend)
-						layer.cache.grid[painting_idx] = result_color
-					}else if layer.blend_mode == .Multiply{
-						result_color := blend_op_multiply(base,blend)
-						layer.cache.grid[painting_idx] = result_color
-					}
+
+				base : f4 = prev_layer.cache.grid[painting_idx]
+				blend : f4 = layer.grid[painting_idx]
+				//if base == 0 && blend == 0{continue}
+				if layer.blend_mode == .Normal{
+					layer.cache.grid[painting_idx] = blend_op_normal(base,blend)
+				}else if layer.blend_mode == .Multiply{
+					layer.cache.grid[painting_idx] =  blend_op_multiply(base,blend)
 				}
 			}
 		}
@@ -489,7 +486,7 @@ flatten_group_init :: proc(group : ^LayerGroup){
 	prev_layer_id := con.buf_get(&group.layer_ids,u64(0))
 	prev_layer := con.buf_ptr(&layer_master_list,u64(prev_layer_id))
 
-	for layer_id,i in group.layer_ids.buffer{
+	#no_bounds_check for layer_id,i in group.layer_ids.buffer{
 		//nothing to blend to
 		layer := con.buf_get(&layer_master_list,u64(layer_id))
 		if i != 0{
@@ -500,12 +497,14 @@ flatten_group_init :: proc(group : ^LayerGroup){
 			continue
 		}
 
-		for texel,j in layer.grid{
+		#no_bounds_check for texel,j in layer.grid{
 			base : eng_m.f4 = prev_layer.cache.grid[j]
 			blend : eng_m.f4 = layer.grid[j]
 			//if base == 0 && blend == 0{continue}
 			if layer.blend_mode == .Normal{
+
 				result_color := blend_op_normal(base,blend)
+
 				layer.cache.grid[j] = result_color
 			}else if layer.blend_mode == .Multiply{
 				result_color := blend_op_multiply(base,blend)
